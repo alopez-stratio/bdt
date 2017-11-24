@@ -37,7 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-
 public class CucumberRunner {
 
     private final cucumber.runtime.Runtime runtime;
