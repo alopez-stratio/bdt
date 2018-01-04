@@ -276,7 +276,7 @@ public class ThenGSpec extends BaseGSpec {
     public void assertSeleniumTextOnElementPresent(Integer index, String text) {
         assertThat(commonspec.getPreviousWebElements()).as("There are less found elements than required")
                 .hasAtLeast(index);
-        assertThat(commonspec.getPreviousWebElements().getPreviousWebElements().get(index)).contains(text);
+        assertThat(commonspec.getPreviousWebElements().getPreviousWebElements().get(index)).getCommonspec().matchesOrContains(text);
     }
 
     /**
