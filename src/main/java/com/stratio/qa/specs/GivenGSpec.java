@@ -755,4 +755,98 @@ public class GivenGSpec extends BaseGSpec {
     public void connectLDAP() {
         commonspec.getLdapUtils().connect();
     }
+
+    /**
+     * Send a request of the type specified but in this case, the response is checked until it contains the expected value
+     *
+     * @param requestType   type of request to be sent. Possible values:
+     *                      GET|DELETE|POST|PUT|CONNECT|PATCH|HEAD|OPTIONS|REQUEST|TRACE
+     * @param timeout
+     * @param wait
+     * @param responseVal
+     * @param endPoint      end point to be used
+     * @param baseData      path to file containing the schema to be used
+     * @param type          element to read from file (element should contain a json)
+     * @param modifications DataTable containing the modifications to be done to the
+     *                      base schema element. Syntax will be:
+     *                      {@code
+     *                      | <key path> | <type of modification> | <new value> |
+     *                      }
+     *                      where:
+     *                      key path: path to the key to be modified
+     *                      type of modification: DELETE|ADD|UPDATE
+     *                      new value: in case of UPDATE or ADD, new value to be used
+     *                      for example:
+     *                      if the element read is {"key1": "value1", "key2": {"key3": "value3"}}
+     *                      and we want to modify the value in "key3" with "new value3"
+     *                      the modification will be:
+     *                      | key2.key3 | UPDATE | "new value3" |
+     *                      being the result of the modification: {"key1": "value1", "key2": {"key3": "new value3"}}
+     * @throws Exception
+     */
+    @Given("^in less than '(\\d+?)' seconds, checking each '(\\d+?)' seconds, I send a '(.+?)' request to '(.+?)' so that the response( does not)? contains '(.+?)' based on '([^:]+?)'( as '(json|string)')? with:$")
+    public void sendRequestDataTableTimeout(Integer timeout, Integer wait, String requestType, String endPoint, String contains, String responseVal, String baseData, String baz, String type, DataTable modifications) throws Exception {
+
+        // Retrieve data
+        String retrievedData = commonspec.retrieveData(baseData, type);
+
+        // Modify data
+        commonspec.getLogger().debug("Modifying data {} as {}", retrievedData, type);
+        String modifiedData = commonspec.modifyData(retrievedData, type, modifications).toString();
+
+        Boolean searchUntilContains;
+        if (contains == null || contains.isEmpty()) {
+            searchUntilContains = Boolean.TRUE;
+        } else {
+            searchUntilContains = Boolean.FALSE;
+        }
+        Boolean found = !searchUntilContains;
+        AssertionError ex = null;
+
+        Future<Response> response;
+
+        Pattern pattern = CommonG.matchesOrContains(responseVal);
+
+        for (int i = 0; (i <= timeout); i += wait) {
+            if (found && searchUntilContains) {
+                break;
+            }
+            commonspec.getLogger().debug("Generating request {} to {} with data {} as {}", requestType, endPoint, modifiedData, type);
+            response = commonspec.generateRequest(requestType, false, null, null, endPoint, modifiedData, type);
+            commonspec.getLogger().debug("Saving response");
+            commonspec.setResponse(requestType, response.get());
+            commonspec.getLogger().debug("Checking response value");
+            try {
+                if (searchUntilContains) {
+                    assertThat(commonspec.getResponse().getResponse()).containsPattern(pattern);
+                    found = true;
+                    timeout = i;
+                } else {
+                    assertThat(commonspec.getResponse().getResponse()).doesNotContain(responseVal);
+                    found = false;
+                    timeout = i;
+                }
+            } catch (AssertionError e) {
+                if (!found) {
+                    commonspec.getLogger().info("Response value not found after " + i + " seconds");
+                } else {
+                    commonspec.getLogger().info("Response value found after " + i + " seconds");
+                }
+                Thread.sleep(wait * 1000);
+                ex = e;
+            }
+            if (!found && !searchUntilContains) {
+                break;
+            }
+        }
+        if ((!found && searchUntilContains) || (found && !searchUntilContains)) {
+            throw (ex);
+        }
+        if (searchUntilContains) {
+            commonspec.getLogger().info("Success! Response value found after " + timeout + " seconds");
+        } else {
+            commonspec.getLogger().info("Success! Response value not found after " + timeout + " seconds");
+        }
+    }
+
 }
