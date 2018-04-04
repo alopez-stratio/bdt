@@ -16,10 +16,13 @@
 package com.stratio.qa.specs;
 
 import com.stratio.qa.utils.ThreadProperty;
+import cucumber.api.DataTable;
 import org.testng.annotations.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -58,5 +61,31 @@ public class GivenGTest {
         String dcosSecret = "04uth_jwt_s3cr3t";
 
         giveng.setDCOSCookie(dcosSecret,email);
+    }
+
+    @Test
+    public void testsendRequestDataTableTimeout() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        commong.setRestHost("jenkins.stratio.com");
+        commong.setRestPort(":80");
+        String endPoint = "endpoint";
+        String expectedMsg = "regex:tag";
+        String requestType = "POST";
+        String baseData = "retrieveDataStringTest.conf";
+        String type = "string";
+        List<List<String>> rawData = Arrays.asList(Arrays.asList("key1", "DELETE", "N/A"));
+        DataTable modifications = DataTable.create(rawData);
+
+        GivenGSpec giveng = new GivenGSpec(commong);
+
+        try {
+            giveng.sendRequestDataTableTimeout(10,1,requestType,endPoint,null,expectedMsg,baseData,null,type,modifications);
+            fail("Expected Exception");
+        } catch (NullPointerException e) {
+            assertThat(e.getClass().toString()).as("Unexpected exception").isEqualTo(NullPointerException.class.toString());
+            assertThat(e.getMessage()).as("Unexpected exception message").isEqualTo(null);
+        }
+
     }
 }

@@ -5,6 +5,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 ## 0.7.0 (upcoming)
 
 * [CROSSDATA-1550] Add @multiloop tag
+* [QATM-1061] Add step to send requests to endpoint with timeout and datatable
 
 ## 0.6.0 (February 22, 2018)
 
