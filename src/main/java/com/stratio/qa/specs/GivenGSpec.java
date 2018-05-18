@@ -960,4 +960,65 @@ public class GivenGSpec extends BaseGSpec {
         return result.substring(1, result.length());
     }
 
+    /**
+     * Get info about secrets according input parameter
+     *
+     * @param type what type of info (cert, key, ca, principal or keytab)
+     * @param path path where get info
+     * @param value value inside path
+     * @param token vault value
+     * @param machine gosec machine IP
+     * @param contains regex needed to match method
+     * @param exitStatus command exit status
+     * @param envVar: environment variable name
+     *
+     * @throws Exception exception     *
+     *
+     */
+    @Given("^I get '(.+?)' from path '(.+?)' for value '(.+?)' with token '(.+?)' , gosec machine '(.+?)'( with exit status '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getSecretInfo(String type, String path, String value, String token, String machine, String contains, Integer exitStatus, String envVar) throws Exception {
+
+        if (exitStatus == null) {
+            exitStatus = 0;
+        }
+
+        String command;
+        switch (type) {
+            case "crt":
+                command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"https://" + machine + ":8200/v1" + path + "\" | jq '.data.\"" + value + "_" + type + "\"' | sed 's/-----BEGIN CERTIFICATE-----/-----BEGIN CERTIFICATE-----#####/g' | sed 's/-----END CERTIFICATE-----/#####-----END CERTIFICATE-----/g' | sed 's/-----END CERTIFICATE----------BEGIN CERTIFICATE-----/-----END CERTIFICATE-----#####-----BEGIN CERTIFICATE-----/g' | sed 's/\"//g'";
+                commonspec.runLocalCommand(command);
+                commonspec.setCommandResult(commonspec.getCommandResult().replace("#####", "\n"));
+                commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
+                break;
+            case "key":
+                command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"https://" + machine + ":8200/v1" + path + "\" | jq '.data.\"" + value + "_" + type + "\"' | sed 's/-----BEGIN RSA PRIVATE KEY-----/-----BEGIN RSA PRIVATE KEY-----#####/g' | sed 's/-----END RSA PRIVATE KEY-----/#####-----END RSA PRIVATE KEY-----/g' | sed 's/\"//g'";
+                commonspec.runLocalCommand(command);
+                commonspec.setCommandResult(commonspec.getCommandResult().replace("#####", "\n"));
+                commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
+                break;
+            case "ca":
+                command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"https://" + machine + ":8200/v1" + path + "\" | jq '.data." + value + "_" + type + "' | sed 's/-----BEGIN CERTIFICATE-----/-----BEGIN CERTIFICATE-----#####/g' | sed 's/-----END CERTIFICATE-----/#####-----END CERTIFICATE-----/g' | sed 's/\"//g'";
+                commonspec.runLocalCommand(command);
+                commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
+                break;
+            case "keytab":
+                command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"https://" + machine + ":8200/v1" + path + "\" | jq '.data.\"" + value + "_" + type + "\"' | sed 's/\"//g' | base64 -d > " + value + ".keytab";
+                commonspec.runLocalCommand(command);
+                command = "ls $PWD/" + value + ".keytab";
+                commonspec.runLocalCommand(command);
+                commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
+                break;
+            case "principal":
+                command = "curl -X GET -fskL --tlsv1.2 -H \"X-Vault-Token:" + token + "\" \"https://" + machine + ":8200/v1" + path + "\" | jq '.data.\"" + value + "_" + type + "\"' | sed 's/\"//g'";
+                commonspec.runLocalCommand(command);
+                commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
+                break;
+            default:
+                break;
+
+        }
+
+    }
+
+
 }
