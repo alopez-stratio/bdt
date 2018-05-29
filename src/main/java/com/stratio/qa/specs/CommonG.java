@@ -796,6 +796,7 @@ public class CommonG {
         JSONArray jArray;
         JSONObject jObject;
         Double jNumber;
+        Long jLong;
         Boolean jBoolean;
 
         if ("json".equals(type)) {
@@ -846,21 +847,21 @@ public class CommonG {
                         } else if ("string".equals(typeJsonObject)) {
                             jsonAsMap = JsonPath.parse(modifiedData).put(newComposeKey, newKey, newValue).json();
                             break;
-
                         } else if ("number".equals(typeJsonObject)) {
                             jNumber = new Double(newValue);
                             jsonAsMap = JsonPath.parse(modifiedData).put(newComposeKey, newKey, jNumber).json();
                             break;
-
+                        } else if ("long".equals(typeJsonObject)) {
+                            jLong = new Long(newValue);
+                            jsonAsMap = JsonPath.parse(modifiedData).set(composeKey, jLong).json();
+                            break;
                         } else if ("boolean".equals(typeJsonObject)) {
                             jBoolean = new Boolean(newValue);
                             jsonAsMap = JsonPath.parse(modifiedData).put(newComposeKey, newKey, jBoolean).json();
                             break;
-
                         } else if ("null".equals(typeJsonObject)) {
                             nullValue = JsonPath.parse(modifiedData).put(newComposeKey, newKey, null).jsonString();
                             break;
-
                         } else {
                             String replaceValue = JsonPath.parse(modifiedData).read(composeKey);
                             String toBeReplaced = newValue.split("->")[0];
@@ -900,21 +901,21 @@ public class CommonG {
                         } else if ("string".equals(typeJsonObject)) {
                             jsonAsMap = JsonPath.parse(modifiedData).set(composeKey, newValue).json();
                             break;
-
                         } else if ("number".equals(typeJsonObject)) {
                             jNumber = new Double(newValue);
                             jsonAsMap = JsonPath.parse(modifiedData).set(composeKey, jNumber).json();
                             break;
-
+                        } else if ("long".equals(typeJsonObject)) {
+                            jLong = new Long(newValue);
+                            jsonAsMap = JsonPath.parse(modifiedData).set(composeKey, jLong).json();
+                            break;
                         } else if ("boolean".equals(typeJsonObject)) {
                             jBoolean = new Boolean(newValue);
                             jsonAsMap = JsonPath.parse(modifiedData).set(composeKey, jBoolean).json();
                             break;
-
                         } else if ("null".equals(typeJsonObject)) {
                             nullValue = JsonPath.parse(modifiedData).set(composeKey, null).jsonString();
                             break;
-
                         } else {
                             String replaceValue = JsonPath.parse(modifiedData).read(composeKey);
                             String toBeReplaced = newValue.split("->")[0];
@@ -944,6 +945,10 @@ public class CommonG {
                         } else if ("number".equals(typeJsonObject)) {
                             jNumber = new Double(newValue);
                             jsonAsMap = JsonPath.parse(modifiedData).add(composeKey, jNumber).json();
+                            break;
+                        } else if ("long".equals(typeJsonObject)) {
+                            jLong = new Long(newValue);
+                            jsonAsMap = JsonPath.parse(modifiedData).set(composeKey, jLong).json();
                             break;
                         } else if ("boolean".equals(typeJsonObject)) {
                             jBoolean = new Boolean(newValue);
