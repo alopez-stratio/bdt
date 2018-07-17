@@ -1021,34 +1021,4 @@ public class WhenGSpec extends BaseGSpec {
         }
     }
 
-//    /**
-//     * Same sendRequest, but in this case, the rersponse is checked until it contains the expected value
-//     *
-//     * @param timeout
-//     * @param wait
-//     * @param requestType
-//     * @param endPoint
-//     * @throws Exception
-//     */
-//    @When("^in less than '(\\d+?)' seconds, checking each '(\\d+?)' seconds, send a '(.+?)' request to '(.+?)'$")
-//    public void sendRequestTimeoutNoCheck(Integer timeout, Integer wait, String requestType, String endPoint) throws Exception {
-//
-//        AssertionError ex = null;
-//
-//        String type = "";
-//        Future<Response> response;
-//        for (int i = 0; (i <= timeout); i += wait) {
-//            response = commonspec.generateRequest(requestType, false, null, null, endPoint, "", type, "");
-//            commonspec.setResponse(requestType, response.get());
-//            commonspec.getLogger().debug("Checking response value");
-//            try {
-//                assertThat(commonspec.getResponse().getResponse());
-//                timeout = i;
-//            } catch (AssertionError e) {
-//                Thread.sleep(wait * 1000);
-//                ex = e;
-//            }
-//        }
-//    }
-
 }
