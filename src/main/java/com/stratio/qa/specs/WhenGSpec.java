@@ -367,58 +367,75 @@ public class WhenGSpec extends BaseGSpec {
      * @param responseVal
      * @throws Exception
      */
-    @When("^in less than '(\\d+?)' seconds, checking each '(\\d+?)' seconds, I send a '(.+?)' request to '(.+?)' so that the response( does not)? contains '(.+?)'$")
-    public void sendRequestTimeout(Integer timeout, Integer wait, String requestType, String endPoint, String contains, String responseVal) throws Exception {
+    @When("^in less than '(\\d+?)' seconds, checking each '(\\d+?)' seconds, I send a '(.+?)' request to '(.+?)'( so that the response( does not)? contains '(.+?)')?$")
+    public void sendRequestTimeout(Integer timeout, Integer wait, String requestType, String endPoint, String foo, String contains, String responseVal) throws Exception {
 
-        Boolean searchUntilContains;
-        if (contains == null || contains.isEmpty()) {
-            searchUntilContains = Boolean.TRUE;
-        } else {
-            searchUntilContains = Boolean.FALSE;
-        }
-        Boolean found = !searchUntilContains;
         AssertionError ex = null;
-
         String type = "";
         Future<Response> response;
-        Pattern pattern = CommonG.matchesOrContains(responseVal);
-        for (int i = 0; (i <= timeout); i += wait) {
-            if (found && searchUntilContains) {
-                break;
+
+        if (foo != null) {
+            Boolean searchUntilContains;
+            if (contains == null || contains.isEmpty()) {
+                searchUntilContains = Boolean.TRUE;
+            } else {
+                searchUntilContains = Boolean.FALSE;
             }
-            response = commonspec.generateRequest(requestType, false, null, null, endPoint, "", type, "");
-            commonspec.setResponse(requestType, response.get());
-            commonspec.getLogger().debug("Checking response value");
-            try {
-                if (searchUntilContains) {
-                    assertThat(commonspec.getResponse().getResponse()).containsPattern(pattern);
-                    found = true;
-                    timeout = i;
-                } else {
-                    assertThat(commonspec.getResponse().getResponse()).doesNotContain(responseVal);
-                    found = false;
-                    timeout = i;
+            Boolean found = !searchUntilContains;
+
+            Pattern pattern = CommonG.matchesOrContains(responseVal);
+            for (int i = 0; (i <= timeout); i += wait) {
+                if (found && searchUntilContains) {
+                    break;
                 }
-            } catch (AssertionError e) {
-                if (!found) {
-                    commonspec.getLogger().info("Response value not found after " + i + " seconds");
-                } else {
-                    commonspec.getLogger().info("Response value found after " + i + " seconds");
+                response = commonspec.generateRequest(requestType, false, null, null, endPoint, "", type, "");
+                commonspec.setResponse(requestType, response.get());
+                commonspec.getLogger().debug("Checking response value");
+                try {
+                    if (searchUntilContains) {
+                        assertThat(commonspec.getResponse().getResponse()).containsPattern(pattern);
+                        found = true;
+                        timeout = i;
+                    } else {
+                        assertThat(commonspec.getResponse().getResponse()).doesNotContain(responseVal);
+                        found = false;
+                        timeout = i;
+                    }
+                } catch (AssertionError e) {
+                    if (!found) {
+                        commonspec.getLogger().info("Response value not found after " + i + " seconds");
+                    } else {
+                        commonspec.getLogger().info("Response value found after " + i + " seconds");
+                    }
+                    Thread.sleep(wait * 1000);
+                    ex = e;
                 }
-                Thread.sleep(wait * 1000);
-                ex = e;
+                if (!found && !searchUntilContains) {
+                    break;
+                }
             }
-            if (!found && !searchUntilContains) {
-                break;
+            if ((!found && searchUntilContains) || (found && !searchUntilContains)) {
+                throw (ex);
             }
-        }
-        if ((!found && searchUntilContains) || (found && !searchUntilContains)) {
-            throw (ex);
-        }
-        if (searchUntilContains) {
-            commonspec.getLogger().info("Success! Response value found after " + timeout + " seconds");
+            if (searchUntilContains) {
+                commonspec.getLogger().info("Success! Response value found after " + timeout + " seconds");
+            } else {
+                commonspec.getLogger().info("Success! Response value not found after " + timeout + " seconds");
+            }
         } else {
-            commonspec.getLogger().info("Success! Response value not found after " + timeout + " seconds");
+
+            for (int i = 0; (i <= timeout); i += wait) {
+                response = commonspec.generateRequest(requestType, false, null, null, endPoint, "", type, "");
+                commonspec.setResponse(requestType, response.get());
+                commonspec.getLogger().debug("Checking response value");
+                try {
+                    assertThat(commonspec.getResponse().getResponse());
+                    timeout = i;
+                } catch (AssertionError e) {
+                    Thread.sleep(wait * 1000);
+                    ex = e;
+                }
+            }
         }
     }
 
@@ -1003,4 +1020,35 @@ public class WhenGSpec extends BaseGSpec {
             Assertions.assertThat(rs).as("There are no response from SELECT").isNotNull();
         }
     }
+
+//    /**
+//     * Same sendRequest, but in this case, the rersponse is checked until it contains the expected value
+//     *
+//     * @param timeout
+//     * @param wait
+//     * @param requestType
+//     * @param endPoint
+//     * @throws Exception
+//     */
+//    @When("^in less than '(\\d+?)' seconds, checking each '(\\d+?)' seconds, send a '(.+?)' request to '(.+?)'$")
+//    public void sendRequestTimeoutNoCheck(Integer timeout, Integer wait, String requestType, String endPoint) throws Exception {
+//
+//        AssertionError ex = null;
+//
+//        String type = "";
+//        Future<Response> response;
+//        for (int i = 0; (i <= timeout); i += wait) {
+//            response = commonspec.generateRequest(requestType, false, null, null, endPoint, "", type, "");
+//            commonspec.setResponse(requestType, response.get());
+//            commonspec.getLogger().debug("Checking response value");
+//            try {
+//                assertThat(commonspec.getResponse().getResponse());
+//                timeout = i;
+//            } catch (AssertionError e) {
+//                Thread.sleep(wait * 1000);
+//                ex = e;
+//            }
+//        }
+//    }
+
 }

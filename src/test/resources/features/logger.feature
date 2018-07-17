@@ -16,3 +16,5 @@ Feature: Simple logger test
     When I send a 'GET' request to '/!{VAR}'
     And in less than '20' seconds, checking each '2' seconds, I send a 'GET' request to '/!{VAR}' so that the response contains 'Error'
     Then the service response status must be '404' and its response must contain the text 'Error'
+    And in less than '20' seconds, checking each '2' seconds, I send a 'GET' request to '/!{VAR}'
+    Then the service response status must be '404' and its response must contain the text 'Error'
