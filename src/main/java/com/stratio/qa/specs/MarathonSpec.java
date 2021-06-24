@@ -382,12 +382,14 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error deploying new app in Marathon: " + response.getHttpStatus()).isEqualTo(201);
     }
 
-    @When("^I remove Marathon service with id '(.+?)'$")
-    public void removeApp(String appId) throws Exception {
+    @When("^I remove Marathon service with id '(.+?)'( if it exists)?$")
+    public void removeApp(String appId, String force) throws Exception {
         commonspec.setCCTConnection(null, null);
 
         DeploymentResult result = this.commonspec.marathonClient.removeApp(appId, true);
-        assertThat(result.getHttpStatus()).as("Error removing app in Marathon: " + result.getHttpStatus()).isEqualTo(200);
+        if (force == null) {
+            assertThat(result.getHttpStatus()).as("Error removing app in Marathon: " + result.getHttpStatus()).isEqualTo(200);
+        }
     }
 
     @When("^I restart Marathon service with id '(.+?)'$")
@@ -409,4 +411,5 @@ public class MarathonSpec extends BaseGSpec {
                 .orElse(null);
         return task != null ? internalIp ? task.getIpAddresses().stream().findFirst().get().getIpAddress() : task.getHost() : null;
     }
+
 }

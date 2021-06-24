@@ -64,6 +64,20 @@ public class HDFSSecSpec extends BaseGSpec {
         commonspec.getHDFSSecUtils().createSecuredHDFSConnection(coreSite, hdfsSite, krb5Conf, sslClient, hdfsHost, keytabPath, truststorePath, realm);
     }
 
+    /**
+     * Open connection to HDFS cluster
+     *
+     * @param hdfsHost          brokers URL to connect to cluster
+     * @param keytabPath        keytab file path
+     * @param realm             kerberos realm
+     * @param principal         User to connect
+     * @param kdc               kerberos kdc
+     */
+    @Given("^I open( private)? connection to HDFS '(.+?)' with principal '(.+?)' and keytab '(.+?)' and realm '(.+?)' and kdc '(.+?)'$")
+    public void openHDFSConnection(String privateConnection, String hdfsHost, String principal, String keytabPath, String realm, String kdc) throws Exception {
+        commonspec.getHDFSSecUtils().createExternalHDFSConnection(principal, hdfsHost, keytabPath, realm, kdc, privateConnection != null);
+    }
+
     @Given("^I close HDFS connection$")
     public void closeHDFSConnection() {
         commonspec.getHDFSSecUtils().closeConnection();

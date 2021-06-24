@@ -839,7 +839,7 @@ public class CommonG {
         Boolean jBoolean;
         boolean array = false;
 
-        if ("json".equals(type) || "gov".equals(type) || "scim".equals(type)) {
+        if ("json".equals(type) || "gov".equals(type) || "servicegov".equals(type) || "scim".equals(type)) {
             LinkedHashMap jsonAsMap = new LinkedHashMap();
             for (int i = 0; i < modifications.cells().size(); i++) {
                 String composeKey = modifications.cells().get(i).get(0);
@@ -1127,7 +1127,7 @@ public class CommonG {
      * @param password    password to be used in request
      * @param endPoint    end point to sent the request to
      * @param data        to be sent for PUT/POST requests
-     * @param type        type of data to be sent (json|string)
+     * @param type        type of data to be sent (json|string|gov|scim|servicegov)
      * @throws Exception exception
      */
     public Future<Response> generateRequest(String requestType, boolean secure, String user, String password, String endPoint, String data, String type) throws Exception {
@@ -1139,6 +1139,13 @@ public class CommonG {
         String govTenant = System.getProperty("GOV_TENANT") != null ? System.getProperty("GOV_TENANT") : "NONE";
         String govRolesID = System.getProperty("GOV_ROLESID");
         String govUserID = System.getProperty("GOV_USERID") != null ? System.getProperty("GOV_USERID") : "admin";
+
+        if ("servicegov".equals(type)) {
+            govRolesID = System.getProperty("GOV_SERVICE_ROLESID") != null ? System.getProperty("GOV_SERVICE_ROLESID") : "Service";
+            govUserID = System.getProperty("GOV_SERVICE_USERID") != null ? System.getProperty("GOV_SERVICE_USERID") : "admin";
+            type = "gov";
+        }
+
         if (this.getRestHost() == null) {
             throw new Exception("Rest host has not been set");
         }
@@ -2111,8 +2118,15 @@ public class CommonG {
     public void runCommandLoggerAndEnvVar(int exitStatus, String envVar, Boolean local) {
         List<String> logOutput = Arrays.asList(this.getCommandResult().split("\n"));
         StringBuffer log = new StringBuffer();
-        int logLastLines = 25;
-        if (logOutput.size() < 25) {
+        int logLastLines;
+        try {
+            logLastLines = Integer.parseInt(System.getProperty("BDT_LOCAL_PROCESS_LOG_LINES", "25"));
+        } catch (NumberFormatException e) {
+            logger.warn("Unable to cast value: " + System.getProperty("BDT_LOCAL_PROCESS_LOG_LINES", "25"));
+            logLastLines = 25;
+        }
+
+        if (logOutput.size() < logLastLines) {
             logLastLines = logOutput.size();
         }
         for (String s : logOutput.subList(logOutput.size() - logLastLines, logOutput.size())) {

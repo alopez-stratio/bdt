@@ -31,7 +31,6 @@ import io.fabric8.kubernetes.client.LocalPortForward;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
-import io.fabric8.kubernetes.client.dsl.internal.RawCustomResourceOperationsImpl;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import okhttp3.Response;
@@ -58,6 +57,10 @@ public class KubernetesClient {
     private static io.fabric8.kubernetes.client.KubernetesClient k8sClient;
 
     private static LocalPortForward localPortForward;
+
+    private static Map<String, LocalPortForward> localPortForwardMap = new HashMap<>();
+
+    private static String localPortForwardId;
 
     private static CountDownLatch execLatch = new CountDownLatch(1);
 
@@ -95,28 +98,41 @@ public class KubernetesClient {
             return;
         }
 
-        String daedalusSystem = "keos-workspaces.int.stratio.com";
-        String workspaceName = "keos-workspace-" + clusterName;
-        String workspaceURL = "http://" + daedalusSystem + "/" + workspaceName + ".tgz";
+        boolean setKubernetesHost = false;
 
-        // Download workspace
-        String commandWget = "wget " + workspaceURL;
-        commonspec.runLocalCommand(commandWget);
+        if (System.getProperty("CLUSTER_KUBE_CONFIG_PATH") != null) {
+            ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", System.getProperty("CLUSTER_KUBE_CONFIG_PATH"));
+            ThreadProperty.set("CLUSTER_SSH_USER", System.getProperty("CLUSTER_SSH_USER") != null ? System.getProperty("CLUSTER_SSH_USER") : "NotSet");
+            ThreadProperty.set("CLUSTER_SSH_PEM_PATH", System.getProperty("CLUSTER_SSH_PEM_PATH") != null ? System.getProperty("CLUSTER_SSH_PEM_PATH") : "NotSet");
+        } else {
+            String daedalusSystem = "keos-workspaces.int.stratio.com";
+            String workspaceName = "keos-workspace-" + clusterName;
+            String workspaceURL = "http://" + daedalusSystem + "/" + workspaceName + ".tgz";
 
-        // Untar workspace
-        CommandExecutionSpec commandExecutionSpec = new CommandExecutionSpec(commonspec);
-        String commandUntar = "tar -C target/test-classes/ -xvf " + workspaceName + ".tgz";
-        commandExecutionSpec.executeLocalCommand(commandUntar, null, null);
+            // Download workspace
+            String commandWget = "wget " + workspaceURL;
+            commonspec.runLocalCommand(commandWget);
 
-        // Clean
-        String commandRmTgz = "rm " + workspaceName + ".tgz";
-        commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null);
+            // Untar workspace
+            CommandExecutionSpec commandExecutionSpec = new CommandExecutionSpec(commonspec);
+            String commandUntar = "tar -C target/test-classes/ -xvf " + workspaceName + ".tgz";
+            commandExecutionSpec.executeLocalCommand(commandUntar, null, null);
 
-        // Obtain and export values
-        String daedalusJson = commonspec.retrieveData(workspaceName + "/keos.json", "json");
-        ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(daedalusJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
-        ThreadProperty.set("CLUSTER_SSH_PEM_PATH", "./target/test-classes/" + workspaceName + "/key");
-        ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
+            // Clean
+            String commandRmTgz = "rm " + workspaceName + ".tgz";
+            commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null);
+
+            // Obtain and export values
+            String daedalusJson = commonspec.retrieveData(workspaceName + "/keos.json", "json");
+            ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(daedalusJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+            ThreadProperty.set("CLUSTER_SSH_PEM_PATH", "./target/test-classes/" + workspaceName + "/key");
+            ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
+            try {
+                commonspec.getJSONPathString(daedalusJson, "$.keos.calico.service_loadbalancer_pools", null);
+            } catch (Exception e) {
+                setKubernetesHost = true;
+            }
+        }
 
         // Connect to Kubernetes
         getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
@@ -128,7 +144,9 @@ public class KubernetesClient {
         getK8sWorkerAndIngressHosts();
 
         // Save IP in /etc/hosts
-        commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("WORKER_IP"), ThreadProperty.get("KEOS_SIS_HOST") + " " + ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
+        if (setKubernetesHost) {
+            commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("WORKER_IP"), ThreadProperty.get("KEOS_SIS_HOST") + " " + ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
+        }
 
         // Set variables from command-center-config configmap
         getK8sCCTConfig(commonspec);
@@ -213,6 +231,9 @@ public class KubernetesClient {
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.ldap.adminrouterAuthorizedGroup", "LDAP_ADMIN_GROUP", null);
 
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.vault.vaultHost", "KEOS_VAULT_HOST_INTERNAL", null);
+
+            // TODO ARTIFACT_REPOSITORY doesn't appear in configmap, set default value
+            ThreadProperty.set("ARTIFACT_REPOSITORY", System.getProperty("ARTIFACT_REPOSITORY") != null ? System.getProperty("ARTIFACT_REPOSITORY") : "http://qa.int.stratio.com/repository");
         } catch (Exception e) {
             commonspec.getLogger().error("Error reading command center config", e);
         }
@@ -576,7 +597,7 @@ public class KubernetesClient {
                 .usingListener(new MyPodExecListener())
                 .exec(command);
 
-        boolean latchTerminationStatus = execLatch.await(5, TimeUnit.SECONDS);
+        boolean latchTerminationStatus = execLatch.await(30, TimeUnit.SECONDS);
         if (!latchTerminationStatus) {
             logger.warn("Latch could not terminate within specified time");
         }
@@ -606,6 +627,33 @@ public class KubernetesClient {
                 .withRestartPolicy(restartPolicy)
                 .withServiceAccount(serviceAccount)
                 .withCommand(command)
+                .withArgs(args);
+        k8sClient.run().inNamespace(namespace).withName(podName).withImage(image).withRunConfig(runConfig.build()).done();
+    }
+
+    /**
+     * kubectl run xxx --image=xxx --restart=xxx --serviceaccount=xxx --namespace=xxx --command -- mycommand
+     *
+     * @param podName Pod name
+     * @param namespace Namespace
+     * @param image Image
+     * @param imagePullPolicy Image pull policy (IfNotPresent as default value)
+     * @param restartPolicy Restart policy
+     * @param serviceAccount Service Account
+     * @param env Environment variables
+     * @param command Command to execute
+     * @param args Command arguments
+     */
+    public void runPod(String podName, String namespace, String image, String imagePullPolicy, String restartPolicy, String serviceAccount, Map<String, String> env, String command, List<String> args) {
+        imagePullPolicy = imagePullPolicy != null ? imagePullPolicy : "IfNotPresent";
+        RunConfigBuilder runConfig = new RunConfigBuilder()
+                .withName(podName)
+                .withImage(image)
+                .withImagePullPolicy(imagePullPolicy)
+                .withRestartPolicy(restartPolicy)
+                .withServiceAccount(serviceAccount)
+                .withCommand(command)
+                .withEnv(env)
                 .withArgs(args);
         k8sClient.run().inNamespace(namespace).withName(podName).withImage(image).withRunConfig(runConfig.build()).done();
     }
@@ -1311,8 +1359,10 @@ public class KubernetesClient {
      * @param localHostPort local host port
      */
 
-    public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort) {
+    public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort, String localPortForwardId) {
         localPortForward = k8sClient.services().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
+        localPortForwardMap.put(localPortForwardId, localPortForward);
+        this.localPortForwardId = localPortForwardId;
     }
 
     /**
@@ -1323,15 +1373,55 @@ public class KubernetesClient {
      * @param containerPort container port
      * @param localHostPort local host port
      */
-    public void setLocalPortForwardPod(String namespace, String name, int containerPort, int localHostPort) {
+    public void setLocalPortForwardPod(String namespace, String name, int containerPort, int localHostPort, String localPortForwardId) {
         localPortForward = k8sClient.pods().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
+        localPortForwardMap.put(localPortForwardId, localPortForward);
+        this.localPortForwardId = localPortForwardId;
     }
 
-    public void closePortForward() throws IOException {
+    public void closePortForward(String id) throws IOException {
+        if (id != null) {
+            localPortForward = localPortForwardMap.get(id);
+            this.localPortForwardId = id;
+        }
         if (localPortForward != null && localPortForward.isAlive()) {
             localPortForward.close();
         }
         localPortForward = null;
+        if (localPortForwardId != null) {
+            localPortForwardMap.remove(this.localPortForwardId);
+        }
+        this.localPortForwardId = null;
+    }
+
+    /**
+     * kubectl patch hpa <deployment> -n <namespace> -p '{"spec":{"maxReplicas": <number>}}'
+     *
+     * @param namespace Namespace
+     * @param name Deployment name
+     * @param maxReplicas Max replicas
+     */
+    public void updateHorizontalAutoscaler(String namespace, String name, int maxReplicas) {
+        k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).withName(name).edit().editSpec().withMaxReplicas(maxReplicas).endSpec().done();
+    }
+
+    /**
+     * kubectl patch hpa <deployment> -n <namespace> -p '{"spec":{"minReplicas": <number>, "maxReplicas": <number>}}'
+     *
+     * @param namespace Namespace
+     * @param name Deployment name
+     * @param maxReplicas Max replicas
+     */
+    public void updateHorizontalAutoscaler(String namespace, String name, int minReplicas, int maxReplicas) {
+        k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).withName(name).edit().editSpec().withMinReplicas(minReplicas).withMaxReplicas(maxReplicas).endSpec().done();
+    }
+
+    public void copyFileToPod(String podName, String namespace, String filePath, String destinationPath) {
+        k8sClient.pods().inNamespace(namespace).withName(podName).file(destinationPath).upload(Paths.get(filePath));
+    }
+
+    public void copyFileFromPod(String podName, String namespace, String filePath, String destinationPath) {
+        k8sClient.pods().inNamespace(namespace).withName(podName).file(destinationPath).copy(Paths.get(filePath));
     }
 
     private static class MyPodExecListener implements ExecListener {

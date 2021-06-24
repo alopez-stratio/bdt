@@ -437,13 +437,9 @@ public class MiscSpec extends BaseGSpec {
      * @param secretKey : Vault secretKey to sign the token
      * @param envVar    : local variable where JWT will be saved
      */
-    @Given("^I get JWT for tenant:'(.+?)',userId:'(.+?)',mail:'(.+?)',groups:'(.+?)' with issuer:'(.+?)' and secretKey:'(.+?)' and save the value in environment variable '(.+?)'$")
+    @Given("^I get JWT for tenant:'(.+?)',userId:'(.+?)',mail:'(.+?)'(,groups:'(.+?)')? with issuer:'(.+?)' and secretKey:'(.+?)' and save the value in environment variable '(.+?)'$")
     public void getJwtFromData(String tenant, String userId, String mail, String groups, String issuer, String secretKey, String envVar) {
-        String[] myArray = groups.split(",");
-        List<String> myList = new ArrayList<>();
-        for (String str : myArray) {
-            myList.add(str);
-        }
+        List<String> myList = groups == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(groups.split(",")));
 
         //Set JWT start and end dates
         Date startDate = new GregorianCalendar(2021, Calendar.JANUARY, 01).getTime();

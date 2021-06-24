@@ -23,7 +23,6 @@ import com.stratio.qa.models.cct.deployApi.DeployedTask;
 import com.stratio.qa.models.cct.deployApi.SandboxItem;
 import com.stratio.qa.models.cct.marathonServiceApi.*;
 import com.stratio.qa.models.mesos.MesosTask;
-import com.stratio.qa.models.mesos.MesosTasksResponse;
 import com.stratio.qa.utils.CCTUtils;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
@@ -127,6 +126,14 @@ public class CCTSpec extends BaseGSpec {
                 .findFirst().orElse(null);
     }
 
+    private DeployedTask getServiceTaskHostFromDeployApi(String serviceId, String host) throws Exception {
+        DeployedApp app = this.commonspec.deployApiClient.getDeployedApp(serviceId);
+        return app.getTasks().stream()
+                .filter(task -> task.getState().equals(MesosTask.Status.TASK_RUNNING.toString()))
+                .filter(task -> task.getHost().matches(host))
+                .findFirst().orElse(null);
+    }
+
     private DeployedServiceTask getServiceTaskFromCctMarathonService(String serviceId, String taskName) throws Exception {
         DeployedService service = this.commonspec.cctMarathonServiceClient.getService(serviceId, 1, CCTSpec.MAX_TASKS);
         return service.getTasks().stream()
@@ -141,6 +148,14 @@ public class CCTSpec extends BaseGSpec {
                 .filter(task -> task.getStatus().equals(TaskStatus.RUNNING))
                 .filter(task -> task.getName().matches(taskName))
                 .skip(position)
+                .findFirst().orElse(null);
+    }
+
+    private DeployedServiceTask getServiceTaskHostFromCctMarathonService(String serviceId, String host) throws Exception {
+        DeployedService service = this.commonspec.cctMarathonServiceClient.getService(serviceId, 1, CCTSpec.MAX_TASKS);
+        return service.getTasks().stream()
+                .filter(task -> task.getStatus().equals(TaskStatus.RUNNING))
+                .filter(task -> task.getHost().matches(host))
                 .findFirst().orElse(null);
     }
 
@@ -292,7 +307,7 @@ public class CCTSpec extends BaseGSpec {
      * @param logType         stdout / stderr
      * @param lastLinesToRead Last lines to read in log
      * @param service         Service ID
-     * @param taskAttr    Task name
+     * @param taskAttr        Task name
      * @return Last 'lastLinesToRead' or null
      * @throws Exception
      */
@@ -307,8 +322,15 @@ public class CCTSpec extends BaseGSpec {
             TaskStatus expectedTaskStatus = taskState == null && !taskAttrType.equals("ID") ? TaskStatus.RUNNING : null;
             logPath = getLogPathFromMarathonServices(logType, service, taskAttr, expectedTaskStatus, position, taskAttrType);
         }
-        if (taskAttrType.equals("ID") && logPath == null) {
-            logPath = generateMesosLogPath(taskAttr, logType);
+        if (logPath == null) {
+            if (taskAttrType.equals("ID")) {
+                logPath = generateMesosLogPath(taskAttr, logType);
+            } else {
+                String id = ThreadProperty.get("cct-marathon-services_id") == null ? getServiceTaskHostFromDeployApi(service, taskAttr).getId() : getServiceTaskHostFromCctMarathonService(service, taskAttr).getId();
+                if (id != null) {
+                    logPath = generateMesosLogPath(id, logType);
+                }
+            }
         }
         if (logPath == null) {
             return null;
@@ -333,8 +355,8 @@ public class CCTSpec extends BaseGSpec {
     /**
      * Obtain log path through deploy-api service
      *
-     * @param logType      stdout / stderr
-     * @param service      Service ID
+     * @param logType  stdout / stderr
+     * @param service  Service ID
      * @param taskAttr Task name
      * @return Log path or null
      * @throws Exception
@@ -343,7 +365,7 @@ public class CCTSpec extends BaseGSpec {
         DeployedTask deployedTask = this.commonspec.deployApiClient.getDeployedApp(service).getTasks().stream()
                 .filter(expectedTaskStatus != null ? task -> task.getState().equals(expectedTaskStatus) : task -> true)
                 .filter(task -> taskAttrType.equals("ID") ? task.getId().matches(taskAttr) :
-                                taskAttrType.equals("name") ? task.getName().matches(taskAttr) :
+                        taskAttrType.equals("name") ? task.getName().matches(taskAttr) :
                                 taskAttrType.equals("host") ? task.getHost().matches(taskAttr) : task.getCalicoIP().matches(taskAttr))
                 .sorted(Comparator.comparing(DeployedTask::getTimestamp).reversed())
                 .skip(position)
@@ -365,8 +387,8 @@ public class CCTSpec extends BaseGSpec {
     /**
      * Obtain log path through marathon-services service
      *
-     * @param logType      stdout / stderr
-     * @param service      Service ID
+     * @param logType  stdout / stderr
+     * @param service  Service ID
      * @param taskAttr Task name
      * @return Log path or null
      * @throws Exception
@@ -375,7 +397,7 @@ public class CCTSpec extends BaseGSpec {
         DeployedServiceTask deployedServiceTask = this.commonspec.cctMarathonServiceClient.getService(service, 1, 50).getTasks().stream()
                 .filter(expectedTaskStatus != null ? task -> task.getStatus().equals(expectedTaskStatus) : task -> true)
                 .filter(task -> taskAttrType.equals("ID") ? task.getId().matches(taskAttr) :
-                                taskAttrType.equals("name") ? task.getName().matches(taskAttr) :
+                        taskAttrType.equals("name") ? task.getName().matches(taskAttr) :
                                 taskAttrType.equals("host") ? task.getHost().matches(taskAttr) : task.getSecuredHost().matches(taskAttr))
                 .sorted(Comparator.comparing(DeployedServiceTask::getTimestamp).reversed())
                 .skip(position)
@@ -1196,7 +1218,7 @@ public class CCTSpec extends BaseGSpec {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
-        String endPoint = "/service/cct-universe-service/v1/descriptors/" + service + "/" + model + "/" + version;
+        String endPoint = "/cct-universe-service/v1/descriptors/" + service + "/" + model + "/" + version;
         Future<Response> response = commonspec.generateRequest("GET", false, null, null, endPoint, "", null);
         commonspec.setResponse("GET", response.get());
 
@@ -1209,7 +1231,11 @@ public class CCTSpec extends BaseGSpec {
 
         if (envVar != null || fileName != null) {
             KeosSpec keosSpec = new KeosSpec(commonspec);
-            keosSpec.convertDescriptorToK8sJsonSchema(json, envVar, fileName);
+            JSONObject jsonSchema = new JSONObject();
+            jsonSchema.put("service", service);
+            jsonSchema.put("model", model);
+            jsonSchema.put("version", version);
+            keosSpec.convertDescriptorToK8sJsonSchema(json, jsonSchema.toString(), envVar, fileName);
         }
     }
 
@@ -1225,10 +1251,10 @@ public class CCTSpec extends BaseGSpec {
      * @param jsonFile : marathon json to deploy
      * @throws Exception
      */
-    @Given("^I install service '(.+?)'( in folder '(.+?)')?( with model '(.+?)')?( and version '(.+?)')?( and instance name '(.+?)')? in tenant '(.+?)' using json '(.+?)'$")
-    public void installServiceFromMarathonJson(String service, String folder, String model, String version, String name, String tenant, String jsonFile) throws Exception {
+    @Given("^I install service '(.+?)'( in folder '(.+?)')?( with model '(.+?)')?( and version '(.+?)')?( and instance name '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')? using json '(.+?)'$")
+    public void installServiceFromMarathonJson(String service, String folder, String model, String version, String name, String tenant, String namespace, String jsonFile) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            installServiceFromCCTKeos(tenant, jsonFile);
+            installServiceFromCCTKeos(jsonFile, tenant, namespace);
         } else {
             installServiceFromCCTDcos(service, folder, model, version, name, tenant, jsonFile);
         }
@@ -1287,12 +1313,22 @@ public class CCTSpec extends BaseGSpec {
         restSpec.sendRequestTimeout(200, 20, "GET", endPointStatus, null, null, serviceName);
     }
 
-    private void installServiceFromCCTKeos(String tenant, String jsonFile) throws Exception {
+    private void installServiceFromCCTKeos(String jsonFile, String tenant, String namespace) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
-        String endPoint = "/service/cct-orchestrator-service/v1/install?tenant=" + tenant;
+        String endPoint = "/cct-orchestrator-service/v1/install";
+        if (tenant != null) {
+            endPoint += "?tenant=" + tenant;
+        }
         String data = this.commonspec.retrieveData(jsonFile, "json");
+        if (namespace != null) {
+            List<List<String>> rawData = Arrays.asList(
+                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string")
+            );
+            DataTable modifications = DataTable.create(rawData);
+            data = this.commonspec.modifyData(data, "json", modifications);
+        }
 
         Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, data, "json");
         commonspec.setResponse("POST", response.get());
@@ -1369,17 +1405,22 @@ public class CCTSpec extends BaseGSpec {
      * @param tenant  : tenant where service is installed
      * @throws Exception
      */
-    @Given("^I uninstall service '(.+?)' from tenant '(.+?)' with schema located at file '(.+?)'$")
-    public void uninstallServiceKeos(String service, String tenant, String jsonFile) throws Exception {
+    @Given("^I uninstall deployment '(.+?)'( from tenant '(.+?)')?( in namespace '(.+?)')? with schema located at file '(.+?)'$")
+    public void uninstallServiceKeos(String service, String tenant, String namespace, String jsonFile) throws Exception {
         JSONObject schemaJson = new JSONObject(this.commonspec.retrieveData(jsonFile, "json"));
         schemaJson.put("applicationId", service + "." + tenant);
-
+        if (namespace != null) {
+            ((JSONObject) ((JSONObject) schemaJson.get("deployment")).get("general")).put("k8sNamespace", namespace);
+        }
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
-        String endPoint = "/service/cct-orchestrator-service/v1/uninstall?tenant=" + tenant;
-        Future<Response> response = commonspec.generateRequest("DELETE", true, null, null, endPoint, schemaJson.toString(), "json");
-        commonspec.setResponse("DELETE", response.get());
+        String endPoint = "/cct-orchestrator-service/v1/uninstall";
+        if (tenant != null) {
+            endPoint += "?tenant=" + tenant;
+        }
+        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, schemaJson.toString(), "json");
+        commonspec.setResponse("POST", response.get());
 
         if (commonspec.getResponse().getStatusCode() != 202 && commonspec.getResponse().getStatusCode() != 200) {
             logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
@@ -1534,8 +1575,51 @@ public class CCTSpec extends BaseGSpec {
      * @param modifications : modifications to perform in the deployed json
      * @throws Exception
      */
-    @Given("^I update service '(.+?)'( in folder '(.+?)')? in tenant '(.+?)'( based on version '(.+?)')?( based on json '(.+?)')? with:$")
-    public void updateCCTService(String serviceName, String folder, String tenant, String version, String jsonFile, DataTable modifications) throws Exception {
+    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')? with:$")
+    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile, DataTable modifications) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            updateCCTServiceKeos(jsonFile, tenant, namespace, modifications);
+        } else {
+            updateCCTServiceDcos(serviceName, folder, tenant, version, jsonFile, modifications);
+        }
+    }
+
+    private void updateCCTServiceKeos(String jsonFile, String tenant, String namespace, DataTable modifications) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        String endPoint = "/cct-orchestrator-service/v1/update";
+        if (tenant != null) {
+            endPoint += "?tenant=" + tenant;
+        }
+        String data = this.commonspec.retrieveData(jsonFile, "json");
+        if (namespace != null) {
+            List<List<String>> rawData = Arrays.asList(
+                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string")
+            );
+            DataTable modificationsAux = DataTable.create(rawData);
+            data = this.commonspec.modifyData(data, "json", modificationsAux);
+        }
+
+        String modifiedData;
+        if (modifications != null) {
+            modifiedData = commonspec.modifyData(data, "json", modifications);
+        } else {
+            modifiedData = data;
+        }
+
+        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, modifiedData, "json");
+        commonspec.setResponse("POST", response.get());
+
+        if (commonspec.getResponse().getStatusCode() != 200) {
+            logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+        }
+
+        //TODO Check application status in KEOS
+    }
+
+    private void updateCCTServiceDcos(String serviceName, String folder, String tenant, String version, String jsonFile, DataTable modifications) throws Exception {
         Assert.assertNotNull(ThreadProperty.get("deploy_api_id"), "deploy_api_id variable is not set. Check deploy-api is installed and @dcos annotation is working properly.");
 
         // obtain service name
@@ -1621,11 +1705,15 @@ public class CCTSpec extends BaseGSpec {
      * @param version     : version of the deployed service
      * @throws Exception
      */
-    @Given("^I update service '(.+?)'( in folder '(.+?)')? in tenant '(.+?)'( based on version '(.+?)')?( based on json '(.+?)')?$")
-    public void updateCCTService(String serviceName, String folder, String tenant, String version, String jsonFile) throws Exception {
-        updateCCTService(serviceName, folder, tenant, version, jsonFile, null);
+    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?$")
+    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile) throws Exception {
+        updateCCTService(serviceName, folder, tenant, namespace, version, jsonFile, null);
     }
 
+    @Given("^I upload descriptor for service '(.+?)', model '(.+?)' version '(.+?)' based on '(.+?)'$")
+    public void uploadCCTDescriptor(String service, String model, String version, String originalJson) throws Exception {
+        uploadCCTDescriptor(service, model, version, originalJson, null);
+    }
 
     /**
      * Upload a descriptor
@@ -1639,28 +1727,41 @@ public class CCTSpec extends BaseGSpec {
      */
     @Given("^I upload descriptor for service '(.+?)', model '(.+?)' version '(.+?)' based on '(.+?)' with:$")
     public void uploadCCTDescriptor(String service, String model, String version, String originalJson, DataTable modifications) throws Exception {
-        // Obtain endpoint
-        if (ThreadProperty.get("deploy_api_id") == null && ThreadProperty.get("cct-universe_id") == null) {
-            fail("deploy_api_id variable and cct-universe_id are not set. Check deploy-api or cct-universe are installed and @dcos annotation is working properly.");
+        String endpoint;
+        String op;
+
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            endpoint = "/cct-universe-service/v1/descriptors/" + service + "/" + model + "/" + version;
+            op = "PUT";
+        } else {
+            // Obtain endpoint
+            if (ThreadProperty.get("deploy_api_id") == null && ThreadProperty.get("cct-universe_id") == null) {
+                fail("deploy_api_id variable and cct-universe_id are not set. Check deploy-api or cct-universe are installed and @dcos annotation is working properly.");
+            }
+            if (ThreadProperty.get("cct-universe_id") != null) {
+                endpoint = "/service/" + ThreadProperty.get("cct-universe_id") + "/v1/descriptors/" + service + "/" + model + "/" + version;
+                op = "PUT";
+            } else {
+                endpoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/universe/" + service + "/" + model + "/" + version + "/descriptor";
+                op = "POST";
+            }
         }
 
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
-        String endpoint;
-        String op;
-        if (ThreadProperty.get("cct-universe_id") != null) {
-            endpoint = "/service/" + ThreadProperty.get("cct-universe_id") + "/v1/descriptors/" + service + "/" + model + "/" + version;
-            op = "PUT";
-        } else {
-            endpoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/universe/" + service + "/" + model + "/" + version + "/descriptor";
-            op = "POST";
-        }
-
         // Retrieve data
         String retrievedData = commonspec.retrieveData(originalJson, "json");
         // Modify json
-        String modifiedData = commonspec.modifyData(retrievedData, "json", modifications);
+        String modifiedData = modifications != null ? commonspec.modifyData(retrievedData, "json", modifications) : retrievedData;
+
+        // Update version and model
+        List<List<String>> rawData = Arrays.asList(
+                Arrays.asList("$.data.model", "UPDATE", model, "string"),
+                Arrays.asList("$.data.version", "UPDATE", version, "string")
+        );
+        DataTable modificationsAux = DataTable.create(rawData);
+        modifiedData = this.commonspec.modifyData(modifiedData, "json", modificationsAux);
 
         // Upload new descriptor
         Future<Response> responseUpdate = commonspec.generateRequest(op, true, null, null, endpoint, modifiedData, "json");
@@ -1684,25 +1785,29 @@ public class CCTSpec extends BaseGSpec {
      */
     @Given("^I update descriptor for service '(.+?)', model '(.+?)' version '(.+?)' based on '(.+?)' with:$")
     public void updateCCTDescriptor(String service, String model, String version, String originalJson, DataTable modifications) throws Exception {
-        // Obtain endpoint
-        if (ThreadProperty.get("deploy_api_id") == null && ThreadProperty.get("cct-universe_id") == null) {
-            fail("deploy_api_id variable and cct-universe_id are not set. Check deploy-api or cct-universe are installed and @dcos annotation is working properly.");
+        String endpoint;
+
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            endpoint = "/cct-universe-service/v1/descriptors/" + service + "/" + model + "/" + version;
+        } else {
+            // Obtain endpoint
+            if (ThreadProperty.get("deploy_api_id") == null && ThreadProperty.get("cct-universe_id") == null) {
+                fail("deploy_api_id variable and cct-universe_id are not set. Check deploy-api or cct-universe are installed and @dcos annotation is working properly.");
+            }
+            if (ThreadProperty.get("cct-universe_id") != null) {
+                endpoint = "/service/" + ThreadProperty.get("cct-universe_id") + "/v1/descriptors/" + service + "/" + model + "/" + version;
+            } else {
+                endpoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/universe/" + service + "/" + model + "/" + version + "/descriptor";
+            }
         }
 
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
-        String endpoint;
-        if (ThreadProperty.get("cct-universe_id") != null) {
-            endpoint = "/service/" + ThreadProperty.get("cct-universe_id") + "/v1/descriptors/" + service + "/" + model + "/" + version;
-        } else {
-            endpoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/universe/" + service + "/" + model + "/" + version + "/descriptor";
-        }
-
         // Retrieve data
         String retrievedData = commonspec.retrieveData(originalJson, "json");
         // Modify json
-        String modifiedData = commonspec.modifyData(retrievedData, "json", modifications);
+        String modifiedData = modifications != null ? commonspec.modifyData(retrievedData, "json", modifications) : retrievedData;
 
         // Update descriptor
         Future<Response> responseUpdate = commonspec.generateRequest("PUT", true, null, null, endpoint, modifiedData, "json");
@@ -1724,20 +1829,24 @@ public class CCTSpec extends BaseGSpec {
      */
     @Given("^I delete descriptor for service '(.+?)', model '(.+?)' version '(.+?)'$")
     public void deleteCCTDescriptor(String service, String model, String version) throws Exception {
-        // Obtain endpoint
-        if (ThreadProperty.get("deploy_api_id") == null && ThreadProperty.get("cct-universe_id") == null) {
-            fail("deploy_api_id variable and cct-universe_id are not set. Check deploy-api or cct-universe are installed and @dcos annotation is working properly.");
+        String endpoint;
+
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            endpoint = "/cct-universe-service/v1/descriptors/" + service + "/" + model + "/" + version;
+        } else {
+            // Obtain endpoint
+            if (ThreadProperty.get("deploy_api_id") == null && ThreadProperty.get("cct-universe_id") == null) {
+                fail("deploy_api_id variable and cct-universe_id are not set. Check deploy-api or cct-universe are installed and @dcos annotation is working properly.");
+            }
+            if (ThreadProperty.get("cct-universe_id") != null) {
+                endpoint = "/service/" + ThreadProperty.get("cct-universe_id") + "/v1/descriptors/" + service + "/" + model + "/" + version;
+            } else {
+                endpoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/universe/" + service + "/" + model + "/" + version + "/descriptor";
+            }
         }
 
         // Set REST connection
         commonspec.setCCTConnection(null, null);
-
-        String endpoint;
-        if (ThreadProperty.get("cct-universe_id") != null) {
-            endpoint = "/service/" + ThreadProperty.get("cct-universe_id") + "/v1/descriptors/" + service + "/" + model + "/" + version;
-        } else {
-            endpoint = "/service/" + ThreadProperty.get("deploy_api_id") + "/universe/" + service + "/" + model + "/" + version + "/descriptor";
-        }
 
         // Delete descriptor
         Future<Response> responseUpdate = commonspec.generateRequest("DELETE", true, null, null, endpoint, "", "json");
@@ -1777,6 +1886,11 @@ public class CCTSpec extends BaseGSpec {
         ThreadProperty.set(envVar, commonspec.getResponse().getResponse());
     }
 
+    @Deprecated
+    public void createSecret(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password) throws Exception {
+        createSecret(force, secretType, secret, withOrWithout, path, cn, name, alt, organizationName, principal, realm, user, password, null);
+    }
+
     /**
      * Create secret
      *
@@ -1795,10 +1909,10 @@ public class CCTSpec extends BaseGSpec {
      * @param password
      * @throws Exception
      */
-    @When("^I( force)? create '(certificate|keytab|password|password_nouser)' '(.+?)' using deploy-api (with|without) parameters( path '(.+?)')?( cn '(.+?)')?( name '(.+?)')?( alt '(.+?)')?( organization '(.+?)')?( principal '(.+?)')?( realm '(.+?)')?( user '(.+?)')?( password '(.+?)')?$")
-    public void createSecret(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password) throws Exception {
+    @When("^I( force)? create '(certificate|keytab|password|password_nouser|password_custom)' '(.+?)' using deploy-api (with|without) parameters( path '(.+?)')?( cn '(.+?)')?( name '(.+?)')?( alt '(.+?)')?( organization '(.+?)')?( principal '(.+?)')?( realm '(.+?)')?( user '(.+?)')?( password '(.+?)')?( customPasswordContentFile '(.+?)')?$")
+    public void createSecret(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password, String customPasswordContentFile) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createSecretKeos(force, secretType, secret, withOrWithout, path, cn, name, alt, organizationName, principal, realm, user, password);
+            createSecretKeos(force, secretType, secret, withOrWithout, path, cn, name, alt, organizationName, principal, realm, user, password, customPasswordContentFile);
         } else {
             String baseUrl = "/service/" + ThreadProperty.get("deploy_api_id") + "/secrets";
             String secretTypeAux;
@@ -1828,14 +1942,23 @@ public class CCTSpec extends BaseGSpec {
                 String pathAux = path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2F" + secretTypeAux + "%2F" + secret;
                 restSpec.sendRequestNoDataTable("DELETE", baseUrl + "?path=" + pathAux, null, null, null);
             }
-            if (!secretType.equals("password_nouser")) {
+            if (!secretType.equals("password_nouser") && !secretType.equals("password_custom")) {
                 restSpec.sendRequestNoDataTable("POST", baseUrl + "/" + secretType + urlParams, null, null, null);
             } else {
                 String pathAux = (path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2Fpasswords%2F" + secret) + "%2F" + (name != null ? name : secret);
                 String filePath = createCustomSecretFile(password != null ? password : secret);
+                if (secretType.equals("password_custom")) {
+                    pathAux = path != null ? path.replaceAll("/", "%2F") + "%2F" + secret : "%2Fuserland%2Fpasswords%2F" + secret;
+                    filePath = customPasswordContentFile;
+                }
                 restSpec.sendRequestNoDataTable("POST", baseUrl + "/custom?path=" + pathAux, null, filePath, "json");
             }
         }
+    }
+
+    @Deprecated
+    public void createSecretKeos(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password) throws Exception {
+        createSecretKeos(force, secretType, secret, withOrWithout, path, cn, name, alt, organizationName, principal, realm, user, password, null);
     }
 
     /**
@@ -1856,9 +1979,9 @@ public class CCTSpec extends BaseGSpec {
      * @param password
      * @throws Exception
      */
-    @When("^I( force)? create '(certificate|keytab|password|password_nouser)' '(.+?)' using CCT (with|without) parameters( path '(.+?)')?( cn '(.+?)')?( name '(.+?)')?( alt '(.+?)')?( organization '(.+?)')?( principal '(.+?)')?( realm '(.+?)')?( user '(.+?)')?( password '(.+?)')?$")
-    public void createSecretKeos(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password) throws Exception {
-        String baseUrl = "/service/cct-orchestrator-service/v1/secrets";
+    @When("^I( force)? create '(certificate|keytab|password|password_nouser)' '(.+?)' using CCT (with|without) parameters( path '(.+?)')?( cn '(.+?)')?( name '(.+?)')?( alt '(.+?)')?( organization '(.+?)')?( principal '(.+?)')?( realm '(.+?)')?( user '(.+?)')?( password '(.+?)')?( customPasswordContentFile '(.+?)')?$")
+    public void createSecretKeos(String force, String secretType, String secret, String withOrWithout, String path, String cn, String name, String alt, String organizationName, String principal, String realm, String user, String password, String customPasswordContentFile) throws Exception {
+        String baseUrl = "/cct-orchestrator-service/v1/secrets";
         String secretTypeAux;
         String secretTypeK8s;
         String urlParams;
@@ -1935,7 +2058,7 @@ public class CCTSpec extends BaseGSpec {
     public void removeSecret(String secretType, String secret, String path) throws Exception {
         String baseUrl;
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            baseUrl = "/service/cct-orchestrator-service/v1/secrets";
+            baseUrl = "/cct-orchestrator-service/v1/secrets";
         } else {
             baseUrl = "/service/" + ThreadProperty.get("deploy_api_id") + "/secrets";
         }

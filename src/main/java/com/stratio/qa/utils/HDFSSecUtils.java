@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.fs.permission.FsPermission;
 
@@ -78,6 +79,32 @@ public class HDFSSecUtils {
 
         UserGroupInformation.setConfiguration(conf);
         UserGroupInformation.loginUserFromKeytab("hdfs/" + hdfsHost + "@" + realm, keytabPath);
+    }
+
+    public void createExternalHDFSConnection(String principal, String hdfsHost, String keytabPath, String realm, String krb5Kdc, boolean privacyProtection) throws IOException {
+        // set kerberos host and realm
+        System.setProperty("java.security.krb5.realm", realm);
+        System.setProperty("java.security.krb5.kdc", krb5Kdc);
+
+        conf.set("hadoop.security.authentication", "kerberos");
+        conf.set("hadoop.security.authorization", "true");
+        if (privacyProtection) {
+            conf.set("hadoop.rpc.protection", "privacy");
+        }
+
+        conf.set("fs.defaultFS", "hdfs://" + hdfsHost);
+        conf.set("fs.hdfs.impl", DistributedFileSystem.class.getName());
+
+        // hack for running locally with fake DNS records
+        // set this to true if overriding the host name in /etc/hosts
+        conf.set("dfs.client.use.datanode.hostname", "true");
+
+        // server principal
+        // the kerberos principle that the namenode is using
+        conf.set("dfs.namenode.kerberos.principal.pattern", "*@" + realm);
+
+        UserGroupInformation.setConfiguration(conf);
+        UserGroupInformation.loginUserFromKeytab(principal + "@" + realm, keytabPath);
     }
 
     public void closeConnection() {

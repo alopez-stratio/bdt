@@ -77,9 +77,12 @@ public class SeleniumSpec extends BaseGSpec {
      * @param path path of running app
      * @throws Exception exception
      */
-    @Given("^I( securely)? browse to '(.+?)'$")
+    @Given("^I( securely)? browse( to '(.+?)')?$")
     public void seleniumBrowse(String isSecured, String path) throws Exception {
-        assertThat(path).isNotEmpty();
+        if (path != null) {
+            assertThat(path).isNotEmpty();
+        }
+        String appStartingPoint = path == null ? "" : path;
 
         if (commonspec.getWebHost() == null) {
             throw new Exception("Web host has not been set");
@@ -95,7 +98,7 @@ public class SeleniumSpec extends BaseGSpec {
 
         String webURL = protocol + commonspec.getWebHost() + commonspec.getWebPort();
 
-        commonspec.getDriver().get(webURL + path);
+        commonspec.getDriver().get(webURL + appStartingPoint);
         commonspec.setParentWindow(commonspec.getDriver().getWindowHandle());
     }
 
@@ -782,6 +785,21 @@ public class SeleniumSpec extends BaseGSpec {
         assertThat(this.commonspec, scenario, commonspec.getPreviousWebElements()).as("There are less found elements than required")
                 .hasAtLeast(index);
         String text = commonspec.getPreviousWebElements().getPreviousWebElements().get(index).getText();
+        ThreadProperty.set(envVar, text);
+    }
+
+    /**
+     * Takes the attribute of a webElement and stores it in the thread environment variable passed as parameter
+     *
+     * @param attribute attribute from element to be retrieved
+     * @param index     position of the element in the array of webElements found
+     * @param envVar    name of the thread environment variable where to store the text
+     */
+    @Then("^I save attribute '(.+?)' of element in index '(\\d+)' in environment variable '(.+?)'$")
+    public void saveAttributeWebElementInEnvVar(String attribute, Integer index, String envVar) {
+        assertThat(this.commonspec, scenario, commonspec.getPreviousWebElements()).as("There are less found elements than required")
+                .hasAtLeast(index);
+        String text = commonspec.getPreviousWebElements().getPreviousWebElements().get(index).getAttribute(attribute);
         ThreadProperty.set(envVar, text);
     }
 

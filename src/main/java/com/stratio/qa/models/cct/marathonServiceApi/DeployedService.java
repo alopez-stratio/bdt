@@ -60,6 +60,8 @@ public class DeployedService extends BaseResponse {
 
     private Map<String, Object> env;
 
+    private Map<String, Object> labels;
+
     public String getId() {
         return this.id;
     }
@@ -118,6 +120,10 @@ public class DeployedService extends BaseResponse {
 
     public Map<String, Object> getEnv() {
         return env;
+    }
+
+    public Map<String, Object> getLabels() {
+        return labels;
     }
 
     public String getService() {

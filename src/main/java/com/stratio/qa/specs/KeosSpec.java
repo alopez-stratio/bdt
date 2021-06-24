@@ -53,7 +53,7 @@ public class KeosSpec extends BaseGSpec {
      */
     @Given("^I set sso keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'$")
     public void setGoSecSSOCookieKeos(String ssoHost, String userName, String password, String tenant) throws Exception {
-        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost + "/ui/", userName, password, tenant, null);
+        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, null);
         ssoUtils.setVerifyHost(false);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(false);
         String[] tokenList = {"_oauth2_proxy"};
@@ -69,8 +69,8 @@ public class KeosSpec extends BaseGSpec {
             }
         }
         this.commonspec.getLogger().debug("Cookies to set:");
-        for (String cookie : tokenList) {
-            this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
+        for (Cookie cookie : cookiesAtributes) {
+            this.commonspec.getLogger().debug("\t" + cookie.getName() + ":" + cookie.getValue());
         }
         commonspec.setCookies(cookiesAtributes);
     }
@@ -83,9 +83,9 @@ public class KeosSpec extends BaseGSpec {
      * @throws Exception exception     *
      */
     @Given("^I convert descriptor '(.+?)' to k8s-json-schema( and save it in variable '(.+?)')?( and save it in file '(.+?)')?")
-    public void convertDescriptorToK8sJsonSchema(String descriptor, String envVar, String fileName) throws Exception {
+    public void convertDescriptorToK8sJsonSchema(String descriptor, String descriptorAttrs, String envVar, String fileName) throws Exception {
         JSONObject jsonSchema = new JSONObject();
-        jsonSchema.put("descriptor", new JSONObject(descriptor));
+        jsonSchema.put("descriptor", new JSONObject(descriptorAttrs));
         jsonSchema.put("deployment", commonspec.parseJSONSchema(new JSONObject(descriptor)));
         if (envVar != null) {
             ThreadProperty.set(envVar, jsonSchema.toString());
