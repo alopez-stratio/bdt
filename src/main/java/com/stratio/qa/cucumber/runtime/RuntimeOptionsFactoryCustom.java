@@ -22,7 +22,6 @@ import com.stratio.qa.cucumber.api.FeatureEnvironment;
 import cucumber.api.CucumberOptions;
 import cucumber.api.SnippetType;
 import cucumber.runtime.CucumberException;
-import cucumber.runtime.RuntimeOptions;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;

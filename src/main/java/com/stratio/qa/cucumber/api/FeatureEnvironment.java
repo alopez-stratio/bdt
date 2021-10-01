@@ -18,7 +18,7 @@ package com.stratio.qa.cucumber.api;
 
 public @interface FeatureEnvironment {
 
-    Condition[] conditions();
+    Condition[] conditions() default {};
 
-    String[] features();
+    String[] features() default {};
 }

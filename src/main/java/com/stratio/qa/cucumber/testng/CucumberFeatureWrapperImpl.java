@@ -16,7 +16,7 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import cucumber.runtime.model.CucumberFeature;
+import com.stratio.qa.cucumber.runtime.model.CucumberFeature;
 
 class CucumberFeatureWrapperImpl implements CucumberFeatureWrapper {
     private final CucumberFeature cucumberFeature;

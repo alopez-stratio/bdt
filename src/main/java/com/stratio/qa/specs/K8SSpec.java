@@ -598,4 +598,34 @@ public class K8SSpec extends BaseGSpec {
     public void copyFromRemoteFile(String remotePath, String localPath, String podName, String namespace) {
         commonspec.kubernetesClient.copyFileFromPod(podName, namespace, remotePath, localPath);
     }
+
+    @When("^I create namespace with name '(.+?)'( and labels '(.+?)')?$")
+    public void createNamespace(String nsName, String labels) {
+        Map<String, String> labelsMap = null;
+        if (labels != null) {
+            String[] labelsArray = labels.split(",");
+            if (labelsArray.length > 0) {
+                labelsMap = new HashMap<>();
+                for (String l : labelsArray) {
+                    labelsMap.put(l.split("=")[0], l.split("=")[1]);
+                }
+            }
+        }
+        commonspec.kubernetesClient.createNamespace(nsName, labelsMap);
+    }
+
+    @When("^I create service account with name '(.+?)' in namespace '(.+?)'$")
+    public void createServiceAccount(String name, String namespace) {
+        commonspec.kubernetesClient.createServiceAccount(name, namespace);
+    }
+
+    @When("^I create cluster role with name '(.+?)' in namespace '(.+?)' with resources '(.+?)' and verbs '(.+?)'( and api groups '(.+?)')?$")
+    public void createClusterRole(String name, String namespace, String resources, String verbs, String apiGroups) {
+        commonspec.kubernetesClient.createClusterRole(name, namespace, resources, verbs, apiGroups);
+    }
+
+    @When("^I create cluster role binding with name '(.+?)' in namespace '(.+?)' with ClusterRole '(.+?)' and ServiceAccount '(.+?)'$")
+    public void createClusterRole(String name, String namespace, String clusterRole, String serviceAccount) {
+        commonspec.kubernetesClient.createClusterRoleBinding(name, namespace, clusterRole, serviceAccount);
+    }
 }

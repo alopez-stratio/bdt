@@ -28,6 +28,7 @@ import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import org.assertj.core.api.Assertions;
 import org.json.JSONArray;
@@ -142,35 +143,88 @@ public class DcosSpec extends BaseGSpec {
     @Given("^I( do not)? set sso( governance)? token using host '(.+?)' with user '(.+?)' and password '(.+?)'( and tenant '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookie(String set, String gov, String ssoHost, String userName, String passWord, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
         if (set == null) {
-            GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, gov);
-            ssoUtils.setVerifyHost(hostVerifier == null);
-            HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
+            if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && userName.contains("stratiobigdata.onmicrosoft.com")) {
 
-            String[] tokenList = {"user", "dcos-acs-auth-cookie"};
-            if (gov != null) {
-                tokenList = new String[]{"user", "dcos-acs-auth-cookie", "stratio-governance-auth"};
-            }
-            List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
+                HashMap<String, String> cookieTokenADFS = new HashMap<>();
 
-            this.commonspec.getLogger().debug("Cookies to set:");
-            for (String cookie:tokenList) {
-                this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
-            }
+                String adfsCookie = this.readOneLineFile(System.getProperty("user.dir") + "/dcos-acs-auth-cookie-" + userName);
+                ThreadProperty.set("dcosAuthCookie", adfsCookie);
+                cookieTokenADFS.put("dcos-acs-auth-cookie", adfsCookie);
+                ArrayList<String> adfsTokenList = new ArrayList<>();
+                adfsTokenList.add("dcos-acs-auth-cookie");
 
-            if (ssoCookies.get("dcos-acs-auth-cookie") != null) {
-                ThreadProperty.set("dcosAuthCookie", ssoCookies.get("dcos-acs-auth-cookie"));
-            }
+                if (gov != null) {
+                    String adfsGovCookie = this.readOneLineFile(System.getProperty("user.dir") + "/stratio-governance-auth-" + userName);
+                    ThreadProperty.set("dcosGovernanceAuthCookie", adfsGovCookie);
+                    cookieTokenADFS.put("stratio-governance-auth", adfsGovCookie);
+                    adfsTokenList.add("stratio-governance-auth");
+                }
 
-            if (ssoCookies.get("stratio-governance-auth") != null) {
-                ThreadProperty.set("dcosGovernanceAuthCookie", ssoCookies.get("stratio-governance-auth"));
+                if (hostVerifier != null || pathWithoutLogin != null) {
+                    String adfsRocketCookie = this.readOneLineFile(System.getProperty("user.dir") + "/user-" + userName);
+                    ThreadProperty.set("dcosUserCookie", adfsRocketCookie);
+                    cookieTokenADFS.put("user", adfsRocketCookie);
+                    adfsTokenList.add("user");
+                }
+
+                String[] adfsTokenArray = adfsTokenList.toArray(new String[adfsTokenList.size()]);
+                List<com.ning.http.client.cookie.Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenArray);
+                commonspec.setCookies(cookiesAtributesADFS);
+
+            } else {
+
+                GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, gov);
+                ssoUtils.setVerifyHost(hostVerifier == null);
+                HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
+
+                String[] tokenList = {"user", "dcos-acs-auth-cookie"};
+                if (gov != null) {
+                    tokenList = new String[]{"user", "dcos-acs-auth-cookie", "stratio-governance-auth"};
+                }
+                List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
+
+                this.commonspec.getLogger().debug("Cookies to set:");
+                for (String cookie : tokenList) {
+                    this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
+                }
+
+                if (ssoCookies.get("dcos-acs-auth-cookie") != null) {
+                    ThreadProperty.set("dcosAuthCookie", ssoCookies.get("dcos-acs-auth-cookie"));
+                }
+
+                if (ssoCookies.get("stratio-governance-auth") != null) {
+                    ThreadProperty.set("dcosGovernanceAuthCookie", ssoCookies.get("stratio-governance-auth"));
+                }
+                if (ssoCookies.get("user") != null) {
+                    ThreadProperty.set("dcosUserCookie", ssoCookies.get("user"));
+                }
+                commonspec.setCookies(cookiesAtributes);
+
             }
-            if (ssoCookies.get("user") != null) {
-                ThreadProperty.set("dcosUserCookie", ssoCookies.get("user"));
-            }
-            commonspec.setCookies(cookiesAtributes);
         }
     }
 
+    /**
+     * Read a one-line file
+     *
+     * @param fileName
+     * @return File contents (one line)
+     * @throws IOException
+     */
+    private String readOneLineFile(String fileName) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try {
+            BufferedReader br = Files.newBufferedReader(Paths.get(fileName), StandardCharsets.UTF_8);
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line);
+            }
+        } catch (IOException e) {
+            throw new NoSuchFileException("File '" + fileName + "' not found.\n" + e.toString());
+        }
+
+        return sb.toString();
+    }
 
     /**
      * Generate token to authenticate in gosec SSO with Discovery
@@ -183,17 +237,33 @@ public class DcosSpec extends BaseGSpec {
      */
     @Given("I set sso discovery token using host '(.+?)' with user '(.+?)' and password '(.+?)'( and tenant '(.+?)')?( without host name verification)? with cookie name '(.+?)'$")
     public void setGoSecSSOCookieforDiscovery(String ssoHost, String userName, String passWord, String tenant, String hostVerifier, String discoveryCookie) throws Exception {
-        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, null);
-        ssoUtils.setVerifyHost(hostVerifier == null);
-        HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator();
-        String[] tokenList = new String[]{discoveryCookie};
-        List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
-        this.commonspec.getLogger().debug("Discovery Cookie to set:");
-        for (String cookie : tokenList) {
-            this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
+        if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && userName.contains("stratiobigdata.onmicrosoft.com")) {
+
+            HashMap<String, String> cookieTokenADFS = new HashMap<>();
+
+            String adfsCookie = this.readOneLineFile(System.getProperty("user.dir") + "/discovery-auth-cookie-" + userName);
+            ThreadProperty.set(discoveryCookie, adfsCookie);
+            cookieTokenADFS.put(discoveryCookie, adfsCookie);
+            String[] adfsTokenList = {discoveryCookie};
+
+            List<com.ning.http.client.cookie.Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenList);
+            commonspec.setCookies(cookiesAtributesADFS);
+
+        } else {
+
+            GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, null);
+            ssoUtils.setVerifyHost(hostVerifier == null);
+            HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator();
+            String[] tokenList = new String[]{discoveryCookie};
+            List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
+            this.commonspec.getLogger().debug("Discovery Cookie to set:");
+            for (String cookie : tokenList) {
+                this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
+            }
+            ThreadProperty.set(discoveryCookie, ssoCookies.get(discoveryCookie));
+            commonspec.setCookies(cookiesAtributes);
+
         }
-        ThreadProperty.set(discoveryCookie, ssoCookies.get(discoveryCookie));
-        commonspec.setCookies(cookiesAtributes);
     }
 
     /**
@@ -420,16 +490,31 @@ public class DcosSpec extends BaseGSpec {
      */
     @Then("^I obtain metabase id for user '(.+?)' and password '(.+?)' in endpoint '(.+?)' and save in context cookies$")
     public void saveMetabaseCookie(String user, String password, String url) throws Exception {
-        String command = "curl -X POST -k -H 'Cookie: " + this.commonspec.getCookies().get(0) + " ' -H \"Content-Type: application/json\" -d '{\"username\": \"" + user + "\", \"password\": \"" + password + "\"}' " + url;
-        commonspec.runLocalCommand(command);
-        commonspec.runCommandLoggerAndEnvVar(0, null, Boolean.TRUE);
-        Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
-        String result = JsonPath.parse(commonspec.getCommandResult().trim()).read("$.id");
-        com.ning.http.client.cookie.Cookie cookie = new com.ning.http.client.cookie.Cookie("metabase.SESSION_ID", result, false, "", "", 99999L, false, false);
-        ArrayList cookieList = new ArrayList();
-        cookieList.add(cookie);
-        cookieList.add(this.commonspec.getCookies().get(0));
-        this.commonspec.setCookies(cookieList);
+        if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && user.contains("stratiobigdata.onmicrosoft.com")) {
+
+            HashMap<String, String> cookieTokenADFS = new HashMap<>();
+
+            String adfsCookie = this.readOneLineFile(System.getProperty("user.dir") + "/metabase-" + user);
+            cookieTokenADFS.put("metabase.SESSION", adfsCookie);
+            String[] adfsTokenList = {"metabase.SESSION"};
+
+            List<com.ning.http.client.cookie.Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenList);
+            commonspec.getCookies().add(cookiesAtributesADFS.get(0));
+
+        } else {
+
+            String command = "curl -X POST -k -H 'Cookie: " + this.commonspec.getCookies().get(0) + " ' -H \"Content-Type: application/json\" -d '{\"username\": \"" + user + "\", \"password\": \"" + password + "\"}' " + url;
+            commonspec.runLocalCommand(command);
+            commonspec.runCommandLoggerAndEnvVar(0, null, Boolean.TRUE);
+            Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
+            String result = JsonPath.parse(commonspec.getCommandResult().trim()).read("$.id");
+            com.ning.http.client.cookie.Cookie cookie = new com.ning.http.client.cookie.Cookie("metabase.SESSION_ID", result, false, "", "", 99999L, false, false);
+            ArrayList cookieList = new ArrayList();
+            cookieList.add(cookie);
+            cookieList.add(this.commonspec.getCookies().get(0));
+            this.commonspec.setCookies(cookieList);
+
+        }
     }
 
 
@@ -977,7 +1062,11 @@ public class DcosSpec extends BaseGSpec {
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.kerberos.kadminHost", "KADMIN_HOST", null);
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.kerberos.kadminPort", "KADMIN_PORT", null);
 
-        obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.adminUserUuid", "DCOS_USER", null);
+        if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && System.getProperty("DCOS_USER") != null) {
+            ThreadProperty.set("DCOS_USER", System.getProperty("DCOS_USER"));
+        } else {
+            obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.adminUserUuid", "DCOS_USER", null);
+        }
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.url", "LDAP_URL", null);
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.port", "LDAP_PORT", null);
         obtainJSONInfoAndExpose(etcdInfo, "$.globals.ldap.userDn", "LDAP_USER_DN", null);
@@ -1115,7 +1204,11 @@ public class DcosSpec extends BaseGSpec {
         LinkedHashMap<String, Object> yamlMapSecretsLdap = (LinkedHashMap<String, Object>) yamlMapSecrets.get("ldap");
         LinkedHashMap<String, Object> yamlMapSecretsLdapAdmin = (LinkedHashMap<String, Object>) yamlMapSecretsLdap.get("admin");
         LinkedHashMap<String, Object> yamlMapSecretsLdapSuperAdmin = (LinkedHashMap<String, Object>) yamlMapSecretsLdap.get("super_admin");
-        ThreadProperty.set("DCOS_PASSWORD", yamlMapSecretsLdapAdmin.get("pass").toString());
+        if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && System.getProperty("DCOS_PASSWORD") != null) {
+            ThreadProperty.set("DCOS_PASSWORD", System.getProperty("DCOS_PASSWORD"));
+        } else {
+            ThreadProperty.set("DCOS_PASSWORD", yamlMapSecretsLdapAdmin.get("pass").toString());
+        }
         ThreadProperty.set("LDAP_USER", yamlMapSecretsLdapSuperAdmin.get("user").toString());
         ThreadProperty.set("LDAP_PASSWORD", yamlMapSecretsLdapSuperAdmin.get("pass").toString());
 
@@ -1279,7 +1372,11 @@ public class DcosSpec extends BaseGSpec {
             obtainJSONInfo(descriptor, "DNS_SEARCH", varClusterDomain);
             obtainJSONInfo(descriptor, "INTERNAL_DOMAIN", varInternalDomain);
             obtainJSONInfo(descriptor, "IP", varIp);
-            obtainJSONInfo(descriptor, "ADMIN_USER", varAdminUser);
+            if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && System.getProperty("DCOS_USER") != null) {
+                ThreadProperty.set("DCOS_USER", System.getProperty("DCOS_USER"));
+            } else {
+                obtainJSONInfo(descriptor, "ADMIN_USER", varAdminUser);
+            }
             obtainJSONInfo(descriptor, "TENANT", varTenant);
             obtainJSONInfo(descriptor, "VAULT_HOST", varVaultHost);
             ThreadProperty.set("EOS_VAULT_HOST", ThreadProperty.get(varVaultHost)); // Retrocompatibily, it will be removed in next version

@@ -63,7 +63,7 @@ public class ADFSSpec extends BaseGSpec {
     public void createSisSynchronizerSecrets(String adfsCN) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
-        gosecSpec.createUserResource(adfsCN, null, null, "keytab", "certificate", null);
+        gosecSpec.createUserResource(adfsCN, null, null, "keytab", "certificate", null, null);
         this.adfsCN = adfsCN;
     }
 
@@ -88,7 +88,7 @@ public class ADFSSpec extends BaseGSpec {
         cctSpec.getCertificate(this.adfsCN, this.adfsCN, "inPeople");
         // Check certificate obtained correctly
         String command = "sudo openssl x509 -in target/test-classes/" + this.adfsCN + ".pem -noout -text";
-        String expectedResult = "CN = " + this.adfsCN;
+        String expectedResult = this.adfsCN;
         commonspec.runLocalCommand(command);
         assertThat(commonspec.getCommandResult()).as("Contains " + expectedResult + ".").contains(expectedResult);
 
@@ -152,7 +152,7 @@ public class ADFSSpec extends BaseGSpec {
         cctSpec.getCertificate(this.adfsCN, this.adfsCN, "inPeople");
         // Check certificate obtained correctly
         String command = "sudo openssl x509 -in target/test-classes/" + this.adfsCN + ".pem -noout -text";
-        String expectedResult = "CN = " + this.adfsCN;
+        String expectedResult = this.adfsCN;
         commonspec.runLocalCommand(command);
         assertThat(commonspec.getCommandResult()).as("Contains " + expectedResult + ".").contains(expectedResult);
 

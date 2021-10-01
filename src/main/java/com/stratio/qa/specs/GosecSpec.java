@@ -261,7 +261,8 @@ public class GosecSpec extends BaseGSpec {
         Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
         String resourcePrefix = getResourcePrefix(resource);
-        String endPointPolicies = "/baas/management/policies";
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPointPolicies = baasPath + "/management/policies";
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -349,13 +350,14 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private String getResourceEndpoint(String resource) {
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         switch (resource) {
             case "policy":
-                return "/baas/management/policy";
+                return baasPath + "/management/policy";
             case "user":
-                return "/baas/management/user";
+                return baasPath + "/management/user";
             case "group":
-                return "/baas/management/group";
+                return baasPath + "/management/group";
             default:
                 return "";
         }
@@ -388,7 +390,7 @@ public class GosecSpec extends BaseGSpec {
      * @param loginInfo       : user and password to log in service (OPTIONAL)
      * @throws Exception
      */
-    @When("^I delete '(policy|user|group)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
+    @When("^I delete '(policy|user|group|collectionPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
     public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
@@ -402,6 +404,8 @@ public class GosecSpec extends BaseGSpec {
         String endPointResource = "";
         String endPointPolicy = "/service/gosecmanagement" + ThreadProperty.get("API_POLICY");
         String endPointPolicies = "/service/gosecmanagement" + ThreadProperty.get("API_POLICIES");
+        String endPointCollectionPolicy = "";
+        String endPointCollectionsPolicies = "";
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
 
         if (tenantOrig != null) {
@@ -416,6 +420,8 @@ public class GosecSpec extends BaseGSpec {
         if (managementBaasVersion != null) {
             endPointPolicies = "/service/gosec-management-baas/management/policies";
             endPointPolicy = "/service/gosec-management-baas/management/policy?pid=";
+            endPointCollectionsPolicies = "/service/gosec-management-baas/management/policies/domains";
+            endPointCollectionPolicy = "/service/gosec-management-baas/management/policy/domain?pid=";
         }
 
         if (endPoint != null) {
@@ -426,6 +432,13 @@ public class GosecSpec extends BaseGSpec {
                 if (managementBaasVersion != null) {
                     endPoint = "/service/gosec-management-baas/management/policy?pid=";
                 }
+            } else if (resource.equals("collectionPolicy")) {
+                if (managementBaasVersion == null) {
+                    commonspec.getLogger().error("Collections policies can only be used with gosec-management-baas");
+                    throw new Exception("Collections policies can only be used with gosec-management-baas");
+                }
+                endPointPolicy = endPointCollectionPolicy;
+                endPointPolicies = endPointCollectionsPolicies;
             } else {
                 if (resource.equals("user")) {
                     endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_USER");
@@ -444,7 +457,7 @@ public class GosecSpec extends BaseGSpec {
         try {
             assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
 
-            if (resource.equals("policy")) {
+            if ((resource.equals("policy") || resource.equals("collectionPolicy"))) {
                 restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
                     String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, managementBaasVersion != null);
@@ -485,7 +498,8 @@ public class GosecSpec extends BaseGSpec {
         Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
         String resourcePrefix = getResourcePrefix(resource);
-        String endPointPolicies = "/baas/management/policies";
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPointPolicies = baasPath + "/management/policies";
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -570,9 +584,11 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private void getPolicyIdKeos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar) throws Exception {
-        String endPoint = "/baas/management/policies";
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPoint = baasPath + "/management/policies";
+
         if (tag != null) {
-            endPoint = "/baas/management/policies/tags";
+            endPoint += "/tags";
         }
         getPolicyIdCommon(endPoint, policyName, tenantOrig, tenantLoginInfo, envVar);
     }
@@ -835,12 +851,13 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private void getPolicyJsonKeos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
-        String endPoint = "/baas/management/policy";
-        String endPointPolicies = "/baas/management/policies";
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPoint = baasPath + "/management/policy";
+        String endPointPolicies = baasPath + "/management/policies";
 
         if (tag != null) {
-            endPoint = "/baas/management/policy/tags";
-            endPointPolicies = "/baas/management/policies/tags";
+            endPoint = baasPath + "management/policy/tags";
+            endPointPolicies = baasPath + "/management/policies/tags";
         }
 
         if (tenantOrig != null) {
@@ -954,7 +971,7 @@ public class GosecSpec extends BaseGSpec {
                     // Add gids array to new json for PUT request
                     putObject.put("gids", stringGroups);
 
-                    commonspec.getLogger().warn("Json for PUT request---> {}", putObject.toString());
+                    commonspec.getLogger().warn("Json for PUT request---> {}", putObject);
                     Future<Response> response = commonspec.generateRequest("PUT", false, null, null, endPointGetProfile, JsonValue.readHjson(putObject.toString()).toString(), "json", "");
                     commonspec.setResponse("PUT", response.get());
                     if (commonspec.getResponse().getStatusCode() != 204) {
@@ -1098,9 +1115,10 @@ public class GosecSpec extends BaseGSpec {
     private void updateResourceKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
         Integer[] expectedStatusUpdate = {200, 201, 204};
         String resourcePrefix = getResourcePrefix(resource);
-        String endPointPolicies = "/baas/management/policies";
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPointPolicies = baasPath + "/management/policies";
         String endPoint = getResourceEndpoint(resource);
-        String endPointResource = endPoint + resourcePrefix + resourceId;;
+        String endPointResource = endPoint + resourcePrefix + resourceId;
 
 
         if (tenantOrig != null) {
@@ -1208,7 +1226,7 @@ public class GosecSpec extends BaseGSpec {
                             }
                         }
                         putObject.put(uidOrGidTenant, new JSONArray(stringGroups));
-                        commonspec.getLogger().debug("Json for PATCH request---> {}", putObject.toString());
+                        commonspec.getLogger().debug("Json for PATCH request---> {}", putObject);
                         Future<Response> response = commonspec.generateRequest("PATCH", false, null, null, endPointTenant, JsonValue.readHjson(putObject.toString()).toString(), "json", "");
                         commonspec.setResponse("PATCH", response.get());
                         if (commonspec.getResponse().getStatusCode() != 204) {
@@ -1239,21 +1257,27 @@ public class GosecSpec extends BaseGSpec {
      * @param keytab          : creation of keytab in vault (OPTIONAL)
      * @param certificate     : creation of certificate in vault (OPTIONAL)
      * @param groups          : groups for custom user (OPTIONAL)
+     * @param doesNotExist    : (IF false) resource will be overwritten if exists previously  (OPTIONAL)
      * @throws Exception
      */
-    @When("^I create custom user '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?$")
-    public void createUserResource(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups) throws Exception {
+    @When("^I create custom user '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( if it does not exist)?$")
+    public void createUserResource(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups, String doesNotExist) throws Exception {
+        Boolean booleanExist = false;
+        if (doesNotExist != null) {
+            booleanExist = true;
+        }
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createUserResourceKeos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups);
+            createUserResourceKeos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         } else {
-            createUserResourceDcos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups);
+            createUserResourceDcos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         }
     }
 
-    private void createUserResourceDcos(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups) throws Exception {
+    private void createUserResourceDcos(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups, boolean doesNotExist) throws Exception {
         String managementVersion = ThreadProperty.get("gosec-management_version");
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
         String endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_USER");
+        Integer[] expectedStatusDelete = {200, 204};
         Boolean addSourceType = false;
         Boolean managementBaas = false;
         String endPointResource = "";
@@ -1311,9 +1335,22 @@ public class GosecSpec extends BaseGSpec {
                 // Send POST request
                 sendIdentitiesPostRequest("user", userName, data, newEndPoint);
 
-
             } else {
-                commonspec.getLogger().warn("Custom user:{} already exist", userName);
+                if (doesNotExist) {
+                    commonspec.getLogger().warn("Custom user:{} already exist", userName);
+                } else {
+                    // Delete user and send the request again
+                    deleteResourceIfExistsDcos("user", userName, tenantOrig, tenantLoginInfo, endPoint, null);
+
+                    try {
+                        assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
+                    } catch (AssertionError e) {
+                        commonspec.getLogger().warn("Error deleting User {}: {}", userName, commonspec.getResponse().getResponse());
+                        throw e;
+                    }
+                    //send request again
+                    createUserResourceDcos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
+                }
             }
 
         } catch (Exception e) {
@@ -1323,9 +1360,11 @@ public class GosecSpec extends BaseGSpec {
 
     }
 
-    private void createUserResourceKeos(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups) throws Exception {
-        String endPoint = "/baas/management/user";
+    private void createUserResourceKeos(String userName, String tenantOrig, String tenantLoginInfo, String keytab, String certificate, String groups, boolean doesNotExist) throws Exception {
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPoint = baasPath + "/management/user";
         String endPointResource = "";
+        Integer[] expectedStatusDelete = {200, 204};
         String uid = userName.replaceAll("\\s+", ""); //delete white spaces
         String data = generateBaasUserJson(uid, userName, groups, keytab, certificate);
         if (tenantOrig != null) {
@@ -1341,7 +1380,21 @@ public class GosecSpec extends BaseGSpec {
                 // Send POST request
                 sendIdentitiesPostRequest("user", userName, data, endPoint);
             } else {
-                commonspec.getLogger().warn("Custom user:{} already exist", userName);
+                if (doesNotExist) {
+                    commonspec.getLogger().warn("Custom user:{} already exist", userName);
+                } else {
+                    // Delete user and send the request again
+                    deleteResourceIfExistsKeos("user", userName, tenantOrig, tenantLoginInfo, endPoint, null);
+
+                    try {
+                        assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
+                    } catch (AssertionError e) {
+                        commonspec.getLogger().warn("Error deleting User {}: {}", userName, commonspec.getResponse().getResponse());
+                        throw e;
+                    }
+                    //send request again
+                    createUserResourceKeos(userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
+                }
             }
         } catch (Exception e) {
             commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}{}", commonspec.getRestHost(), commonspec.getRestPort());
@@ -1358,23 +1411,29 @@ public class GosecSpec extends BaseGSpec {
      * @param tenantLoginInfo : user and password to log into tenant (OPTIONAL)
      * @param users           : users for custom group (OPTIONAL)
      * @param groups          : groups for custom group (nested) (OPTIONAL)
+     * @param doesNotExist    : (IF false) resource will be overwritten if exists previously  (OPTIONAL)
      * @throws Exception
      */
-    @When("^I create custom group '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( assigned to users '(.+?)')?( assigned to groups '(.+?)')?$")
-    public void createGroupResource(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups) throws Exception {
+    @When("^I create custom group '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( assigned to users '(.+?)')?( assigned to groups '(.+?)')?( if it does not exist)?$")
+    public void createGroupResource(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups, String doesNotExist) throws Exception {
+        Boolean booleanExist = false;
+        if (doesNotExist != null) {
+            booleanExist = true;
+        }
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createGroupResourceKeos(groupName, tenantOrig, tenantLoginInfo, users, groups);
+            createGroupResourceKeos(groupName, tenantOrig, tenantLoginInfo, users, groups, booleanExist);
         } else {
-            createGroupResourceDcos(groupName, tenantOrig, tenantLoginInfo, users, groups);
+            createGroupResourceDcos(groupName, tenantOrig, tenantLoginInfo, users, groups, booleanExist);
         }
     }
 
-    private void createGroupResourceDcos(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups) throws Exception {
+    private void createGroupResourceDcos(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups, boolean doesNotExist) throws Exception {
         String managementVersion = ThreadProperty.get("gosec-management_version");
         String managementBaasVersion = ThreadProperty.get("gosec-management-baas_version");
         String endPoint = "/service/gosecmanagement" + ThreadProperty.get("API_GROUP");
         Boolean addSourceType = false;
         Boolean managementBaas = false;
+        Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
         String gid = groupName.replaceAll("\\s+", ""); //delete white spaces
         Integer expectedStatusCreate = 201;
@@ -1432,7 +1491,21 @@ public class GosecSpec extends BaseGSpec {
                 sendIdentitiesPostRequest("group", groupName, data, newEndPoint);
 
             } else {
-                commonspec.getLogger().warn("Custom group:{} already exist", groupName);
+                if (doesNotExist) {
+                    commonspec.getLogger().warn("Custom group:{} already exist", groupName);
+                } else {
+                    // Delete group and send the request again
+                    deleteResourceIfExistsDcos("group", groupName, tenantOrig, tenantLoginInfo, endPoint, null);
+
+                    try {
+                        assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
+                    } catch (AssertionError e) {
+                        commonspec.getLogger().warn("Error deleting Group {}: {}", groupName, commonspec.getResponse().getResponse());
+                        throw e;
+                    }
+                    //send request again
+                    createGroupResourceDcos(groupName, tenantOrig, tenantLoginInfo, users, groups, doesNotExist);
+                }
             }
 
         } catch (Exception e) {
@@ -1442,11 +1515,13 @@ public class GosecSpec extends BaseGSpec {
 
     }
 
-    private void createGroupResourceKeos(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups) throws Exception {
-        String endPoint = "/baas/management/group";
+    private void createGroupResourceKeos(String groupName, String tenantOrig, String tenantLoginInfo, String users, String groups, boolean doesNotExist) throws Exception {
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPoint = baasPath + "/management/group";
         String endPointResource = "";
         String gid = groupName.replaceAll("\\s+", ""); //delete white spaces
         String data = generateBaasGroupJson(gid, groupName, users, groups);
+        Integer[] expectedStatusDelete = {200, 204};
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -1462,7 +1537,21 @@ public class GosecSpec extends BaseGSpec {
                 // Send POST request
                 sendIdentitiesPostRequest("group", groupName, data, endPoint);
             } else {
-                commonspec.getLogger().warn("Custom group:{} already exist", groupName);
+                if (doesNotExist) {
+                    commonspec.getLogger().warn("Custom group:{} already exist", groupName);
+                } else {
+                    // Delete group and send the request again
+                    deleteResourceIfExistsKeos("group", groupName, tenantOrig, tenantLoginInfo, endPoint, null);
+
+                    try {
+                        assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
+                    } catch (AssertionError e) {
+                        commonspec.getLogger().warn("Error deleting Group {}: {}", groupName, commonspec.getResponse().getResponse());
+                        throw e;
+                    }
+                    //send request again
+                    createGroupResourceKeos(groupName, tenantOrig, tenantLoginInfo, users, groups, doesNotExist);
+                }
             }
         } catch (Exception e) {
             commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}{}", commonspec.getRestHost(), commonspec.getRestPort());
@@ -1633,7 +1722,8 @@ public class GosecSpec extends BaseGSpec {
     }
 
     public void getServiceVersionKeos(String serviceType, String serviceId, String tenant, String tenantLoginInfo, String envVar) throws Exception {
-        String endpoint = "/baas/management/services";
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endpoint = baasPath + "/management/services";
         getServiceVersionCommon(endpoint, serviceType, serviceId, tenant, tenantLoginInfo, envVar, "N/A", true);
     }
 

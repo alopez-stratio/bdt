@@ -17,6 +17,7 @@
 package com.stratio.qa.aspects;
 
 import com.stratio.qa.cucumber.runner.Glue;
+import com.stratio.qa.cucumber.runtime.RuntimeOptions;
 import com.stratio.qa.cucumber.testng.CucumberReporter;
 import com.stratio.qa.cucumber.testng.TestSourcesModelUtil;
 import com.stratio.qa.exceptions.NonReplaceableException;
@@ -32,7 +33,6 @@ import cucumber.runner.AmbiguousStepDefinitionsException;
 import cucumber.runner.EventBus;
 import cucumber.runtime.Backend;
 import cucumber.runtime.CucumberException;
-import cucumber.runtime.RuntimeOptions;
 import cucumber.runtime.StepDefinitionMatch;
 import gherkin.events.PickleEvent;
 import gherkin.pickles.*;

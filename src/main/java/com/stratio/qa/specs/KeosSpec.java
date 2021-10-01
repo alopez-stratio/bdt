@@ -61,7 +61,7 @@ public class KeosSpec extends BaseGSpec {
         commonspec.setCookies(cookiesAtributes);
         RestSpec restSpec = new RestSpec(commonspec);
         restSpec.setupRestClient("securely", ssoHost, ":443");
-        restSpec.sendRequestNoDataTable("GET", "/ui/", null, null, null);
+        restSpec.sendRequestNoDataTable("GET", ThreadProperty.get("KEOS_GOSEC_INGRESS_PATH") + "/", null, null, null);
         for (com.ning.http.client.cookie.Cookie cookie : commonspec.getResponse().getCookies()) {
             if (cookie.getName().equals("stratio-cookie")) {
                 cookiesAtributes.add(cookie);

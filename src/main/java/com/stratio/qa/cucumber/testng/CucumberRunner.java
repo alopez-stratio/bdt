@@ -17,7 +17,11 @@
 package com.stratio.qa.cucumber.testng;
 
 import com.stratio.qa.cucumber.converter.LoopConverter;
+import com.stratio.qa.cucumber.runtime.FeaturePathFeatureSupplier;
 import com.stratio.qa.cucumber.runtime.RuntimeOptionsFactoryCustom;
+import com.stratio.qa.cucumber.runtime.RuntimeOptions;
+import com.stratio.qa.cucumber.runtime.model.CucumberFeature;
+import com.stratio.qa.cucumber.runtime.model.FeatureLoader;
 import cucumber.api.event.ConcurrentEventListener;
 import cucumber.api.event.TestRunFinished;
 import cucumber.api.event.TestRunStarted;
@@ -28,17 +32,13 @@ import cucumber.runner.TimeService;
 import cucumber.runtime.BackendModuleBackendSupplier;
 import cucumber.runtime.ClassFinder;
 import cucumber.runtime.CucumberException;
-import cucumber.runtime.FeaturePathFeatureSupplier;
 import cucumber.runtime.filter.Filters;
 import cucumber.runtime.formatter.Plugins;
 import cucumber.runtime.formatter.PluginFactory;
-import cucumber.runtime.model.FeatureLoader;
 import cucumber.runner.ThreadLocalRunnerSupplier;
-import cucumber.runtime.RuntimeOptions;
 import cucumber.runtime.io.MultiLoader;
 import cucumber.runtime.io.ResourceLoader;
 import cucumber.runtime.io.ResourceLoaderClassFinder;
-import cucumber.runtime.model.CucumberFeature;
 import gherkin.events.PickleEvent;
 import org.reflections.Reflections;
 

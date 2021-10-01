@@ -308,4 +308,9 @@ public class App {
     public void setEnv(Map<String, Object> env) {
         this.env = env;
     }
+
+    public void setFetch(List<Fetchable> json) {
+        this.fetch = json;
+    }
+
 }

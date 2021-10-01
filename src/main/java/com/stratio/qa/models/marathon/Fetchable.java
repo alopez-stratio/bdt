@@ -47,4 +47,25 @@ public class Fetchable {
     public String getDestPath() {
         return destPath;
     }
+
+    public void setUri(String uri)  {
+        this.uri = uri;
+    }
+
+    public void setExecutable(Boolean executable) {
+        this.executable = executable;
+    }
+
+    public void setExtract(Boolean extract) {
+        this.extract = extract;
+    }
+
+    public void setCache(Boolean cache) {
+        this.cache = cache;
+    }
+
+    public void setDestPath(String destPath) {
+        this.destPath = destPath;
+    }
+
 }

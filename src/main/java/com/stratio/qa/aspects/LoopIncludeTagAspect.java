@@ -31,17 +31,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Aspect
 public class LoopIncludeTagAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
-    @Pointcut("execution (private * cucumber.runtime.model.FeatureParser.read(..)) &&" + "args (resource)")
+    @Pointcut("execution (private * com.stratio.qa.cucumber.runtime.model.FeatureParser.read(..)) &&" + "args (resource)")
     protected void featureBuilderRead(Resource resource) {
     }
 

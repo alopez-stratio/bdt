@@ -16,6 +16,8 @@
 
 package com.stratio.qa.utils;
 
+import com.stratio.qa.cucumber.api.FeatureExecutionOrder;
+import com.stratio.qa.cucumber.runtime.model.FeatureBuilder;
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.CucumberRunner;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
@@ -63,6 +65,10 @@ public abstract class BaseGTest {
     @BeforeClass(alwaysRun = true)
     public void beforeGClass(ITestContext context) throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        FeatureExecutionOrder annotation =  this.getClass().getAnnotation(FeatureExecutionOrder.class);
+        System.setProperty(FeatureBuilder.FEATURE_EXECUTION_ORDER_KEY, annotation != null ? annotation.order() : "");
+
         cucumberRunner = new CucumberRunner(this.getClass());
     }
 

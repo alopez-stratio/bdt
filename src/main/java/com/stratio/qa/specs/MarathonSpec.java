@@ -313,6 +313,34 @@ public class MarathonSpec extends BaseGSpec {
     }
 
 
+    @When("^I update Marathon fetch section of service with id '(.+?)' with uri '(.+?)'$")
+    public void updateAppFetch(String appId, String uri) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        // Check service exists and is running
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+
+        List fetchSection = app.getApp().getFetch() == null ? new ArrayList() : app.getApp().getFetch();
+
+        Fetchable fetch = new Fetchable();
+        fetch.setUri(uri);
+        fetch.setCache(false);
+        fetch.setExtract(true);
+        fetch.setExecutable(false);
+        fetch.setDestPath(null);
+
+        fetchSection.add(fetch);
+
+        //Update service
+        App a = new App();
+        a.setFetch(fetchSection);
+        DeploymentResult response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
+
     @When("^I update Marathon service with id '(.+?)' with environment variables:$")
     public void updateAppEnvs(String appId, DataTable modifications) throws Exception {
         // Set REST connection
@@ -332,11 +360,11 @@ public class MarathonSpec extends BaseGSpec {
                 String value = entry.get(2);
                 switch (action) {
                     case "ADD": envs.put(name, value);
-                                break;
+                        break;
                     case "DELETE": envs.remove(name);
-                                   break;
+                        break;
                     case "REPLACE": envs.replace(name, value);
-                                    break;
+                        break;
                     default: break;
                 }
             }

@@ -4,12 +4,15 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 0.21.0 (upcoming)
 
+* [GS-3881] Adapt management-baas path according to keos version
+* [QATM-3773] Refactor creating cutom users/groups
 * [GS-3161] Add step to create custom JTW
 * [GS-3051] Fix check certificate creating federated users
 * Kubernetes support
 * [EOS-4775] Fix step to remove user/group from tenant
 * [SPK-1168] Get log from mesos if CCT doesn't return log path
 * [DGPB-6794] Add support to Governance service role
+* [DGPB-7161] Modify Gosec function deleteResourceIfExistsDcos to delete collections policies
 
 ## 0.20.0 (December 17, 2020)
 
