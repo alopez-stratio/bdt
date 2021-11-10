@@ -41,6 +41,12 @@ public class FeatureBuilder {
     //----STRATIO----
     public static final String PRESERVE_ORDER = "PRESERVE_ORDER";
 
+    //----STRATIO----
+    public static final String DUPLICATED_FEATURES_KEY = "DUPLICATED_FEATURES";
+
+    //----STRATIO----
+    public static final String ALLOW_DUPLICATED_FEATURES = "ALLOW_DUPLICATED";
+
     public List<CucumberFeature> build() {
         //----STRATIO----
         switch (System.getProperty(FeatureBuilder.FEATURE_EXECUTION_ORDER_KEY, "")) {
@@ -58,10 +64,19 @@ public class FeatureBuilder {
 
     public void parse(Resource resource) {
         CucumberFeature parsedFeature = FeatureParser.parseResource(resource);
-        CucumberFeature existingFeature = sourceToFeature.get(parsedFeature.getSource());
-        if (existingFeature != null) {
-            log.warn("Duplicate feature ignored. " + parsedFeature.getUri() + " was identical to " + existingFeature.getUri());
-            return;
+
+        switch (System.getProperty(FeatureBuilder.DUPLICATED_FEATURES_KEY, "")) {
+            case FeatureBuilder.ALLOW_DUPLICATED_FEATURES:
+                log.debug("Allow duplicated features.");
+                break;
+            default:
+                log.debug("Duplicated features not allowed.");
+                CucumberFeature existingFeature = sourceToFeature.get(parsedFeature.getSource());
+                if (existingFeature != null) {
+                    log.warn("Duplicate feature ignored. " + parsedFeature.getUri() + " was identical to " + existingFeature.getUri());
+                    return;
+                }
+                break;
         }
         sourceToFeature.put(parsedFeature.getSource(), parsedFeature);
         //----STRATIO----

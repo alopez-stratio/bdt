@@ -1324,7 +1324,9 @@ public class CCTSpec extends BaseGSpec {
         String data = this.commonspec.retrieveData(jsonFile, "json");
         if (namespace != null) {
             List<List<String>> rawData = Arrays.asList(
-                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string")
+                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string"),
+                    Arrays.asList("$.deployment.general.namespaces", "ADD", "{}", "object"),
+                    Arrays.asList("$.deployment.general.namespaces.k8sNamespace", "ADD", namespace, "string")
             );
             DataTable modifications = DataTable.create(rawData);
             data = this.commonspec.modifyData(data, "json", modifications);
@@ -1411,6 +1413,9 @@ public class CCTSpec extends BaseGSpec {
         schemaJson.put("applicationId", service + "." + tenant);
         if (namespace != null) {
             ((JSONObject) ((JSONObject) schemaJson.get("deployment")).get("general")).put("k8sNamespace", namespace);
+            JSONObject jsonNamespaces = new JSONObject();
+            jsonNamespaces.put("k8sNamespace", namespace);
+            ((JSONObject) ((JSONObject) schemaJson.get("deployment")).get("general")).put("namespaces", jsonNamespaces);
         }
         // Set REST connection
         commonspec.setCCTConnection(null, null);
@@ -1595,7 +1600,9 @@ public class CCTSpec extends BaseGSpec {
         String data = this.commonspec.retrieveData(jsonFile, "json");
         if (namespace != null) {
             List<List<String>> rawData = Arrays.asList(
-                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string")
+                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string"),
+                    Arrays.asList("$.deployment.general.namespaces", "ADD", "{}", "object"),
+                    Arrays.asList("$.deployment.general.namespaces.k8sNamespace", "ADD", namespace, "string")
             );
             DataTable modificationsAux = DataTable.create(rawData);
             data = this.commonspec.modifyData(data, "json", modificationsAux);

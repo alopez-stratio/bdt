@@ -1,5 +1,5 @@
-Feature: Test feature
+Feature: Test3 feature
 
-  Scenario: Test Scenario
+  Scenario: Test3 Scenario
     Then I run 'echo 'Test3.feature'' locally
 

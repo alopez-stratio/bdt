@@ -66,7 +66,7 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.connect(kubeConfigPath);
     }
 
-    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
+    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress|persistentVolumeClaims)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getList(String type, String namespace, String envVar) {
         String response = null;
         switch (type) {
@@ -112,6 +112,9 @@ public class K8SSpec extends BaseGSpec {
             case "ingress":
                 response = commonspec.kubernetesClient.getIngressList(namespace);
                 break;
+            case "persistentVolumeClaims":
+                response = commonspec.kubernetesClient.getPersistentVolumeClaimsList(namespace);
+                break;
             default:
         }
         ThreadProperty.set(envVar, response);
@@ -127,7 +130,7 @@ public class K8SSpec extends BaseGSpec {
         assertThat(commonspec.kubernetesClient.checkEventNamespace(not, namespace, type, name, reason, message)).as("There aren't event that contains the message " + message + " in namespace " + namespace).isTrue();
     }
 
-    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding|ingress) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding|ingress|persistentVolumeClaims) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
@@ -170,6 +173,9 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "ingress":
                 describeResponse = commonspec.kubernetesClient.describeIngress(name, namespace);
+                break;
+            case "persistentVolumeClaims":
+                describeResponse = commonspec.kubernetesClient.describePersistentVolumeClaims(name, namespace);
                 break;
             default:
                 describeResponse = null;
@@ -381,7 +387,12 @@ public class K8SSpec extends BaseGSpec {
 
     @When("^I expose deployment with name '(.+?)', in namespace '(.+?)' in port '(\\d+)'$")
     public void createDeployment(String name, String namespace, Integer port) {
-        commonspec.kubernetesClient.exposeDeployment(name, namespace, port);
+        commonspec.kubernetesClient.exposeDeployment(name, name, "ClusterIP", namespace, port, false);
+    }
+
+    @When("^I expose deployment with name '(.+?)', in namespace '(.+?)' in port '(\\d+)' with type '(ClusterIP|LoadBalancer)'( and service name '(.+?)')?( using CCT app selector)?$")
+    public void createDeployment(String name, String namespace, Integer port, String type, String serviceName, String cctAppSelector) {
+        commonspec.kubernetesClient.exposeDeployment(name, serviceName, type, namespace, port, cctAppSelector != null);
     }
 
     @When("^I get log from pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")

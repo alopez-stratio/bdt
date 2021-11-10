@@ -358,6 +358,17 @@ public class KubernetesClient {
     }
 
     /**
+     * Return pvc object
+     *
+     * @param pvcName   Pvc name
+     * @param namespace Namespace
+     * @return Pvc object
+     */
+    public PersistentVolumeClaim getPersistentVolumeClaims(String pvcName, String namespace) {
+        return namespace != null ? k8sClient.persistentVolumeClaims().inNamespace(namespace).withName(pvcName).get() : k8sClient.persistentVolumeClaims().withName(pvcName).get();
+    }
+
+    /**
      * kubectl describe pod
      *
      * @param podName   Pod name
@@ -416,6 +427,18 @@ public class KubernetesClient {
             }
         }
         return null;
+    }
+
+    /**
+     * kubectl describe pvc
+     *
+     * @param pvcName   PersistentVolumeClaims name
+     * @param namespace Namespace (optional)
+     * @return String with pvc yaml
+     * @throws JsonProcessingException
+     */
+    public String describePersistentVolumeClaims(String pvcName, String namespace) throws JsonProcessingException {
+        return SerializationUtils.dumpAsYaml(getPersistentVolumeClaims(pvcName, namespace));
     }
 
     /**
@@ -594,18 +617,19 @@ public class KubernetesClient {
      * @param namespace      Namespace
      * @param port           Port to expose
      */
-    public void exposeDeployment(String deploymentName, String namespace, Integer port) {
+    public void exposeDeployment(String deploymentName, String serviceName, String type, String namespace, Integer port, Boolean cctApp) {
         Service service = new ServiceBuilder()
                 .withNewMetadata()
-                .withName(deploymentName)
+                .withName(serviceName != null ? serviceName : deploymentName)
                 .endMetadata()
                 .withNewSpec()
-                .withSelector(Collections.singletonMap("app", deploymentName))
+                .withSelector(Collections.singletonMap(cctApp ? "cct.stratio.com/application_id" : "app", deploymentName))
                 .addNewPort()
                 .withProtocol("TCP")
                 .withPort(port)
                 .withTargetPort(new IntOrString(port))
                 .endPort()
+                .withType(type)
                 .endSpec()
                 .build();
         k8sClient.services().inNamespace(namespace).create(service);
@@ -1370,6 +1394,20 @@ public class KubernetesClient {
         StringBuilder result = new StringBuilder();
         for (Ingress ingress : k8sClient.extensions().ingresses().inNamespace(namespace).list().getItems()) {
             result.append(ingress.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get pvc -n namespace
+     *
+     * @param namespace Namespace
+     * @return Persistant Volume Claim list
+     */
+    public String getPersistentVolumeClaimsList(String namespace) {
+        StringBuilder result = new StringBuilder();
+        for (PersistentVolumeClaim pvc : k8sClient.persistentVolumeClaims().inNamespace(namespace).list().getItems()) {
+            result.append(pvc.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }

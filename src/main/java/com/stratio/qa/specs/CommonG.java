@@ -1180,7 +1180,7 @@ public class CommonG {
                     this.getLogger().debug("Sending request as: {}", type);
                     request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                 } else if ("gov".equals(type)) {
-                    request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
+                    request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
                     request = request.setHeader("Accept", "application/json");
                     request = request.setHeader("X-TenantID", govTenant);
                     request = request.setHeader("X-RolesID", govRolesID);
@@ -1237,7 +1237,7 @@ public class CommonG {
                         this.getLogger().debug("Sending request as: {}", type);
                         request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                     } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
+                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
                         request = request.setHeader("Accept", "application/json");
                         request = request.setHeader("X-TenantID", govTenant);
                         request = request.setHeader("X-RolesID", govRolesID);
@@ -1286,7 +1286,7 @@ public class CommonG {
                         this.getLogger().debug("Sending request as: {}", type);
                         request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                     } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
+                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
                         request = request.setHeader("Accept", "application/json");
                         request = request.setHeader("X-TenantID", govTenant);
                         request = request.setHeader("X-RolesID", govRolesID);
@@ -1336,7 +1336,7 @@ public class CommonG {
                     } else if ("string".equals(type)) {
                         request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                     } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
+                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
                         request = request.setHeader("Accept", "application/json");
                         request = request.setHeader("X-TenantID", govTenant);
                         request = request.setHeader("X-RolesID", govRolesID);
@@ -1385,7 +1385,7 @@ public class CommonG {
                     } else if ("string".equals(type)) {
                         request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                     } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
+                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
                         request = request.setHeader("Accept", "application/json");
                         request = request.setHeader("X-TenantID", govTenant);
                         request = request.setHeader("X-RolesID", govRolesID);
