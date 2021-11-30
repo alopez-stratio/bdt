@@ -1053,6 +1053,22 @@ public class KubernetesClient {
     }
 
     /**
+     * Add or modify value in configmap
+     *
+     * @param configMapName Configmap name
+     * @param namespace Namespace
+     * @param key Key
+     * @param value Value
+     */
+    public void addValueInConfigMap(String configMapName, String namespace, String key, String value) {
+        Map<String, String> configMapData = getConfigMap(configMapName, namespace).getData();
+        configMapData.put(key, value);
+        ConfigMap configMapAux = getConfigMap(configMapName, namespace);
+        configMapAux.setData(configMapData);
+        k8sClient.configMaps().inNamespace(namespace).withName(configMapName).replace(configMapAux);
+    }
+
+    /**
      * Get a replicaset
      *
      * @param name      Replicaset name

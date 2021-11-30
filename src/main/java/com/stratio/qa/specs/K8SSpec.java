@@ -639,4 +639,9 @@ public class K8SSpec extends BaseGSpec {
     public void createClusterRole(String name, String namespace, String clusterRole, String serviceAccount) {
         commonspec.kubernetesClient.createClusterRoleBinding(name, namespace, clusterRole, serviceAccount);
     }
+
+    @When("^I add/modify variable '(.+?)' with value '(.+?)' in configmap with name '(.+?)' in namespace '(.+?)'$")
+    public void addOrModifyConfigmap(String cmKey, String cmValue, String cmName, String namespace) {
+        commonspec.kubernetesClient.addValueInConfigMap(cmName, namespace, cmKey, cmValue);
+    }
 }

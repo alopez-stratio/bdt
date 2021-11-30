@@ -1410,7 +1410,8 @@ public class CCTSpec extends BaseGSpec {
     @Given("^I uninstall deployment '(.+?)'( from tenant '(.+?)')?( in namespace '(.+?)')? with schema located at file '(.+?)'$")
     public void uninstallServiceKeos(String service, String tenant, String namespace, String jsonFile) throws Exception {
         JSONObject schemaJson = new JSONObject(this.commonspec.retrieveData(jsonFile, "json"));
-        schemaJson.put("applicationId", service + "." + tenant);
+        schemaJson.put("applicationId", service + "." + namespace);
+
         if (namespace != null) {
             ((JSONObject) ((JSONObject) schemaJson.get("deployment")).get("general")).put("k8sNamespace", namespace);
             JSONObject jsonNamespaces = new JSONObject();
@@ -1425,6 +1426,7 @@ public class CCTSpec extends BaseGSpec {
             endPoint += "?tenant=" + tenant;
         }
         Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, schemaJson.toString(), "json");
+
         commonspec.setResponse("POST", response.get());
 
         if (commonspec.getResponse().getStatusCode() != 202 && commonspec.getResponse().getStatusCode() != 200) {

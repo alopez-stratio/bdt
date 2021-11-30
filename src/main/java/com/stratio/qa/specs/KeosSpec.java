@@ -21,11 +21,13 @@ import com.stratio.qa.utils.GosecSSOUtils;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
 import org.json.JSONObject;
+import com.stratio.qa.assertions.Assertions;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
+import org.testng.Assert;
 
 /**
  * Keos Specs.
@@ -65,14 +67,21 @@ public class KeosSpec extends BaseGSpec {
         for (com.ning.http.client.cookie.Cookie cookie : commonspec.getResponse().getCookies()) {
             if (cookie.getName().equals("stratio-cookie")) {
                 cookiesAtributes.add(cookie);
+                ThreadProperty.set("stratioCookie", cookie.getValue());
                 break;
             }
         }
         this.commonspec.getLogger().debug("Cookies to set:");
         for (Cookie cookie : cookiesAtributes) {
             this.commonspec.getLogger().debug("\t" + cookie.getName() + ":" + cookie.getValue());
+            if (cookie.getName().equals("_oauth2_proxy")) {
+                cookiesAtributes.add(cookie);
+                ThreadProperty.set("oauth2ProxyCookie", cookie.getValue());
+                break;
+            }
         }
         commonspec.setCookies(cookiesAtributes);
+
     }
 
     /**
@@ -104,5 +113,44 @@ public class KeosSpec extends BaseGSpec {
                 out.close();
             }
         }
+    }
+
+
+    @Given("^I download k8s universe version '(.+?)'")
+    public void downloadK8sUniverse(String version) throws Exception {
+        String command = "wget -P target/test-classes http://sodio.stratio.com/repository/paas/kubernetes-universe/descriptors/kubernetes-universe-descriptors-" + version + ".zip";
+
+        // Execute command
+        commonspec.runLocalCommand(command);
+
+        Assertions.assertThat(commonspec.getCommandExitStatus()).as("Error downloading kubernetes universe version: " + version).isEqualTo(0);
+    }
+
+
+    @Given("^I upload k8s universe '(.+?)'")
+    public void uploadK8sUniverse(String universeFile) throws Exception {
+        // Check file exists
+        File rules = new File(universeFile);
+        Assertions.assertThat(rules.exists()).as("File: " + universeFile + " does not exist.").isTrue();
+
+        // Obtain endpoint
+        String endPointUpload = "/cct/cct-universe-service/v1/descriptors";
+
+        // Obtain URL
+        String restURL = "https://" + System.getProperty("KEOS_CLUSTER_NAME") + ":443" + endPointUpload;
+
+        // Form query parameters
+        String headers = "-H \"accept: */*\" -H \"Content-Type: multipart/form-data\"";
+        String forms = "-F \"file=@" + universeFile + ";type=application/zip\"";
+
+        String cookie = "-H \"Cookie:_oauth2_proxy=" + ThreadProperty.get("oauth2ProxyCookie") + "\"";
+        String command = "curl -X PUT -k " + cookie + " \"" + restURL + "\" " + headers + " " + forms;
+
+        // Execute command
+        commonspec.runLocalCommand(command);
+
+        Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
+        Assertions.assertThat(commonspec.getCommandResult()).as("Not possible to upload universe: " + commonspec.getCommandResult()).doesNotContain("Error");
+
     }
 }

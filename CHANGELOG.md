@@ -13,6 +13,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [SPK-1168] Get log from mesos if CCT doesn't return log path
 * [DGPB-6794] Add support to Governance service role
 * [DGPB-7161] Modify Gosec function deleteResourceIfExistsDcos to delete collections policies
+* [PQA-146] New steps to download and upload k8s universe
 
 ## 0.20.0 (December 17, 2020)
 

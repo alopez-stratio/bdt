@@ -2374,14 +2374,27 @@ public class CommonG {
                         case "integer":
                             json.put(key, 0);
                             break;
+                        case "array":
+                            json.put(key, new ArrayList<>());
+                            break;
+                        case "RollingUpdate":
+                            json.put(key, "");
+                            break;
                         default:
                             Assertions.fail("type not expected");
                     }
                 }
+
                 // If it CONTAINS properties
             } else {
-                // Recursive call, keep evaluating json
-                json.put(key, parseJSONSchema(element));
+                // Check if it has default value
+                if (element.has("default")) {
+                    // Add element with the default value assigned
+                    json.put(key, element.get("default"));
+                } else {
+                    // Recursive call, keep evaluating json
+                    json.put(key, parseJSONSchema(element));
+                }
             }
         }
 
