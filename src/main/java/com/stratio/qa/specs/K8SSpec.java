@@ -477,7 +477,7 @@ public class K8SSpec extends BaseGSpec {
         assertThat(log).contains(expectedLog);
     }
 
-    @When("^I delete (pod|deployment|service) with name '(.+?)' in namespace '(.+?)'$")
+    @When("^I delete (pod|deployment|service|statefulset) with name '(.+?)' in namespace '(.+?)'$")
     public void deleteResource(String type, String name, String namespace) {
         switch (type) {
             case "pod":
@@ -488,6 +488,9 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "service":
                 commonspec.kubernetesClient.deleteService(name, namespace);
+                break;
+            case "statefulset":
+                commonspec.kubernetesClient.deleteStatefulset(name, namespace);
                 break;
             default:
         }

@@ -128,12 +128,28 @@ public class KubernetesClient {
                 FileSpec fileSpec = new FileSpec(commonspec);
                 fileSpec.convertYamlToJson(workspaceName + "/keos.yaml", workspaceName + "/keos.json");
             }
-            String daedalusJson = commonspec.retrieveData(workspaceName + "/keos.json", "json");
-            ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(daedalusJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+            String keosJson = commonspec.retrieveData(workspaceName + "/keos.json", "json");
+            ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(keosJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+
+            if (commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("auth")) {
+                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("vHost")) {
+                    ThreadProperty.set("ADMIN_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.vHost", null).replaceAll("\"", ""));
+                }
+                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("basepath")) {
+                    ThreadProperty.set("ADMIN_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.basepath", null).replaceAll("\"", ""));
+                }
+                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.~", null).contains("vHost")) {
+                    ThreadProperty.set("SIS_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.vHost", null).replaceAll("\"", ""));
+                }
+                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.~", null).contains("basepath")) {
+                    ThreadProperty.set("SIS_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.basepath", null).replaceAll("\"", ""));
+                }
+            }
+
             ThreadProperty.set("CLUSTER_SSH_PEM_PATH", "./target/test-classes/" + workspaceName + "/key");
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
             try {
-                commonspec.getJSONPathString(daedalusJson, "$.keos.calico.service_loadbalancer_pools", null);
+                commonspec.getJSONPathString(keosJson, "$.keos.calico.service_loadbalancer_pools", null);
             } catch (Exception e) {
                 setKubernetesHost = true;
             }
@@ -250,12 +266,12 @@ public class KubernetesClient {
         try {
             String centralConfigJson = getConfigMap("command-center-config", "keos-cct").getData().get("central-config.json");
 
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.admin_fqdn", "KEOS_FQDN", null);
+
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.eos.dockerRegistry", "DOCKER_REGISTRY", null);
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.eos.proxyAccessPointURL", "KEOS_ACCESS_POINT", null);
 
-            //obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.sso.ssoTenantDefault", "KEOS_TENANT", null);
-            // TODO Review KEOS_TENANT, in configmap value is NONE
-            ThreadProperty.set("KEOS_TENANT", "keos");
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.sso.ssoTenantDefault", "KEOS_TENANT", null);
 
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.realm", "KEOS_REALM", null);
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.globals.kerberos.kdcHost", "KDC_HOST", null);
@@ -754,6 +770,16 @@ public class KubernetesClient {
      */
     public void deleteService(String service, String namespace) {
         k8sClient.services().inNamespace(namespace).withName(service).delete();
+    }
+
+    /**
+     * kubectl delete statefulset mystatefulset
+     *
+     * @param statefulset   Statefulset to delete
+     * @param namespace Namespace
+     */
+    public void deleteStatefulset(String statefulset, String namespace) {
+        k8sClient.apps().statefulSets().inNamespace(namespace).withName(statefulset).delete();
     }
 
     /**
@@ -1506,11 +1532,21 @@ public class KubernetesClient {
     }
 
     public void copyFileToPod(String podName, String namespace, String filePath, String destinationPath) {
-        k8sClient.pods().inNamespace(namespace).withName(podName).file(destinationPath).upload(Paths.get(filePath));
+        File local = new File(filePath);
+        if (local.isDirectory()) {
+            k8sClient.pods().inNamespace(namespace).withName(podName).dir(destinationPath).upload(Paths.get(filePath));
+        } else {
+            k8sClient.pods().inNamespace(namespace).withName(podName).file(destinationPath).upload(Paths.get(filePath));
+        }
     }
 
     public void copyFileFromPod(String podName, String namespace, String filePath, String destinationPath) {
-        k8sClient.pods().inNamespace(namespace).withName(podName).file(destinationPath).copy(Paths.get(filePath));
+        File local = new File(destinationPath);
+        if (local.isDirectory()) {
+            k8sClient.pods().inNamespace(namespace).withName(podName).dir(filePath).copy(Paths.get(destinationPath));
+        } else {
+            k8sClient.pods().inNamespace(namespace).withName(podName).file(filePath).copy(Paths.get(destinationPath));
+        }
     }
 
     /**

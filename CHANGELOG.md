@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 0.21.0 (upcoming)
 
+* [EOS-5743] Modify step to retrieve admin and sis basepath from keos.yaml
 * [GS-3881] Adapt management-baas path according to keos version
 * [QATM-3773] Refactor creating cutom users/groups
 * [GS-3161] Add step to create custom JTW
@@ -14,6 +15,8 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [DGPB-6794] Add support to Governance service role
 * [DGPB-7161] Modify Gosec function deleteResourceIfExistsDcos to delete collections policies
 * [PQA-146] New steps to download and upload k8s universe
+* [DGPB-8233] Modify function to copy directories in/from pod
+* [DGPB-8260] Add support to Governance requests in k8s
 
 ## 0.20.0 (December 17, 2020)
 

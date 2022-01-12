@@ -53,35 +53,35 @@ public class KeosSpec extends BaseGSpec {
      * @param tenant   : tenant
      * @throws Exception exception
      */
-    @Given("^I set sso keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'$")
-    public void setGoSecSSOCookieKeos(String ssoHost, String userName, String password, String tenant) throws Exception {
-        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, null);
+    @Given("^I set sso( governance)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'$")
+    public void setGoSecSSOCookieKeos(String gov, String ssoHost, String userName, String password, String tenant) throws Exception {
+        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, gov);
         ssoUtils.setVerifyHost(false);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(false);
-        String[] tokenList = {"_oauth2_proxy"};
+        String[] tokenList = {"_oauth2_proxy", "stratio-cookie"};
+        if (gov != null) {
+            tokenList = new String[]{"_oauth2_proxy", "stratio-cookie", "stratio-governance-auth"};
+        }
+
         List<Cookie> cookiesAtributes = commonspec.addSsoToken(ssoCookies, tokenList);
         commonspec.setCookies(cookiesAtributes);
-        RestSpec restSpec = new RestSpec(commonspec);
-        restSpec.setupRestClient("securely", ssoHost, ":443");
-        restSpec.sendRequestNoDataTable("GET", ThreadProperty.get("KEOS_GOSEC_INGRESS_PATH") + "/", null, null, null);
-        for (com.ning.http.client.cookie.Cookie cookie : commonspec.getResponse().getCookies()) {
-            if (cookie.getName().equals("stratio-cookie")) {
-                cookiesAtributes.add(cookie);
-                ThreadProperty.set("stratioCookie", cookie.getValue());
-                break;
-            }
+
+        if (ssoCookies.get("stratio-governance-auth") != null) {
+            ThreadProperty.set("keosGovernanceAuthCookie", ssoCookies.get("stratio-governance-auth"));
         }
+
+        if (ssoCookies.get("_oauth2_proxy") != null) {
+            ThreadProperty.set("oauth2ProxyCookie", ssoCookies.get("_oauth2_proxy"));
+        }
+
+        if (ssoCookies.get("stratio-cookie") != null) {
+            ThreadProperty.set("stratioCookie", ssoCookies.get("stratio-cookie"));
+        }
+
         this.commonspec.getLogger().debug("Cookies to set:");
         for (Cookie cookie : cookiesAtributes) {
             this.commonspec.getLogger().debug("\t" + cookie.getName() + ":" + cookie.getValue());
-            if (cookie.getName().equals("_oauth2_proxy")) {
-                cookiesAtributes.add(cookie);
-                ThreadProperty.set("oauth2ProxyCookie", cookie.getValue());
-                break;
-            }
         }
-        commonspec.setCookies(cookiesAtributes);
-
     }
 
     /**

@@ -63,6 +63,8 @@ public class GosecSSOUtils {
 
     private String governanceProfileHost = System.getProperty("govProfileHost", "/service/dg-businessglossary-api/dictionary/user/profile");
 
+    private String governanceKeosProfileHost = System.getProperty("govKeosProfileHost", "/dg-businessglossary-api-keos-core/dictionary/user/profile");
+
     private Boolean verifyHost = true;
 
     public GosecSSOUtils(String ssHost, String userName, String passWord, String tenant, String gov) {
@@ -147,7 +149,11 @@ public class GosecSSOUtils {
 
             HttpGet getRequest;
             if (governance != null) {
-                getRequest = new HttpGet(protocol + ssoHost + governanceProfileHost);
+                if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+                    getRequest = new HttpGet(protocol + ssoHost + governanceKeosProfileHost);
+                } else {
+                    getRequest = new HttpGet(protocol + ssoHost + governanceProfileHost);
+                }
             } else {
                 getRequest = new HttpGet(protocol + ssoHost + managementHost);
             }
