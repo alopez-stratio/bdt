@@ -24,16 +24,15 @@ import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
+import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import org.testng.Assert;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -646,5 +645,45 @@ public class K8SSpec extends BaseGSpec {
     @When("^I add/modify variable '(.+?)' with value '(.+?)' in configmap with name '(.+?)' in namespace '(.+?)'$")
     public void addOrModifyConfigmap(String cmKey, String cmValue, String cmName, String namespace) {
         commonspec.kubernetesClient.addValueInConfigMap(cmName, namespace, cmKey, cmValue);
+    }
+
+    @When("^I update k8s deployment with id '(.+?)' in namespace '(.+?)' for container '(.+?)' with environment variables:$")
+    public void updateAppEnvs(String deploymentName, String namespace, String containerName, DataTable modifications) throws Exception {
+
+        Container container = this.commonspec.kubernetesClient.getContainer(namespace, deploymentName, containerName);
+
+        assertThat(container).as("Container " + containerName + " not found for deployment " + deploymentName + " in namespace " + namespace);
+
+        List<EnvVar> envVars = container.getEnv();
+
+        List<List<String>> datatable = modifications.asLists(String.class);
+        datatable.forEach(entry -> {
+            String name = entry.get(0);
+            String action = entry.get(1);
+            String value = entry.get(2);
+
+            switch (action) {
+                case "ADD": envVars.add(new EnvVar(name, value, null));
+                    break;
+                case "REPLACE": {
+                    EnvVar original = envVars.stream().filter(envVar -> envVar.getName().equals(name)).findFirst().orElse(null);
+                    if (original != null) {
+                        envVars.remove(original);
+                    }
+                    envVars.add(new EnvVar(name, value, null));
+                    break;
+                }
+                case "REMOVE": {
+                    EnvVar original = envVars.stream().filter(envVar -> envVar.getName().equals(name)).findFirst().orElse(null);
+                    if (original != null) {
+                        envVars.remove(original);
+                    }
+                    break;
+                }
+                default: break;
+            }
+        });
+
+        this.commonspec.kubernetesClient.updateDeploymentEnvVars(envVars, namespace, deploymentName, containerName);
     }
 }

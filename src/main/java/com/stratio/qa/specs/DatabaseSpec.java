@@ -1209,6 +1209,10 @@ public class DatabaseSpec extends BaseGSpec {
                 query = "SELECT viewname FROM pg_views WHERE viewname = " + "\'" + objectName + "\'" + ";";
                 break;
 
+            case "MaterializedView":
+                query = "SELECT matviewname FROM pg_matviews WHERE matviewname = " + "\'" + objectName + "\'" + ";";
+                break;
+
             case "Sequence":
                 query = "SELECT sequence_name FROM information_schema.sequences WHERE sequence_name = " + "\'" + objectName + "\'" + ";";
                 break;
@@ -1285,6 +1289,10 @@ public class DatabaseSpec extends BaseGSpec {
 
             case "View":
                 query = "SELECT viewname FROM pg_views WHERE viewname = " + "\'" + objectName + "\'" + ";";
+                break;
+
+            case "MaterializedView":
+                query = "SELECT matviewname FROM pg_matviews WHERE matviewname = " + "\'" + objectName + "\'" + ";";
                 break;
 
             case "Sequence":

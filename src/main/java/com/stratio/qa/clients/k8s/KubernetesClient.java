@@ -1636,4 +1636,45 @@ public class KubernetesClient {
             execLatch.countDown();
         }
     }
+
+    public Container getContainer(String namespace, String deploymentName, String containerName) {
+
+        Container container = k8sClient.apps().deployments().inNamespace(namespace).withName(deploymentName)
+                .get()
+                .getSpec()
+                .getTemplate()
+                .getSpec()
+                .getContainers()
+                .stream().filter(c -> c.getName().equals(containerName))
+                .findFirst().orElse(null);
+
+        return container;
+    }
+
+    public void updateDeploymentEnvVars(List<EnvVar> envVarsList, String namespace, String deploymentName, String containerName) {
+
+        Deployment deployment = k8sClient.apps().deployments().inNamespace(namespace).withName(deploymentName).get();
+        List<Container> containers = deployment.getSpec().getTemplate().getSpec().getContainers();
+        containers.forEach(container -> {
+            if (container.getName().equals(containerName)) {
+                List<EnvVar> envVars = container.getEnv();
+                envVars.addAll(envVarsList);
+                container.setEnv(envVars);
+            }
+        });
+
+        DeploymentSpec deploymentSpec = deployment.getSpec();
+        PodTemplateSpec templateSpec = deploymentSpec.getTemplate();
+        PodSpec podSpec = templateSpec.getSpec();
+        podSpec.setContainers(containers);
+        templateSpec.setSpec(podSpec);
+        deploymentSpec.setTemplate(templateSpec);
+        deployment.setSpec(deploymentSpec);
+
+        k8sClient.apps().deployments().inNamespace(namespace).withName(deploymentName)
+                .edit()
+                .withNewSpecLike(deploymentSpec)
+                .endSpec()
+                .done();
+    }
 }

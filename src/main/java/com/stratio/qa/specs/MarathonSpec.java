@@ -34,6 +34,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 public class MarathonSpec extends BaseGSpec {
 
@@ -340,6 +343,109 @@ public class MarathonSpec extends BaseGSpec {
         assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
     }
 
+    //general method to replace/add/delete labels variables in marathon app
+    public void updateAppReplaceLabelsVariables(String action, Map<String, String> labels, String name, String value) {
+        switch (action) {
+            case "ADD": labels.put(name, value);
+                break;
+            case "DELETE": labels.remove(name);
+                break;
+            case "REPLACE": labels.replace(name, value);
+                break;
+            default: break;
+        }
+    }
+
+    //general method to replace/add/delete envs variables in marathon app
+    public void updateAppReplaceEnvsVariables(String action, Map<String, Object> envs, String name, String value) {
+        switch (action) {
+            case "ADD": envs.put(name, value);
+                break;
+            case "DELETE": envs.remove(name);
+                break;
+            case "REPLACE": envs.replace(name, value);
+                break;
+            default: break;
+        }
+    }
+
+    @When("^I update Marathon service with id '(.+?)' with variables:$")
+    public void updateAppCommon(String appId, DataTable modifications) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        List<List<String>> datatable = modifications.asLists(String.class);
+
+        //Check service exists and is running
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+
+        //Modify envs & labels
+        Map<String, String> labels = app.getApp().getLabels();
+        Map<String, Object> envs = app.getApp().getEnv();
+        AtomicInteger instance = new AtomicInteger(1);
+        //variable to check what changes we did, in order to be sure that only update the params that we sent
+        AtomicBoolean tempLabels = new AtomicBoolean(false);
+        AtomicBoolean tempInstance = new AtomicBoolean(false);
+        AtomicBoolean tempEnv = new AtomicBoolean(false);
+        datatable.forEach(entry -> {
+            String action = entry.get(1);
+            String value = entry.get(2);
+            if (entry.get(0).split(Pattern.quote("."))[0].toLowerCase().compareTo("labels") == 0) {
+                String name = entry.get(0).split(Pattern.quote("."))[1];
+                updateAppReplaceLabelsVariables(action, labels, name, value);
+                tempLabels.set(true);
+            } else if (entry.get(0).split(Pattern.quote("."))[0].toLowerCase().compareTo("env") == 0) {
+                String name = entry.get(0).split(Pattern.quote("."))[1];
+                updateAppReplaceEnvsVariables(action, envs, name, value);
+                tempEnv.set(true);
+            } else if (entry.get(0).split(Pattern.quote("."))[0].compareTo("instances") == 0) {
+                tempInstance.set(true);
+                instance.set(Integer.parseInt(value));
+            }
+        });
+
+        //Update service
+        App a = new App();
+        if (tempLabels.get() == true) {
+            a.setLabels(labels);
+        }
+        if (tempEnv.get() == true) {
+            a.setEnv(envs);
+        }
+        if (tempInstance.get() == true) {
+            a.setInstances(instance.get());
+        }
+        DeploymentResult response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
+
+    @When("^I update Marathon service with id '(.+?)' with labels variables:$")
+    public void updateAppLabels(String appId, DataTable modifications) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+
+        List<List<String>> datatable = modifications.asLists(String.class);
+
+        //Check service exists and is running
+        VersionedAppResponse app = this.commonspec.marathonClient.getApp(appId);
+        assertThat(app.getHttpStatus()).as("No marathon app found by id: " + appId).isEqualTo(200);
+
+        //Modify labels
+        Map<String, String> labels = app.getApp().getLabels();
+        datatable.forEach(entry -> {
+            String name = entry.get(0);
+            String action = entry.get(1);
+            String value = entry.get(2);
+            updateAppReplaceLabelsVariables(action, labels, name, value);
+        });
+
+        //Update service
+        App a = new App();
+        a.setLabels(labels);
+        DeploymentResult response = this.commonspec.marathonClient.updateApp(appId, a, true);
+        assertThat(response.getHttpStatus()).as("Error updating Marathon app: " + response.getHttpStatus()).isEqualTo(200);
+    }
 
     @When("^I update Marathon service with id '(.+?)' with environment variables:$")
     public void updateAppEnvs(String appId, DataTable modifications) throws Exception {
@@ -358,15 +464,7 @@ public class MarathonSpec extends BaseGSpec {
                 String name = entry.get(0);
                 String action = entry.get(1);
                 String value = entry.get(2);
-                switch (action) {
-                    case "ADD": envs.put(name, value);
-                        break;
-                    case "DELETE": envs.remove(name);
-                        break;
-                    case "REPLACE": envs.replace(name, value);
-                        break;
-                    default: break;
-                }
+                updateAppReplaceEnvsVariables(action, envs, name, value);
             }
         );
 
