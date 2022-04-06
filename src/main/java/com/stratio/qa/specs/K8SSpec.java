@@ -405,25 +405,37 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( in container '(.*?)')?( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
-    public void runCommandInPod(String command, String name, String namespace, String container, String envVar, String fileName) throws Exception {
-        String result = commonspec.kubernetesClient.execCommand(name, namespace, container, command.split("\n| "));
+    @When("^I execute '(.+?)' command in pod with name '(.+?)' in namespace '(.+?)'( in container '(.*?)')?( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?$")
+    public void runCommandInPod(String command, String name, String namespace, String container, String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout) throws Exception {
+        Map<String, String> result = commonspec.kubernetesClient.execCommand(name, namespace, container, timeout, command.split("\n| "), failureReason);
         if (envVar != null) {
-            ThreadProperty.set(envVar, result);
+            ThreadProperty.set(envVar, result.get("stdout"));
+        }
+        if (errEnvVar != null) {
+            ThreadProperty.set(errEnvVar, result.get("stderr"));
         }
         if (fileName != null) {
-            writeInFile(result, fileName);
+            writeInFile(result.get("stdout"), fileName);
+        }
+        if (errFileName != null) {
+            writeInFile(result.get("stderr"), errFileName);
         }
     }
 
-    @When("^I execute the command defined in datatable in pod with name '(.+?)' in namespace '(.+?)'( in container '(.*?)')?( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?:$")
-    public void runCommandInPodDatatable(String name, String namespace, String container, String envVar, String fileName, DataTable dataTable) throws Exception {
-        String result = commonspec.kubernetesClient.execCommand(name, namespace, container, dataTable.asList().toArray(new String[0]));
+    @When("^I execute the command defined in datatable in pod with name '(.+?)' in namespace '(.+?)'( in container '(.*?)')?( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?:$")
+    public void runCommandInPodDatatable(String name, String namespace, String container, String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout, DataTable dataTable) throws Exception {
+        Map<String, String> result = commonspec.kubernetesClient.execCommand(name, namespace, container, timeout, dataTable.asList().toArray(new String[0]), failureReason);
         if (envVar != null) {
-            ThreadProperty.set(envVar, result);
+            ThreadProperty.set(envVar, result.get("stdout"));
+        }
+        if (errEnvVar != null) {
+            ThreadProperty.set(errEnvVar, result.get("stderr"));
         }
         if (fileName != null) {
-            writeInFile(result, fileName);
+            writeInFile(result.get("stdout"), fileName);
+        }
+        if (errFileName != null) {
+            writeInFile(result.get("stderr"), errFileName);
         }
     }
 
@@ -647,6 +659,11 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.addValueInConfigMap(cmName, namespace, cmKey, cmValue);
     }
 
+    @When("^I add/modify variables in configmap with name '(.+?)' in namespace '(.+?)':$")
+    public void addOrModifyMultipleConfigmap(String cmName, String namespace, DataTable variables) {
+        commonspec.kubernetesClient.addValuesInConfigMap(cmName, namespace, variables);
+    }
+
     @When("^I update k8s deployment with id '(.+?)' in namespace '(.+?)' for container '(.+?)' with environment variables:$")
     public void updateAppEnvs(String deploymentName, String namespace, String containerName, DataTable modifications) throws Exception {
 
@@ -654,7 +671,7 @@ public class K8SSpec extends BaseGSpec {
 
         assertThat(container).as("Container " + containerName + " not found for deployment " + deploymentName + " in namespace " + namespace);
 
-        List<EnvVar> envVars = container.getEnv();
+        List<EnvVar> envVars = new ArrayList<>(new LinkedHashSet<>(container.getEnv()));
 
         List<List<String>> datatable = modifications.asLists(String.class);
         datatable.forEach(entry -> {

@@ -63,7 +63,7 @@ public class GosecSSOUtils {
 
     private String governanceProfileHost = System.getProperty("govProfileHost", "/service/dg-businessglossary-api/dictionary/user/profile");
 
-    private String governanceKeosProfileHost = System.getProperty("govKeosProfileHost", "/dg-businessglossary-api-keos-core/dictionary/user/profile");
+    private String governanceKeosProfileHost = System.getProperty("govKeosProfileHost", "/dg-businessglossary-api/dictionary/user/profile");
 
     private Boolean verifyHost = true;
 

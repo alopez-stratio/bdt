@@ -339,6 +339,7 @@ public class GosecSpec extends BaseGSpec {
     private String getResourcePrefix(String resource) {
         switch (resource) {
             case "policy":
+            case "collectionPolicy":
                 return "?pid=";
             case "user":
                 return "?uid=";
@@ -354,6 +355,8 @@ public class GosecSpec extends BaseGSpec {
         switch (resource) {
             case "policy":
                 return baasPath + "/management/policy";
+            case "collectionPolicy":
+                return baasPath + "/management/policy/domain";
             case "user":
                 return baasPath + "/management/user";
             case "group":
@@ -500,6 +503,7 @@ public class GosecSpec extends BaseGSpec {
         String resourcePrefix = getResourcePrefix(resource);
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endPointPolicies = baasPath + "/management/policies";
+        String endPointCollectionsPolicies = baasPath + "/management/policies/domains";
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -514,7 +518,12 @@ public class GosecSpec extends BaseGSpec {
         try {
             assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
 
-            if (resource.equals("policy")) {
+            if ((resource.equals("policy")) || (resource.equals("collectionPolicy"))) {
+
+                if (resource.equals("collectionPolicy")) {
+                    endPointPolicies = endPointCollectionsPolicies;
+                }
+
                 restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
                     String policyId = getPolicyIdFromResponse(commonspec.getResponse().getResponse(), resourceId, true);

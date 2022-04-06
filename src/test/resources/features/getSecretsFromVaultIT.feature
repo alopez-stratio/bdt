@@ -18,18 +18,18 @@ Feature: Get secrets from Vault
     Given I get certificate 'test-qa.qa' from path 'test' in PEM format
     When I save 'target/test-classes/test-qa.qa.pem' in variable 'pemFile'
     Then I run 'openssl x509 -in !{pemFile} -noout' locally with exit status '0'
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN=nightlyforward"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject: C=ES, O=Stratio, CN=test"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS:test, DNS:test.qa"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN" | grep "nightlyforward"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject" | grep "ES" | grep "Stratio" | grep "test"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS" | grep "test" | grep "test.qa"' locally
     Then I run 'rm -f !{pemFile}' locally
 
   Scenario: Get public part from certificate (/people)
     Given I get certificate 'test-qa.qa' from path 'test' in PEM format in /people
     When I save 'target/test-classes/test-qa.qa.pem' in variable 'pemFile'
     Then I run 'openssl x509 -in !{pemFile} -noout' locally with exit status '0'
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN=nightlyforward"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject: C=ES, O=Stratio, CN=test"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS:test, DNS:test.qa"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN" | grep "nightlyforward"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject" | grep "ES" | grep "Stratio" | grep "test"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS" | grep "test" | grep "test.qa"' locally
     Then I run 'rm -f !{pemFile}' locally
 
   Scenario: Get private part from certificate (/userland)
@@ -49,9 +49,9 @@ Feature: Get secrets from Vault
     When I save 'target/test-classes/test-qa.qa.pem' in variable 'pemFile'
     And I save 'target/test-classes/test-qa.qa.key' in variable 'keyFile'
     Then I run 'openssl x509 -in !{pemFile} -noout' locally with exit status '0'
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN=nightlyforward"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject: C=ES, O=Stratio, CN=test"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS:test, DNS:test.qa"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN" | grep "nightlyforward"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject" | grep "ES" | grep "Stratio" | grep "test"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS" | grep "test" | grep "test.qa"' locally
     And I run 'openssl rsa -in !{keyFile} -check | grep "RSA key ok"' locally
     Then I run 'rm -f !{pemFile}' locally
     And I run 'rm -f !{keyFile}' locally
@@ -61,9 +61,9 @@ Feature: Get secrets from Vault
     When I save 'target/test-classes/test-qa.qa.pem' in variable 'pemFile'
     And I save 'target/test-classes/test-qa.qa.key' in variable 'keyFile'
     Then I run 'openssl x509 -in !{pemFile} -noout' locally with exit status '0'
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN=nightlyforward"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject: C=ES, O=Stratio, CN=test"' locally
-    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS:test, DNS:test.qa"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Issuer: CN" | grep "nightlyforward"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "Subject" | grep "ES" | grep "Stratio" | grep "test"' locally
+    And I run 'openssl x509 -in !{pemFile} -noout -text | grep "DNS" | grep "test" | grep "test.qa"' locally
     And I run 'openssl rsa -in !{keyFile} -check | grep "RSA key ok"' locally
     Then I run 'rm -f !{pemFile}' locally
     And I run 'rm -f !{keyFile}' locally
@@ -101,7 +101,7 @@ Feature: Get secrets from Vault
     When I save 'target/test-classes/test-qa.qa.pem' in variable 'pemFile'
     And I save 'target/test-classes/test-qa.qa.key' in variable 'keyFile'
     And I save 'target/test-classes/test-qa.qa.p12' in variable 'p12File'
-    Then I run 'openssl pkcs12 -in !{p12File} -passin pass:!{passP12} -passout pass:!{passP12} -clcerts -nokeys | grep "subject=/C=ES/O=Stratio/CN=test"' locally
+    Then I run 'openssl pkcs12 -in !{p12File} -passin pass:!{passP12} -passout pass:!{passP12} -clcerts -nokeys | grep "subject" | grep "ES" | grep "Stratio" | grep "test"' locally
     Then I run 'rm -f !{pemFile}' locally
     And I run 'rm -f !{keyFile}' locally
     And I run 'rm -f !{p12File}' locally
@@ -111,7 +111,7 @@ Feature: Get secrets from Vault
     When I save 'target/test-classes/test-qa.qa.pem' in variable 'pemFile'
     And I save 'target/test-classes/test-qa.qa.key' in variable 'keyFile'
     And I save 'target/test-classes/test-qa.qa.p12' in variable 'p12File'
-    Then I run 'openssl pkcs12 -in !{p12File} -passin pass:!{passP12} -passout pass:!{passP12} -clcerts -nokeys | grep "subject=/C=ES/O=Stratio/CN=test"' locally
+    Then I run 'openssl pkcs12 -in !{p12File} -passin pass:!{passP12} -passout pass:!{passP12} -clcerts -nokeys | grep "subject" | grep "ES" | grep "Stratio" | grep "test"' locally
     Then I run 'rm -f !{pemFile}' locally
     And I run 'rm -f !{keyFile}' locally
     And I run 'rm -f !{p12File}' locally
@@ -152,9 +152,9 @@ Feature: Get secrets from Vault
     Given I get CA Bundle
     When I save 'target/test-classes/ca.crt' in variable 'caFile'
     Then I run 'openssl x509 -in !{caFile} -noout' locally with exit status '0'
-    And I run 'openssl x509 -in !{caFile} -noout -text | grep "Issuer: CN=nightlyforward"' locally
-    And I run 'openssl x509 -in !{caFile} -noout -text | grep "Subject: C=ES, O=Stratio, CN=ca"' locally
-    And I run 'openssl x509 -in !{caFile} -noout -text | grep "DNS:ca, DNS:ca.qa"' locally
+    And I run 'openssl x509 -in !{caFile} -noout -text | grep "Issuer: CN" | grep "nightlyforward"' locally
+    And I run 'openssl x509 -in !{caFile} -noout -text | grep "Subject" | grep "ES" | grep "Stratio" | grep "ca"' locally
+    And I run 'openssl x509 -in !{caFile} -noout -text | grep "DNS" | grep "ca" | grep "ca.qa"' locally
     Then I run 'rm -f !{caFile}' locally
 
   Scenario: Get Keytab (/userland)

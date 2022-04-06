@@ -21,6 +21,7 @@ import com.stratio.qa.specs.CommandExecutionSpec;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.specs.FileSpec;
 import com.stratio.qa.utils.ThreadProperty;
+import io.cucumber.datatable.DataTable;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apiextensions.v1beta1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.*;
@@ -35,6 +36,7 @@ import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.internal.SerializationUtils;
 import okhttp3.Response;
+import org.assertj.core.api.Assertions;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -254,6 +256,11 @@ public class KubernetesClient {
         Ingress cctUniverseServiceIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName("cct-universe-service").get();
         if (cctUniverseServiceIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/cct-universe-service")) {
             ThreadProperty.set("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH", "/cct/cct-universe-service");
+        }
+        ThreadProperty.set("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH", "/cct-applications-query-service");
+        Ingress cctApplicationsQueryServiceIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName("cct-applications-query-service").get();
+        if (cctApplicationsQueryServiceIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/cct-applications-query-service")) {
+            ThreadProperty.set("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH", "/cct/cct-applications-query-service");
         }
         ThreadProperty.set("KEOS_GOSEC_BAAS_INGRESS_PATH", "/baas");
         Ingress gosecBaasIngress = k8sClient.extensions().ingresses().inNamespace("keos-core").withName("gosec-management-baas").get();
@@ -671,15 +678,18 @@ public class KubernetesClient {
      * @param container Container of Pod
      * @throws InterruptedException
      */
-    public String execCommand(String pod, String namespace, String container, String[] command) throws InterruptedException {
+    public Map<String, String> execCommand(String pod, String namespace, String container, Integer timeout, String[] command, String failureReason) throws InterruptedException, Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream error = new ByteArrayOutputStream();
+        ByteArrayOutputStream errorChannel = new ByteArrayOutputStream();
+        Map<String, String> result = new HashMap<String, String>();
         execLatch = new CountDownLatch(1);
         ExecWatch execWatch;
         if (container == null) {
             execWatch = k8sClient.pods().inNamespace(namespace).withName(pod)
                     .writingOutput(out)
                     .writingError(error)
+                    .writingErrorChannel(errorChannel)
                     .usingListener(new MyPodExecListener())
                     .exec(command);
 
@@ -688,17 +698,30 @@ public class KubernetesClient {
                     .inContainer(container)
                     .writingOutput(out)
                     .writingError(error)
+                    .writingErrorChannel(errorChannel)
                     .usingListener(new MyPodExecListener())
                     .exec(command);
 
         }
-        boolean latchTerminationStatus = execLatch.await(30, TimeUnit.SECONDS);
+        boolean latchTerminationStatus = execLatch.await(timeout != null ? timeout : 30, TimeUnit.SECONDS);
         if (!latchTerminationStatus) {
             logger.warn("Latch could not terminate within specified time");
         }
         logger.debug("Exec Output: {} ", out);
         execWatch.close();
-        return out.toString();
+
+        JSONObject errorJSON = new JSONObject(errorChannel.toString());
+
+        if (failureReason == null && errorJSON.get("status").toString().matches("Failure")) {
+            throw new Exception("Command exit code is other than zero: " + errorJSON.get("message").toString());
+        } else if (failureReason != null) {
+            logger.debug("Command exit code is other than zero: {}", errorJSON.get("message"));
+            Assertions.assertThat(errorJSON.get("reason")).isEqualTo(failureReason);
+        }
+        result.put("stdout", out.toString());
+        result.put("stderr", error.toString());
+
+        return result;
     }
 
     /**
@@ -1104,6 +1127,17 @@ public class KubernetesClient {
         configMapAux.setData(configMapData);
         k8sClient.configMaps().inNamespace(namespace).withName(configMapName).replace(configMapAux);
     }
+
+    public void addValuesInConfigMap(String configMapName, String namespace, DataTable variables) {
+        Map<String, String> configMapData = getConfigMap(configMapName, namespace).getData();
+        for (int i = 0; i < variables.cells().size(); i++) {
+            configMapData.put(variables.cells().get(i).get(0), variables.cells().get(i).get(1));
+        }
+        ConfigMap configMapAux = getConfigMap(configMapName, namespace);
+        configMapAux.setData(configMapData);
+        k8sClient.configMaps().inNamespace(namespace).withName(configMapName).replace(configMapAux);
+    }
+
 
     /**
      * Get a replicaset
@@ -1657,9 +1691,7 @@ public class KubernetesClient {
         List<Container> containers = deployment.getSpec().getTemplate().getSpec().getContainers();
         containers.forEach(container -> {
             if (container.getName().equals(containerName)) {
-                List<EnvVar> envVars = container.getEnv();
-                envVars.addAll(envVarsList);
-                container.setEnv(envVars);
+                container.setEnv(envVarsList);
             }
         });
 

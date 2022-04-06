@@ -1582,24 +1582,56 @@ public class CCTSpec extends BaseGSpec {
      * @param modifications : modifications to perform in the deployed json
      * @throws Exception
      */
-    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')? with:$")
-    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile, DataTable modifications) throws Exception {
+    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?( based on schema '(.+?)')? with:$")
+    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile, String schema, DataTable modifications) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            updateCCTServiceKeos(jsonFile, tenant, namespace, modifications);
+            updateCCTServiceKeos(serviceName, jsonFile, schema, tenant, namespace, modifications);
         } else {
             updateCCTServiceDcos(serviceName, folder, tenant, version, jsonFile, modifications);
         }
     }
 
-    private void updateCCTServiceKeos(String jsonFile, String tenant, String namespace, DataTable modifications) throws Exception {
+    private void updateCCTServiceKeos(String serviceName, String jsonFile, String schema, String tenant, String namespace, DataTable modifications) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
 
-        String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/update";
+        String endPointUpdate = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/update";
         if (tenant != null) {
-            endPoint += "?tenant=" + tenant;
+            endPointUpdate += "?tenant=" + tenant;
         }
-        String data = this.commonspec.retrieveData(jsonFile, "json");
+
+        // Update based on json file
+        String data = null;
+        if (jsonFile != null) {
+            data = this.commonspec.retrieveData(jsonFile, "json");
+        }
+
+        // Update based on schema
+        if (schema != null) {
+            String service = serviceName + "." + namespace;
+            data = this.commonspec.retrieveData(schema, "json");
+
+            // Obtain info for service current deployment
+            String endPointDeployment = ThreadProperty.get("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH") + "/v1/applications/" + service + "/deployment";
+
+            Future<Response> responseDeployment = commonspec.generateRequest("GET", true, null, null, endPointDeployment, null, "json");
+            commonspec.setResponse("GET", responseDeployment.get());
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                logger.error("Request to endpoint: " + endPointDeployment + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+                throw new Exception("Request to endpoint: " + endPointDeployment + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            }
+            String deployment = commonspec.getResponse().getResponse();
+
+            // Modify schema with current deployment info and add applicationId
+            List<List<String>> rawData = Arrays.asList(
+                Arrays.asList("$.applicationId", "ADD", service, "string"),
+                Arrays.asList(".deployment", "REPLACE", deployment, "object")
+            );
+            DataTable modificationsDeployment = DataTable.create(rawData);
+            data = this.commonspec.modifyData(data, "json", modificationsDeployment);
+        }
+
+        // Add namespace info
         if (namespace != null) {
             List<List<String>> rawData = Arrays.asList(
                     Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string"),
@@ -1610,6 +1642,7 @@ public class CCTSpec extends BaseGSpec {
             data = this.commonspec.modifyData(data, "json", modificationsAux);
         }
 
+        // Modify schema or json file with requested modifications
         String modifiedData;
         if (modifications != null) {
             modifiedData = commonspec.modifyData(data, "json", modifications);
@@ -1617,12 +1650,12 @@ public class CCTSpec extends BaseGSpec {
             modifiedData = data;
         }
 
-        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, modifiedData, "json");
+        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPointUpdate, modifiedData, "json");
         commonspec.setResponse("POST", response.get());
 
         if (commonspec.getResponse().getStatusCode() != 200) {
-            logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
-            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            logger.error("Request to endpoint: " + endPointUpdate + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            throw new Exception("Request to endpoint: " + endPointUpdate + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
         }
 
         //TODO Check application status in KEOS
@@ -1716,7 +1749,7 @@ public class CCTSpec extends BaseGSpec {
      */
     @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?$")
     public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile) throws Exception {
-        updateCCTService(serviceName, folder, tenant, namespace, version, jsonFile, null);
+        updateCCTService(serviceName, folder, tenant, namespace, version, jsonFile, null, null);
     }
 
     @Given("^I upload descriptor for service '(.+?)', model '(.+?)' version '(.+?)' based on '(.+?)'$")

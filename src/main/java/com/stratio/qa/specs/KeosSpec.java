@@ -53,14 +53,15 @@ public class KeosSpec extends BaseGSpec {
      * @param tenant   : tenant
      * @throws Exception exception
      */
-    @Given("^I set sso( governance)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'$")
-    public void setGoSecSSOCookieKeos(String gov, String ssoHost, String userName, String password, String tenant) throws Exception {
+    @Given("^I set sso( governance)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( without host name verification)?( without login path)?$")
+    public void setGoSecSSOCookieKeos(String gov, String ssoHost, String userName, String password, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
         GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, gov);
-        ssoUtils.setVerifyHost(false);
-        HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(false);
-        String[] tokenList = {"_oauth2_proxy", "stratio-cookie"};
+        ssoUtils.setVerifyHost(hostVerifier == null);
+        HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
+
+        String[] tokenList = {"user", "_oauth2_proxy", "stratio-cookie"};
         if (gov != null) {
-            tokenList = new String[]{"_oauth2_proxy", "stratio-cookie", "stratio-governance-auth"};
+            tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth"};
         }
 
         List<Cookie> cookiesAtributes = commonspec.addSsoToken(ssoCookies, tokenList);
@@ -76,6 +77,10 @@ public class KeosSpec extends BaseGSpec {
 
         if (ssoCookies.get("stratio-cookie") != null) {
             ThreadProperty.set("stratioCookie", ssoCookies.get("stratio-cookie"));
+        }
+
+        if (ssoCookies.get("user") != null) {
+            ThreadProperty.set("user", ssoCookies.get("user"));
         }
 
         this.commonspec.getLogger().debug("Cookies to set:");

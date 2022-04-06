@@ -17,6 +17,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [PQA-146] New steps to download and upload k8s universe
 * [DGPB-8233] Modify function to copy directories in/from pod
 * [DGPB-8260] Add support to Governance requests in k8s
+* [DGPB-8815] Add step to delete collection policies in k8s
 
 ## 0.20.0 (December 17, 2020)
 
