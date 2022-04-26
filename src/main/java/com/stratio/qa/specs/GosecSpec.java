@@ -1761,4 +1761,63 @@ public class GosecSpec extends BaseGSpec {
             fail("GET request to endpoint " + endpoint + " returns " + commonspec.getResponse().getStatusCode());
         }
     }
+
+    @When("^I create 'key' '(.+?)'( with own key '(.+?)')? in tenant '(.+?)' with tenant user and tenant password '(.+:.+?)'( if it does not exist)?$")
+    public void createKey(String keyName, String ownKey, String tenantOrig, String tenantLoginInfo, String doesNotExist) throws Exception {
+        String endPoint = "/service/gosec-management-baas/management/encryption/key";
+        int expectedResponse = 200;
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            endPoint = "/gosec/baas/management/encryption/key";
+            expectedResponse = 201;
+        }
+        commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        JSONObject jsonKey = new JSONObject();
+        jsonKey.put("name", keyName);
+        jsonKey.put("value", ownKey);
+        jsonKey.put("assets", new JSONArray());
+        writeInFile(jsonKey.toString(), "keyBody.json");
+        restSpec.sendRequestNoDataTable("POST", endPoint, null, "keyBody.json", "json");
+        if (doesNotExist != null && commonspec.getResponse().getStatusCode() == 409) {
+            commonspec.getLogger().warn("Key existed previously. It was not created.");
+        } else {
+            assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(expectedResponse);
+        }
+        new File(System.getProperty("user.dir") + "/target/test-classes/keyBody.json").delete();
+    }
+
+    @When("^I create 'asset' '(.+?)' using key '(.+?)' and algorithm '(aes256|chacha256)' in tenant '(.+?)' with tenant user and tenant password '(.+:.+?)'( if it does not exist)?$")
+    public void createAsset(String assetName, String keyName, String algorithm, String tenantOrig, String tenantLoginInfo, String doesNotExist) throws Exception {
+        String endPointGetKey = "/service/gosec-management-baas/management/encryption/keys";
+        String endPointPostAsset = "/service/gosec-management-baas/management/encryption/asset";
+        String endPointGetAsset = "/service/gosec-management-baas/management/encryption/assets";
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            endPointGetKey = "/gosec/baas/management/encryption/keys";
+            endPointPostAsset = "/gosec/baas/management/encryption/asset";
+            endPointGetAsset = "/gosec/baas/management/encryption/assets";
+        }
+        commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        // Get Key ID
+        restSpec.sendRequestNoDataTable("GET", endPointGetKey, null, null, null);
+        commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq -cMr '.list[] | select(.name==\"" + keyName +  "\")'");
+        // Post Asset
+        JSONObject jsonAsset = new JSONObject();
+        jsonAsset.put("name", assetName);
+        jsonAsset.put("algorithm", algorithm);
+        jsonAsset.put("key", new JSONObject(commonspec.getCommandResult()));
+        writeInFile(jsonAsset.toString(), "assetBody.json");
+        restSpec.sendRequestNoDataTable("POST", endPointPostAsset, null, "assetBody.json", "json");
+        if (doesNotExist != null && commonspec.getResponse().getStatusCode() == 409) {
+            restSpec.sendRequestNoDataTable("GET", endPointGetAsset, null, null, null);
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq -cMr '.list[] | select(.name==\"" + assetName +  "\")'");
+            JSONObject jsonAssetGet = new JSONObject(commonspec.getCommandResult());
+            if (jsonAssetGet.getString("name").equals(assetName) && jsonAssetGet.getString("algorithm").equals(algorithm)) {
+                commonspec.getLogger().warn("Asset existed previously. It was not created.");
+            } else {
+                throw new Exception("Asset exists but it has different algorithm. Expected: " + algorithm + ". Current: " + jsonAssetGet.getString("algorithm"));
+            }
+        } else {
+            assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(201);
+        }
+        new File(System.getProperty("user.dir") + "/target/test-classes/assetBody.json").delete();
+    }
 }

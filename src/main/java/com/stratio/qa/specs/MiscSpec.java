@@ -21,7 +21,6 @@ import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
-import io.jsonwebtoken.Header;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -31,12 +30,18 @@ import org.hjson.JsonArray;
 import org.hjson.JsonValue;
 
 import javax.crypto.spec.SecretKeySpec;
-import javax.xml.bind.DatatypeConverter;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.security.Key;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -471,4 +476,70 @@ public class MiscSpec extends BaseGSpec {
         }
     }
 
+    /**
+     * Get JWT for the provided data using privateKey
+     *
+     * @param tenant  : environment tenant
+     * @param userId  : login userId
+     * @param mail    : users email
+     * @param groups  : List of groups
+     * @param issuer  : Issuer to sign the token
+     * @param privKey : Vault privateKey to sign the token
+     * @param envVar  : local variable where JWT will be saved
+     */
+    @Given("^I get JWT for tenant:'(.+?)',userId:'(.+?)',mail:'(.+?)'(,groups:'(.+?)')? with issuer:'(.+?)' and privateKey:'(.+?)' and save the value in environment variable '(.+?)'$")
+    public void getJwtUsingPrivateKey(String tenant, String userId, String mail, String groups, String issuer, String privKey, String envVar) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        List<String> myList = groups == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(groups.split(",")));
+
+        //Set JWT start and end dates
+        Date startDate = new GregorianCalendar(2021, Calendar.JANUARY, 01).getTime();
+        Date endDate = new GregorianCalendar(2099, Calendar.JANUARY, 01).getTime();
+
+        //The JWT signature algorithm we will be using to sign the token
+        SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.RS256;
+
+        //change text newline to new lines in provided String
+        privKey = privKey.replaceAll("newline", "\n");
+
+        // Read in the key into a String
+        StringBuilder pkcs8Lines = new StringBuilder();
+        BufferedReader rdr = new BufferedReader(new StringReader(privKey));
+        String line;
+        while ((line = rdr.readLine()) != null) {
+            pkcs8Lines.append(line);
+        }
+
+        // Remove the "BEGIN" and "END" lines, as well as any whitespace
+        String pkcs8Pem = pkcs8Lines.toString();
+        pkcs8Pem = pkcs8Pem.replace("-----BEGIN PRIVATE KEY-----", "");
+        pkcs8Pem = pkcs8Pem.replace("-----END PRIVATE KEY-----", "");
+        pkcs8Pem = pkcs8Pem.replaceAll("\\s+", "");
+
+        // Base64 decode the result
+        byte[] pkcs8EncodedBytes = Base64.getDecoder().decode(pkcs8Pem);
+
+        // extract the private key
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8EncodedBytes);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        PrivateKey privateKey = kf.generatePrivate(keySpec);
+
+        try {
+            JwtBuilder builder = Jwts.builder().setNotBefore(startDate)
+                    .claim("cn", userId)
+                    .claim("tenant", tenant)
+                    .claim("groups", myList)
+                    .claim("mail", mail)
+                    .setExpiration(endDate)
+                    .setIssuer(issuer)
+                    .claim("uid", userId)
+                    .signWith(signatureAlgorithm, privateKey);
+
+            //Save token on env variable
+            ThreadProperty.set(envVar, builder.compact());
+            commonspec.getLogger().debug("Your JWT: {}", builder.compact());
+        } catch (AssertionError e) {
+            commonspec.getLogger().error("Error creating JWT, check data");
+            throw e;
+        }
+    }
 }
