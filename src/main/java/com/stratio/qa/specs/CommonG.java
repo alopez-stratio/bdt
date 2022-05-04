@@ -137,6 +137,8 @@ public class CommonG {
 
     private String commandResult;
 
+    private String commandResultError;
+
     private String restProtocol;
 
     private Optional<SearchResult> previousLdapResults;
@@ -1899,8 +1901,17 @@ public class CommonG {
             }
         }
         input.close();
+
+        StringBuilder sbError = new StringBuilder();
+        BufferedReader error = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+        while ((line = error.readLine()) != null) {
+            sbError.append(line).append("\n");
+        }
+        error.close();
+
         this.commandResult = result;
         this.commandExitStatus = p.exitValue();
+        this.commandResultError = sbError.toString();
 
         p.destroy();
 
@@ -2148,6 +2159,9 @@ public class CommonG {
             } else {
                 this.getLogger().error("Command last {} lines stdout:", logLastLines);
                 this.getLogger().error("{}", log);
+            }
+            if (commandResultError != null && !commandResultError.isEmpty()) {
+                this.getLogger().error("Command complete stderr:\n{}", commandResultError);
             }
         } else {
             if (!("".equals(this.getCommandResult()))) {

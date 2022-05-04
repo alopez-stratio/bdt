@@ -211,11 +211,13 @@ public class RunOnTagAspect {
             if (!checkVersion(operador.charAt(0), param, value)) {
                 result = false;
             }
-        } else if (operador.equals("=") && !value.equals(property)) {
-            result = false;
-        } else if (operador.equals(">") && !(property.compareTo(value) > 0)) {
-            result = false;
-        } else if (operador.equals("<") && !(property.compareTo(value) < 0)) {
+        } else if (isNumeric(value) && isNumeric(property)) {
+            int iValue = Integer.parseInt(value);
+            int iProperty = Integer.parseInt(property);
+            if ((operador.equals("=") && !(iProperty == iValue)) || (operador.equals(">") && !(iProperty > iValue)) || (operador.equals("<") && !(iProperty < iValue))) {
+                result = false;
+            }
+        } else if ((operador.equals("=") && !value.equals(property)) || (operador.equals(">") && !(property.compareTo(value) > 0)) || (operador.equals("<") && !(property.compareTo(value) < 0))) {
             result = false;
         }
         return result;
@@ -232,6 +234,14 @@ public class RunOnTagAspect {
             if (!checkVersion(operador.charAt(0), param, value)) {
                 res =  updateResultOperation(operations, posop, result, false);
             } else {
+                res =  updateResultOperation(operations, posop, result, true);
+            }
+        } else if (isNumeric(value) && isNumeric(property)) {
+            int iValue = Integer.parseInt(value);
+            int iProperty = Integer.parseInt(property);
+            if ((operador.equals("=") && !(iProperty == iValue)) || (operador.equals(">") && !(iProperty > iValue)) || (operador.equals("<") && !(iProperty < iValue))) {
+                res =  updateResultOperation(operations, posop, result, false);
+            } else  {
                 res =  updateResultOperation(operations, posop, result, true);
             }
         } else if (operador.equals("=")) {
@@ -387,6 +397,18 @@ public class RunOnTagAspect {
         return result;
     }
 
+    private boolean isNumeric(String value) {
+        if (value == null) {
+            return false;
+        } else {
+            try {
+                Integer.parseInt(value);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+    }
 }
 
 

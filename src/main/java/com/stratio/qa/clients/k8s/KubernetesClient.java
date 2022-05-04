@@ -113,7 +113,7 @@ public class KubernetesClient {
             String workspaceURL = "http://" + daedalusSystem + "/" + workspaceName + ".tgz";
 
             // Download workspace
-            String commandWget = "wget " + workspaceURL;
+            String commandWget = "wget -T 20 -t 1 " + workspaceURL;
             commonspec.runLocalCommand(commandWget);
 
             // Untar workspace

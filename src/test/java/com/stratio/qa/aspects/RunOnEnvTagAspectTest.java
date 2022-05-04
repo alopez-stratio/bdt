@@ -2626,4 +2626,44 @@ public class RunOnEnvTagAspectTest {
         System.clearProperty("HELLO");
         ThreadProperty.remove("BYE");
     }
+
+    @Test
+    public void testTagIterationWithNumbers() throws Exception {
+        System.setProperty("VERSION","9");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>10)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationWithNumbers2() throws Exception {
+        System.setProperty("VERSION","9");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION<10)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationWithNumbers3() throws Exception {
+        System.setProperty("VERSION","9");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=10)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationWithNumbers4() throws Exception {
+        System.setProperty("VERSION","9");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>10||VERSION=10)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testTagIterationWithNumbers5() throws Exception {
+        System.setProperty("VERSION","9");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=10||VERSION>10)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
 }

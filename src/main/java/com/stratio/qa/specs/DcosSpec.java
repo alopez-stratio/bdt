@@ -1151,7 +1151,7 @@ public class DcosSpec extends BaseGSpec {
         String workspaceURL = "http://" + daedalusSystem + "/" + workspaceName + ".tgz";
 
         // Download workspace
-        String commandWget = "wget " + workspaceURL;
+        String commandWget = "wget -T 20 -t 1 " + workspaceURL;
         commonspec.runLocalCommand(commandWget);
         if (commonspec.getCommandExitStatus() != 0) {
             String bootstrap_ip = System.getProperty("BOOTSTRAP_IP");
