@@ -1,0 +1,37 @@
+{
+  "name": "cypress-bdt",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "vendor-copy"
+  },
+  "vendorCopy": [
+    {
+      "from": "cypress/vendor/mocha-junit-reporter/index.js",
+      "to": "node_modules/mocha-junit-reporter/index.js"
+    }
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@stratio/egeo": "27.2.0",
+    "@types/node": "^14.0.1",
+    "cypress": "^8.5.0",
+    "cypress-file-upload": "5.0.8",
+    "cypress-intellij-reporter": "0.0.6",
+    "cypress-multi-reporters": "1.5.0",
+    "cypress-real-events": "1.5.1",
+    "cypress-terminal-report": "3.3.2",
+    "cypress-wait-until": "1.7.1",
+    "lodash-es": "^4.17.15",
+    "mocha-junit-reporter": "2.0.0",
+    "mochawesome": "6.2.2",
+    "mochawesome-merge": "4.2.0",
+    "mochawesome-report-generator": "5.2.0",
+    "rxjs": "^6.6.3",
+    "typedoc": "^0.17.7",
+    "typescript": "^3.9.6",
+    "vendor-copy": "3.0.1"
+  }
+}

@@ -32,34 +32,44 @@ public class ETCHOSTSManagementUtils {
 
     private CommonG comm = new CommonG();
 
-    private final String file = "/etc/hosts";
+    private final String homeHostsFile = "~/.hosts";
 
-    private final String backupFile = "/etc/hosts.bdt";
+    private final String etcHostsFile = "/etc/hosts";
 
-    private final String backupK8sFile = "/etc/hosts.bdt.k8s";
+    private final String homeHostsBackupFile = "~/.hosts.bdt";
 
-    private final String lockFile;
+    private final String etcHostsBackupFile = "/etc/hosts.bdt";
+
+    private final String homeHostsBackupK8sFile = "~/.hosts.bdt.k8s";
+
+    private final String etcHostsBackupK8sFile = "/etc/hosts.bdt.k8s";
+
+    private final String homeHostsLockFile;
+
+    private final String etcHostsLockFile;
 
     private final int loops;
 
     private final int wait_time;
 
+    private final boolean libnssHomehostsInstalled;
+
     public ETCHOSTSManagementUtils() {
-        lockFile = file + ".lock." + obtainPID();
+        homeHostsLockFile = homeHostsFile + ".lock." + obtainPID();
+        etcHostsLockFile = etcHostsFile + ".lock." + obtainPID();
         loops = System.getProperty("LOCK_LOOPS") != null ? Integer.parseInt(System.getProperty("LOCK_LOOPS")) : 3;
         wait_time = System.getProperty("LOCK_WAIT_TIME_MS") != null ? Integer.parseInt(System.getProperty("LOCK_WAIT_TIME_MS")) : 5000; // default: 5 seconds
+        libnssHomehostsInstalled = checkIfLibnssHomehostsIsInstalled();
     }
 
-    public String getFile() {
-        return file;
-    }
-
-    public String getBackupFile() {
-        return backupFile;
-    }
-
-    public String getLockFile() {
-        return lockFile;
+    private boolean checkIfLibnssHomehostsIsInstalled() {
+        try {
+            comm.runLocalCommand("ldconfig -p | grep libnss_homehosts");
+            return comm.getCommandExitStatus() == 0 && comm.getCommandResult().contains("/lib/x86_64-linux-gnu/libnss_homehosts.so.2") && comm.getCommandResult().contains("/lib/x86_64-linux-gnu/libnss_homehosts.so");
+        } catch (Exception e) {
+            logger.warn("Error checking if libnss_homehosts is installed", e);
+            return false;
+        }
     }
 
     public String obtainPID() {
@@ -67,18 +77,6 @@ public class ETCHOSTSManagementUtils {
         String pid = vmName.substring(0, vmName.indexOf("@"));
 
         return pid;
-    }
-
-    private String obtainSSHConnectionUser(String sshConnectionId) {
-        String user = "";
-
-        if (sshConnectionId != null) {
-            user = RemoteSSHConnectionsUtil.getRemoteSSHConnectionsMap().get(sshConnectionId).getUser();
-        } else {
-            user = RemoteSSHConnectionsUtil.getLastRemoteSSHConnection().getUser();
-        }
-
-        return user;
     }
 
     private String obtainSSHConnectionId(String sshConnectionId) {
@@ -94,7 +92,11 @@ public class ETCHOSTSManagementUtils {
     }
 
     public void acquireLock(String remote, String sshConnectionId, String ip, String hostname) throws Exception {
-        String createLockCommand = "sudo touch " + lockFile;
+        String lockFile = (remote != null || !libnssHomehostsInstalled ? etcHostsLockFile : homeHostsLockFile);
+        String backupFile = (remote != null || !libnssHomehostsInstalled ? etcHostsBackupFile : homeHostsBackupFile);
+        String file = (remote != null || !libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
+        String sudoOrEmpty = (remote == null && !libnssHomehostsInstalled ? "sudo " : "");
+        String createLockCommand = sudoOrEmpty + "touch " + lockFile;
         String checkLockCommand = "if [ ! -f " + backupFile + " ]; then " + createLockCommand + " && echo 0; else if [ -f " + lockFile + " ]; then " + createLockCommand + " && echo 0; else echo 1; fi; fi";
         boolean lockAcquired = false;
         int iterator = 1;
@@ -102,12 +104,6 @@ public class ETCHOSTSManagementUtils {
         while (!lockAcquired && iterator <= loops) {
             // Remote system
             if (remote != null) {
-                String user = obtainSSHConnectionUser(sshConnectionId);
-
-                if ("root".equals(user)) {
-                    checkLockCommand = checkLockCommand.replaceAll("sudo ", "");
-                }
-
                 comm.executeCommand(checkLockCommand, sshConnectionId, 0, null);
             // Local system
             } else {
@@ -130,18 +126,12 @@ public class ETCHOSTSManagementUtils {
         assertThat(lockAcquired).as("It has not been possible to acquire lock over file: " + file).isTrue();
 
         // Add entry in /etc/hosts
-        String backupCommand = "sudo cp " + file + " " + backupFile;
+        String backupCommand = sudoOrEmpty + "cp " + file + " " + backupFile;
         String checkBackupCommand = "if [ ! -f " + backupFile + " ]; then " + backupCommand  + "; fi";
-        String addCommand = "echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + file;
+        String addCommand = "echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + file;
 
         // We want to save in remote machines's /etc/hosts
         if (remote != null) {
-            String user = comm.getETCHOSTSManagementUtils().obtainSSHConnectionUser(sshConnectionId);
-            if ("root".equals(user)) {
-                checkBackupCommand = checkBackupCommand.replaceAll("sudo ", "");
-                addCommand = addCommand.replaceAll("sudo ", "");
-            }
-
             comm.executeCommand(checkBackupCommand, sshConnectionId, 0, null);
             comm.executeCommand(addCommand, sshConnectionId, 0, null);
         // We want to save in local system /etc/hosts
@@ -153,6 +143,11 @@ public class ETCHOSTSManagementUtils {
     }
 
     public void addK8sHost(String ip, String hostname) throws Exception {
+        String lockFile = (!libnssHomehostsInstalled ? etcHostsLockFile : homeHostsLockFile);
+        String backupFile = (!libnssHomehostsInstalled ? etcHostsBackupFile : homeHostsBackupFile);
+        String backupK8sFile = (!libnssHomehostsInstalled ? etcHostsBackupK8sFile : homeHostsBackupK8sFile);
+        String file = (!libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
+        String sudoOrEmpty = (!libnssHomehostsInstalled ? "sudo " : "");
         String checkLockCommand = "if [ -f " + lockFile + " ]; then echo 0; else echo 1; fi";
         boolean lockAcquired = false;
 
@@ -162,31 +157,30 @@ public class ETCHOSTSManagementUtils {
         }
 
         if (lockAcquired) {
-            comm.runLocalCommand("sudo cp " + backupFile + " " + backupK8sFile);
-            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + file);
-            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + backupFile);
+            comm.runLocalCommand(sudoOrEmpty + "cp " + backupFile + " " + backupK8sFile);
+            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + file);
+            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + backupFile);
         } else {
-            comm.runLocalCommand("sudo cp " + file + " " + backupK8sFile);
-            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | sudo tee -a " + file);
+            comm.runLocalCommand("cp " + file + " " + backupK8sFile);
+            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + file);
         }
 
         logger.debug("Kubernetes hosts added!");
     }
 
     public void releaseLock(String remote, String sshConnectionId) throws Exception {
-        String removeLockCommand = "sudo rm " + lockFile;
+        String lockFile = (remote != null || !libnssHomehostsInstalled ? etcHostsLockFile : homeHostsLockFile);
+        String backupFile = (remote != null || !libnssHomehostsInstalled ? etcHostsBackupFile : homeHostsBackupFile);
+        String file = (remote != null || !libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
+        String sudoOrEmpty = (remote == null && !libnssHomehostsInstalled ? "sudo " : "");
+        String removeLockCommand = sudoOrEmpty + "rm " + lockFile;
         String checkLockCommand = "if [ -f " + lockFile + " ]; then " + removeLockCommand + " && echo 0; else echo 1; fi";
 
-        String restoreCommand = "sudo cp " + comm.getETCHOSTSManagementUtils().getBackupFile() + " " + comm.getETCHOSTSManagementUtils().getFile() + " && sudo rm " + comm.getETCHOSTSManagementUtils().getBackupFile();
-        String checkRestoreCommand = "if [ -f " + comm.getETCHOSTSManagementUtils().getBackupFile() + " ] && [ -f " + comm.getETCHOSTSManagementUtils().getLockFile() + " ] ; then " + restoreCommand  + "; fi";
+        String restoreCommand = sudoOrEmpty + "cp " + backupFile + " " + file + " && " + sudoOrEmpty + "rm " + backupFile;
+        String checkRestoreCommand = "if [ -f " + backupFile + " ] && [ -f " + lockFile + " ] ; then " + restoreCommand  + "; fi";
 
         // We want to restore remote machines's /etc/hosts
         if (remote != null) {
-            String user = obtainSSHConnectionUser(sshConnectionId);
-            if ("root".equals(user)) {
-                checkRestoreCommand = checkRestoreCommand.replaceAll("sudo ", "");
-            }
-
             String connectionId = obtainSSHConnectionId(sshConnectionId);
             logger.debug("Restoring /etc/hosts, if needed, in connection: " + connectionId);
             comm.executeCommand(checkRestoreCommand, sshConnectionId, 0, null);
@@ -198,11 +192,6 @@ public class ETCHOSTSManagementUtils {
 
         // We want to remove lock in remote system
         if (remote != null) {
-            String user = obtainSSHConnectionUser(sshConnectionId);
-            if ("root".equals(user)) {
-                checkLockCommand = checkLockCommand.replaceAll("sudo ", "");
-            }
-
             String connectionId = obtainSSHConnectionId(sshConnectionId);
             logger.debug("Releasing lock, if needed, in connection: " + connectionId);
             comm.executeCommand(checkLockCommand, sshConnectionId, 0, null);
@@ -240,9 +229,12 @@ public class ETCHOSTSManagementUtils {
     }
 
     public void removeK8sHost() throws Exception {
+        String backupK8sFile = (!libnssHomehostsInstalled ? etcHostsBackupK8sFile : homeHostsBackupK8sFile);
+        String file = (!libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
+        String sudoOrEmpty = (!libnssHomehostsInstalled ? "sudo " : "");
         if (new File(backupK8sFile).exists()) {
-            comm.runLocalCommand("sudo cp " + backupK8sFile + " " + file);
-            comm.runLocalCommand("sudo rm " + backupK8sFile);
+            comm.runLocalCommand(sudoOrEmpty + "cp " + backupK8sFile + " " + file);
+            comm.runLocalCommand(sudoOrEmpty + "rm " + backupK8sFile);
             logger.debug("Kubernetes hosts deleted!");
         }
     }

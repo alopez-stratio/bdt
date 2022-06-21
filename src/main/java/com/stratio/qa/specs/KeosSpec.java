@@ -25,9 +25,13 @@ import com.stratio.qa.assertions.Assertions;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.testng.Assert;
+import java.util.concurrent.Future;
+import com.ning.http.client.Response;
+
 
 /**
  * Keos Specs.
@@ -47,21 +51,33 @@ public class KeosSpec extends BaseGSpec {
     /**
      * Generate token to authenticate in gosec SSO in Keos
      *
-     * @param ssoHost  : current sso host
-     * @param userName : username
-     * @param password : password
-     * @param tenant   : tenant
+     * @param token_type       : token type: [governance, discovery] or null
+     * @param ssoHost          : current sso host
+     * @param userName         : username
+     * @param password         : password
+     * @param tenant           : tenant
+     * @param hostVerifier     : whether to verify host or not
+     * @param pathWithoutLogin : whether to remove /login or keep it
      * @throws Exception exception
      */
-    @Given("^I set sso( governance)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( without host name verification)?( without login path)?$")
-    public void setGoSecSSOCookieKeos(String gov, String ssoHost, String userName, String password, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
-        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, gov);
+    @Given("^I set sso( governance| discovery)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( without host name verification)?( without login path)?$")
+    public void setGoSecSSOCookieKeos(String token_type, String ssoHost, String userName, String password, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
+        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, token_type);
         ssoUtils.setVerifyHost(hostVerifier == null);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
 
         String[] tokenList = {"user", "_oauth2_proxy", "stratio-cookie"};
-        if (gov != null) {
-            tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth"};
+        switch (String.valueOf(token_type).trim()) {
+            case "governance":
+                tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth"};
+                break;
+            case "discovery":
+                Assert.assertTrue(ThreadProperty.has("discovery_sso_cookie_name"),
+                        "Discovery SSO Cookie name must be setup first in envVar 'discovery_sso_cookie_name'");
+                tokenList = new String[] {ThreadProperty.get("discovery_sso_cookie_name")};
+                break;
+            default:
+                break;
         }
 
         List<Cookie> cookiesAtributes = commonspec.addSsoToken(ssoCookies, tokenList);
@@ -81,6 +97,13 @@ public class KeosSpec extends BaseGSpec {
 
         if (ssoCookies.get("user") != null) {
             ThreadProperty.set("user", ssoCookies.get("user"));
+        }
+
+        if ("discovery".equals(String.valueOf(token_type).trim())) {
+            Assert.assertNotNull(ssoCookies.get(ThreadProperty.get("discovery_sso_cookie_name")),
+                    "Discovery cookie was not found on SSO response");
+            ThreadProperty.set(ThreadProperty.get("discovery_sso_cookie_name"),
+                    ssoCookies.get(ThreadProperty.get("discovery_sso_cookie_name")));
         }
 
         this.commonspec.getLogger().debug("Cookies to set:");
@@ -157,5 +180,36 @@ public class KeosSpec extends BaseGSpec {
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
         Assertions.assertThat(commonspec.getCommandResult()).as("Not possible to upload universe: " + commonspec.getCommandResult()).doesNotContain("Error");
 
+    }
+
+    /**
+     * Obtain metabase id for the current user and set ups metabase token headers
+     * @param host : discovery host
+     * @param path : discovery session endpoint
+     * @throws Exception
+     */
+    @Given("^I obtain metabase id for current user in host '(.+?)' with endpoint '(.+?)'$")
+    public void saveMetabaseCurrentUserCookieKeos(String host, String path) throws Exception {
+        RestSpec restSpec = new RestSpec(commonspec);
+        restSpec.setupRestClient("securely", host, ":443");
+        Future<Response> response = commonspec.generateRequest("GET", false, null, null, path, "", null, "");
+
+        String metabase_session = "";
+        for (String header_value : response.get().getHeaders("Set-Cookie")) {
+            if (header_value.startsWith("metabase.SESSION")) {
+                metabase_session = header_value.split(";")[0].split("=")[1];
+            }
+        }
+        Assert.assertNotEquals(metabase_session, "", "Error obtaining Metabase Session");
+
+        Cookie cookie = new Cookie("metabase.SESSION", metabase_session, false, "", "", 99999L, false, false);
+        List cookieList = new ArrayList();
+        cookieList.add(cookie);
+        cookieList.add(this.commonspec.getCookies().get(0));
+        commonspec.setCookies(cookieList);
+
+        HashMap<String, String> headers = new HashMap<String, String>();
+        headers.put("X-Metabase-Session", metabase_session);
+        commonspec.setHeaders(headers);
     }
 }

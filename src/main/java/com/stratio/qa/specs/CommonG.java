@@ -32,6 +32,7 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClient.BoundRequestBuilder;
+import com.ning.http.client.FluentCaseInsensitiveStringsMap;
 import com.ning.http.client.Realm;
 import com.ning.http.client.Realm.AuthScheme;
 import com.ning.http.client.Response;
@@ -689,7 +690,8 @@ public class CommonG {
         Integer statusCode = response.getStatusCode();
         String httpResponse = response.getResponseBody();
         List<Cookie> cookies = response.getCookies();
-        this.response = new HttpResponse(statusCode, httpResponse, cookies);
+        FluentCaseInsensitiveStringsMap headers = response.getHeaders();
+        this.response = new HttpResponse(statusCode, httpResponse, cookies, headers);
     }
 
     /**
@@ -1853,8 +1855,8 @@ public class CommonG {
             List<List<String>> expectedResultList = expectedResults.cells();
             //Check size
             assertThat(expectedResultList.size() - 1).overridingErrorMessage(
-                    "Expected number of columns to be" + (expectedResultList.size() - 1)
-                            + "but was " + previousElasticsearchResults.size())
+                            "Expected number of columns to be" + (expectedResultList.size() - 1)
+                                    + "but was " + previousElasticsearchResults.size())
                     .isEqualTo(previousElasticsearchResults.size());
             List<String> columnNames = expectedResultList.get(0);
             for (int i = 0; i < previousElasticsearchResults.size(); i++) {
@@ -1935,6 +1937,10 @@ public class CommonG {
 
     public void setCommandResult(String commandResult) {
         this.commandResult = commandResult;
+    }
+
+    public String getCommandResultError() {
+        return commandResultError;
     }
 
     public String getRestProtocol() {
@@ -2577,6 +2583,37 @@ public class CommonG {
         try {
             Class.forName("com.stratio.jdbc.core.jdbc4.StratioDriver");
             JDBCConnection.setConnection(DriverManager.getConnection(jdbcConnection));
+        } catch (SQLException se) {
+            // log the exception
+            this.getLogger().error(se.getMessage());
+            // re-throw the exception
+            throw se;
+        }
+    }
+
+    public void connectToCustomDatabase(String database, String jdbcConnection, String user, String password) throws Exception {
+        String driver;
+        switch (database) {
+            case "oracle":
+                driver = "oracle.jdbc.OracleDriver";
+                break;
+            case "db2":
+                driver = "com.ibm.db2.jcc.DB2Driver";
+                break;
+            case "sqlserver":
+                driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+                break;
+            case "saphana":
+                driver = "com.sap.db.jdbc.Driver";
+                break;
+            default:
+                driver = "unknown";
+        }
+
+        logger.info("Connecting to {} using driver {}", jdbcConnection, driver);
+        try {
+            Class.forName(driver);
+            JDBCConnection.setConnection(DriverManager.getConnection(jdbcConnection, user, password));
         } catch (SQLException se) {
             // log the exception
             this.getLogger().error(se.getMessage());

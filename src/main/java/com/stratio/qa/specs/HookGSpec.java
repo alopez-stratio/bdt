@@ -99,10 +99,10 @@ public class HookGSpec extends BaseGSpec {
         }
 
         // TODO: remove postinstall command when https://github.com/michaelleeallen/mocha-junit-reporter/pull/143 is merged (see it in qa-unified-test project)
-        String installCypressCommand = "npm install --loglevel=error --depth=0 --registry=http://niquel.stratio.com/repository/publicnpm/ && npm run postinstall --if-present";
+        String installCypressCommand = "npm install --loglevel=error --depth=0 --registry=http://niquel.stratio.com/repository/publicnpm/ --legacy-peer-deps && npm run postinstall --if-present";
         commonspec.getLogger().info("Cypress not installed or updated, proceeding...");
         commonspec.runLocalCommand(installCypressCommand);
-        commonspec.getLogger().info(commonspec.getCommandResult());
+        commonspec.getLogger().info(commonspec.getCommandResult() + "\n" + commonspec.getCommandResultError());
         commonspec.getLogger().info("Checking...");
         commonspec.runLocalCommand(checkCypressCommand);
         if (commonspec.getCommandExitStatus() != 0) {

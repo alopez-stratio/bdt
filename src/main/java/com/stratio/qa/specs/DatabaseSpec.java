@@ -1364,6 +1364,15 @@ public class DatabaseSpec extends BaseGSpec {
         }
     }
 
+    @Given(value = "^I connect with JDBC to database '(.*?)' with url '(.*?)', user '(.*?)'( and password '(.*?)')$")
+    public void createCustomDriver(String database, String url, String user, String password) {
+        try {
+            commonspec.connectToCustomDatabase(database, url, user, password);
+        } catch (Exception e) {
+            fail("Error when we trying to connect to JDBC Database -> " + e.getMessage());
+        }
+    }
+
     /*
      * Test if dataTable is contained in query result
      *

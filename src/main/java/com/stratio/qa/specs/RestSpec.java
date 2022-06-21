@@ -16,6 +16,7 @@
 
 package com.stratio.qa.specs;
 
+import com.ning.http.client.FluentCaseInsensitiveStringsMap;
 import com.ning.http.client.Response;
 import com.stratio.qa.assertions.Assertions;
 import com.stratio.qa.utils.ThreadProperty;
@@ -254,10 +255,10 @@ public class RestSpec extends BaseGSpec {
             // Retrieve data
             String retrievedData = commonspec.retrieveData(baseData, type);
             // Generate request
-            response = commonspec.generateRequest(requestType, false, user, password, endPoint, retrievedData, type, "");
+            response = commonspec.generateRequest(requestType, false, user, password, endPoint, retrievedData, type);
         } else {
             // Generate request
-            response = commonspec.generateRequest(requestType, false, user, password, endPoint, "", type, "");
+            response = commonspec.generateRequest(requestType, false, user, password, endPoint, "", type);
         }
 
         // Save response
@@ -437,6 +438,73 @@ public class RestSpec extends BaseGSpec {
             }
         } else {
             fail("No environment variable neither file defined");
+        }
+    }
+
+    @Then("^I save service response headers( in environment variable '(.*?)')?( in file '(.*?)')?$")
+    public void saveResponseHeadersInEnvironmentVariableFile(String envVar, String fileName) throws Exception {
+
+        if (envVar != null || fileName != null) {
+            String value = commonspec.getResponse().getResponseHeaders().toString();
+
+            if (envVar != null) {
+                ThreadProperty.set(envVar, value);
+            }
+
+            if (fileName != null) {
+                // Create file (temporary) and set path to be accessible within test
+                File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
+                String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
+                commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
+                // Note that this Writer will delete the file if it exists
+                Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
+                try {
+                    out.write(value);
+                } catch (Exception e) {
+                    commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
+                } finally {
+                    out.close();
+                }
+
+                Assertions.assertThat(new File(absolutePathFile).isFile());
+            }
+        } else {
+            fail("No environment variable neither file defined");
+        }
+    }
+
+    @Then("^I save service response header '(.*?)' value( in environment variable '(.*?)')?( in file '(.*?)')?$")
+    public void saveResponseHeaderValueInEnvironmentVariableFile(String header, String envVar, String fileName) throws Exception {
+        try {
+            if (envVar != null || fileName != null) {
+                String value = commonspec.getResponse().getResponseHeaders().getFirstValue(header);
+
+                if (envVar != null) {
+                    ThreadProperty.set(envVar, value);
+                }
+
+                if (fileName != null) {
+                    // Create file (temporary) and set path to be accessible within test
+                    File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
+                    String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
+                    commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
+                    // Note that this Writer will delete the file if it exists
+                    Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
+                    try {
+                        out.write(value);
+                    } catch (Exception e) {
+                        commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
+                    } finally {
+                        out.close();
+                    }
+
+                    Assertions.assertThat(new File(absolutePathFile).isFile());
+                }
+            } else {
+                fail("No environment variable neither file defined");
+            }
+        } catch (Exception e) {
+            fail("Header {} was not found on {} response", header, envVar);
         }
     }
 

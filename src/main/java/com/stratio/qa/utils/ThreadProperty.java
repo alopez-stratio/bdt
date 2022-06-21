@@ -52,6 +52,16 @@ public final class ThreadProperty {
     }
 
     /**
+     * Whether a property shared is defined or not.
+     *
+     * @param key
+     * @return Boolean
+     */
+    public static Boolean has(String key) {
+        return PROPS.get().getProperty(key) != null;
+    }
+
+    /**
      * Remove a property shared
      */
     public static void remove(String key) {

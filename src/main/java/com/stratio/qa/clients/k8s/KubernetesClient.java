@@ -126,6 +126,21 @@ public class KubernetesClient {
             commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null);
 
             // Obtain and export values
+            if (new File("target/test-classes/" + workspaceName + "/cluster_versions.yaml").exists()) {
+                FileSpec fileSpec = new FileSpec(commonspec);
+                fileSpec.convertYamlToJson(workspaceName + "/cluster_versions.yaml", workspaceName + "/cluster_versions.json");
+
+                String clusterVersionsJson = commonspec.retrieveData(workspaceName + "/cluster_versions.json", "json");
+
+                if (System.getProperty("KEOS_VERSION") == null) {
+                    System.setProperty("KEOS_VERSION", commonspec.getJSONPathString(clusterVersionsJson, "$.clusterVersions.keosVersion", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+                }
+                if (System.getProperty("UNIVERSE_VERSION") == null) {
+                    System.setProperty("UNIVERSE_VERSION", commonspec.getJSONPathString(clusterVersionsJson, "$.clusterVersions.universeVersion", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+                }
+            }
+
+            // Obtain and export values
             if (!new File("target/test-classes/" + workspaceName + "/keos.json").exists()) {
                 FileSpec fileSpec = new FileSpec(commonspec);
                 fileSpec.convertYamlToJson(workspaceName + "/keos.yaml", workspaceName + "/keos.json");
@@ -233,6 +248,23 @@ public class KubernetesClient {
 
     private void getIngressPath() {
         ThreadProperty.set("KEOS_GOSEC_INGRESS_PATH", "/ui");
+
+        if (System.getProperty("KEOS_VERSION").matches(".*0\\.[1-5].*")) {
+            ThreadProperty.set("cct-applications-query_id", "cct-applications-query-service");
+            ThreadProperty.set("cct-central-configuration_id", "cct-central-configuration-service");
+            ThreadProperty.set("cct-orchestrator_id", "cct-orchestrator-service");
+            ThreadProperty.set("cct_ui_id", "cct-ui");
+            ThreadProperty.set("cct-universe_id", "cct-universe-service");
+            ThreadProperty.set("cct-paas-services_id", "cct-paas-services-service");
+        } else {
+            ThreadProperty.set("cct-applications-query_id", "cct-applications-query");
+            ThreadProperty.set("cct-central-configuration_id", "cct-central-configuration");
+            ThreadProperty.set("cct-orchestrator_id", "cct-orchestrator");
+            ThreadProperty.set("cct_ui_id", "cct-ui");
+            ThreadProperty.set("cct-universe_id", "cct-universe");
+            ThreadProperty.set("cct-paas-services_id", "cct-paas-services");
+        }
+
         Ingress gosecIngress = k8sClient.extensions().ingresses().inNamespace("keos-core").withName("gosec-management-ui").get();
         if (gosecIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/gosec")) {
             ThreadProperty.set("KEOS_GOSEC_INGRESS_PATH", "/gosec");
@@ -241,26 +273,26 @@ public class KubernetesClient {
             ThreadProperty.set("KEOS_GOSEC_INGRESS_PATH", "/gosec/ui");
         }
         ThreadProperty.set("KEOS_CCT_INGRESS_PATH", "/cct");
-        Ingress cctIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName("cct-ui").get();
-        if (cctIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct-ui")) {
-            ThreadProperty.set("KEOS_CCT_INGRESS_PATH", "/cct-ui");
+        Ingress cctIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName(ThreadProperty.get("cct_ui_id")).get();
+        if (cctIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/" + ThreadProperty.get("cct_ui_id"))) {
+            ThreadProperty.set("KEOS_CCT_INGRESS_PATH", "/" + ThreadProperty.get("cct_ui_id"));
         } else if (cctIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/ui")) {
             ThreadProperty.set("KEOS_CCT_INGRESS_PATH", "/cct/ui");
         }
-        ThreadProperty.set("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH", "/cct-orchestrator-service");
-        Ingress cctOrchestratorIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName("cct-orchestrator-service").get();
-        if (cctOrchestratorIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/cct-orchestrator-service")) {
-            ThreadProperty.set("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH", "/cct/cct-orchestrator-service");
+        ThreadProperty.set("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH", "/" + ThreadProperty.get("cct-orchestrator_id"));
+        Ingress cctOrchestratorIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName(ThreadProperty.get("cct-orchestrator_id")).get();
+        if (cctOrchestratorIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/" + ThreadProperty.get("cct-orchestrator_id"))) {
+            ThreadProperty.set("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH", "/cct/" + ThreadProperty.get("cct-orchestrator_id"));
         }
-        ThreadProperty.set("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH", "/cct-universe-service");
-        Ingress cctUniverseServiceIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName("cct-universe-service").get();
-        if (cctUniverseServiceIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/cct-universe-service")) {
-            ThreadProperty.set("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH", "/cct/cct-universe-service");
+        ThreadProperty.set("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH", "/" + ThreadProperty.get("cct-universe_id"));
+        Ingress cctUniverseServiceIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName(ThreadProperty.get("cct-universe_id")).get();
+        if (cctUniverseServiceIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/" + ThreadProperty.get("cct-universe_id"))) {
+            ThreadProperty.set("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH", "/cct/" + ThreadProperty.get("cct-universe_id"));
         }
-        ThreadProperty.set("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH", "/cct-applications-query-service");
-        Ingress cctApplicationsQueryServiceIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName("cct-applications-query-service").get();
-        if (cctApplicationsQueryServiceIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/cct-applications-query-service")) {
-            ThreadProperty.set("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH", "/cct/cct-applications-query-service");
+        ThreadProperty.set("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH", "/" + ThreadProperty.get("cct-applications-query_id"));
+        Ingress cctApplicationsQueryServiceIngress = k8sClient.extensions().ingresses().inNamespace("keos-cct").withName(ThreadProperty.get("cct-applications-query_id")).get();
+        if (cctApplicationsQueryServiceIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=/cct/" + ThreadProperty.get("cct-applications-query_id"))) {
+            ThreadProperty.set("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH", "/cct/" + ThreadProperty.get("cct-applications-query_id"));
         }
         ThreadProperty.set("KEOS_GOSEC_BAAS_INGRESS_PATH", "/baas");
         Ingress gosecBaasIngress = k8sClient.extensions().ingresses().inNamespace("keos-core").withName("gosec-management-baas").get();
@@ -271,7 +303,12 @@ public class KubernetesClient {
 
     private void getK8sCCTConfig(CommonG commonspec) {
         try {
-            String centralConfigJson = getConfigMap("command-center-config", "keos-cct").getData().get("central-config.json");
+            String centralConfigJson;
+            if (System.getProperty("KEOS_VERSION").matches(".*0\\.[1-5].*")) {
+                centralConfigJson = getConfigMap("command-center-config", "keos-cct").getData().get("central-config.json");
+            } else {
+                centralConfigJson = getConfigMap("cct-central-configuration-central-config", "keos-cct").getData().get("central-config.json");
+            }
 
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.admin_fqdn", "KEOS_FQDN", null);
 
@@ -1576,21 +1613,41 @@ public class KubernetesClient {
         k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).withName(name).edit().editSpec().withMinReplicas(minReplicas).withMaxReplicas(maxReplicas).endSpec().done();
     }
 
-    public void copyFileToPod(String podName, String namespace, String filePath, String destinationPath) {
+    public void copyFileToPod(String podName, String namespace, String container, String filePath, String destinationPath) {
         File local = new File(filePath);
         if (local.isDirectory()) {
-            k8sClient.pods().inNamespace(namespace).withName(podName).dir(destinationPath).upload(Paths.get(filePath));
+            if (container == null) {
+                k8sClient.pods().inNamespace(namespace).withName(podName)
+                        .dir(destinationPath)
+                        .upload(Paths.get(filePath));
+            } else {
+                k8sClient.pods().inNamespace(namespace).withName(podName).inContainer(container)
+                        .dir(destinationPath)
+                        .upload(Paths.get(filePath));
+            }
         } else {
-            k8sClient.pods().inNamespace(namespace).withName(podName).file(destinationPath).upload(Paths.get(filePath));
+            if (container == null) {
+                k8sClient.pods().inNamespace(namespace).withName(podName)
+                        .file(destinationPath)
+                        .upload(Paths.get(filePath));
+            } else {
+                k8sClient.pods().inNamespace(namespace).withName(podName).inContainer(container)
+                        .file(destinationPath)
+                        .upload(Paths.get(filePath));
+            }
         }
     }
 
     public void copyFileFromPod(String podName, String namespace, String filePath, String destinationPath) {
         File local = new File(destinationPath);
         if (local.isDirectory()) {
-            k8sClient.pods().inNamespace(namespace).withName(podName).dir(filePath).copy(Paths.get(destinationPath));
+            k8sClient.pods().inNamespace(namespace).withName(podName)
+                    .dir(filePath)
+                    .copy(Paths.get(destinationPath));
         } else {
-            k8sClient.pods().inNamespace(namespace).withName(podName).file(filePath).copy(Paths.get(destinationPath));
+            k8sClient.pods().inNamespace(namespace).withName(podName)
+                    .file(filePath)
+                    .copy(Paths.get(destinationPath));
         }
     }
 

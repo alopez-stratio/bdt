@@ -1768,7 +1768,6 @@ public class GosecSpec extends BaseGSpec {
         int expectedResponse = 200;
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             endPoint = "/gosec/baas/management/encryption/key";
-            expectedResponse = 201;
         }
         commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
         JSONObject jsonKey = new JSONObject();

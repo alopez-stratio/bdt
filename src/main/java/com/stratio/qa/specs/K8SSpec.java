@@ -611,9 +611,9 @@ public class K8SSpec extends BaseGSpec {
     /**
      * kubectl cp /tmp/foo <some-namespace>/<some-pod>:/tmp/bar
      */
-    @Given("^I outbound copy '(.+?)' to '(.+?)' in pod '(.+?)' in namespace '(.+?)'$")
-    public void copyToRemoteFile(String localPath, String remotePath, String podName, String namespace)  {
-        commonspec.kubernetesClient.copyFileToPod(podName, namespace, localPath, remotePath);
+    @Given("^I outbound copy '(.+?)' to '(.+?)' in pod '(.+?)' in namespace '(.+?)'( in container '(.*?)')?$")
+    public void copyToRemoteFile(String localPath, String remotePath, String podName, String namespace, String container) {
+        commonspec.kubernetesClient.copyFileToPod(podName, namespace, container, localPath, remotePath);
     }
 
     /**
