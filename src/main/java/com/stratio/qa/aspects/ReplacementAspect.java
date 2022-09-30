@@ -240,16 +240,24 @@ public class ReplacementAspect {
     }
 
     protected String replacedElement(String el, JoinPoint jp) throws NonReplaceableException {
-        if (el.contains("${")) {
-            el = replaceEnvironmentPlaceholders(el, jp);
+        try {
+            if (el.contains("${")) {
+                el = replaceEnvironmentPlaceholders(el, jp);
+            }
+            if (el.contains("!{")) {
+                el = replaceReflectionPlaceholders(el, jp);
+            }
+            if (el.contains("@{")) {
+                el = replaceCodePlaceholders(el, jp);
+            }
+            return el;
+        } catch (Exception e) {
+            if (e instanceof NonReplaceableException) {
+                throw e;
+            } else {
+                throw new NonReplaceableException("Unreplaceable element: " + el + " - " + e);
+            }
         }
-        if (el.contains("!{")) {
-            el = replaceReflectionPlaceholders(el, jp);
-        }
-        if (el.contains("@{")) {
-            el = replaceCodePlaceholders(el, jp);
-        }
-        return el;
     }
 
     /**

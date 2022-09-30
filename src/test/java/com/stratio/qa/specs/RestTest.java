@@ -15,10 +15,10 @@
  */
 package com.stratio.qa.specs;
 
-import com.ning.http.client.AsyncHttpClient;
 import com.stratio.qa.assertions.Assertions;
 import com.stratio.qa.utils.ThreadProperty;
 import io.cucumber.datatable.DataTable;
+import org.asynchttpclient.AsyncHttpClient;
 import org.testng.annotations.Test;
 
 import java.io.File;
@@ -28,8 +28,9 @@ import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.asynchttpclient.Dsl.asyncHttpClient;
 
-import com.ning.http.client.Response;
+import org.asynchttpclient.Response;
 
 public class RestTest {
 
@@ -37,8 +38,9 @@ public class RestTest {
     public void testsendRequestDataTableTimeout() throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         CommonG commong = new CommonG();
-        commong.setRestHost("jenkins.int.stratio.com");
-        commong.setRestPort(":80");
+        commong.setRestProtocol("https://");
+        commong.setRestHost("builder.int.stratio.com");
+        commong.setRestPort(":443");
         String endPoint = "endpoint";
         String expectedMsg = "regex:tag";
         String requestType = "POST";
@@ -63,15 +65,40 @@ public class RestTest {
     public void testsaveResponseInEnvironmentVariableFile() throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         CommonG commong = new CommonG();
-        commong.setClient(new AsyncHttpClient());
-        commong.setRestHost("jenkins.int.stratio.com");
-        commong.setRestPort(":80");
+        commong.setClient(asyncHttpClient());
+        commong.setRestProtocol("https://");
+        commong.setRestHost("builder.int.stratio.com");
+        commong.setRestPort(":443");
 
         Future<Response> response = commong.generateRequest("GET", false, null, null, "/job/AI/job/NightlyForward/", null, "string");
         commong.setResponse("GET", (Response) response.get());
 
         RestSpec rest = new RestSpec(commong);
-        rest.saveResponseInEnvironmentVariableFile("envVar", "file.txt");
+        rest.saveResponseInEnvironmentVariableFile("envVar", "file.txt", null);
+
+        assertThat(ThreadProperty.get("envVar")).as("Unexpected content in thread variable").contains("Responsibles: QA");
+
+        File tempDirectory = new File(String.valueOf(System.getProperty("user.dir") + "/target/test-classes/"));
+        String absolutePathFile = tempDirectory.getAbsolutePath() + "/file.txt";
+
+        Assertions.assertThat(new File(absolutePathFile).exists());
+        new File(absolutePathFile).delete();
+    }
+
+    @Test
+    public void testsaveResponseInEnvironmentVariableFileUsingUTF8Encoding() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        commong.setClient(asyncHttpClient());
+        commong.setRestProtocol("https://");
+        commong.setRestHost("builder.int.stratio.com");
+        commong.setRestPort(":443");
+
+        Future<Response> response = commong.generateRequest("GET", false, null, null, "/job/AI/job/NightlyForward/", null, "string");
+        commong.setResponse("GET", (Response) response.get());
+
+        RestSpec rest = new RestSpec(commong);
+        rest.saveResponseInEnvironmentVariableFile("envVar", "file.txt", "UTF-8");
 
         assertThat(ThreadProperty.get("envVar")).as("Unexpected content in thread variable").contains("Responsibles: QA");
 
@@ -86,15 +113,39 @@ public class RestTest {
     public void testsaveResponseInEnvironmentVariableFileNoFile() throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         CommonG commong = new CommonG();
-        commong.setClient(new AsyncHttpClient());
-        commong.setRestHost("jenkins.int.stratio.com");
-        commong.setRestPort(":80");
+        commong.setClient(asyncHttpClient());
+        commong.setRestProtocol("https://");
+        commong.setRestHost("builder.int.stratio.com");
+        commong.setRestPort(":443");
 
         Future<Response> response = commong.generateRequest("GET", false, null, null, "/job/AI/job/NightlyForward/", null, "string");
         commong.setResponse("GET", (Response) response.get());
 
         RestSpec rest = new RestSpec(commong);
-        rest.saveResponseInEnvironmentVariableFile("envVar", null);
+        rest.saveResponseInEnvironmentVariableFile("envVar", null, null);
+
+        assertThat(ThreadProperty.get("envVar")).as("Unexpected content in thread variable").contains("Responsibles: QA");
+
+        File tempDirectory = new File(String.valueOf(System.getProperty("user.dir") + "/target/test-classes/"));
+        String absolutePathFile = tempDirectory.getAbsolutePath() + "/file.txt";
+
+        Assertions.assertThat(new File(absolutePathFile).exists()).isFalse();
+    }
+
+    @Test
+    public void testsaveResponseInEnvironmentVariableFileNoFileUsingUTF8Encoding() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        commong.setClient(asyncHttpClient());
+        commong.setRestProtocol("https://");
+        commong.setRestHost("builder.int.stratio.com");
+        commong.setRestPort(":443");
+
+        Future<Response> response = commong.generateRequest("GET", false, null, null, "/job/AI/job/NightlyForward/", null, "string");
+        commong.setResponse("GET", (Response) response.get());
+
+        RestSpec rest = new RestSpec(commong);
+        rest.saveResponseInEnvironmentVariableFile("envVar", null, "UTF-8");
 
         assertThat(ThreadProperty.get("envVar")).as("Unexpected content in thread variable").contains("Responsibles: QA");
 

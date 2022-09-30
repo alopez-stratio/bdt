@@ -30,13 +30,9 @@ import com.jayway.jsonpath.spi.json.GsonJsonProvider;
 import com.jayway.jsonpath.spi.mapper.GsonMappingProvider;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.AsyncHttpClient.BoundRequestBuilder;
-import com.ning.http.client.FluentCaseInsensitiveStringsMap;
-import com.ning.http.client.Realm;
-import com.ning.http.client.Realm.AuthScheme;
-import com.ning.http.client.Response;
-import com.ning.http.client.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.cookie.Cookie;
 import com.stratio.qa.clients.cct.CctMarathonServiceApiClient;
 import com.stratio.qa.clients.cct.ConfigurationApiClient;
 import com.stratio.qa.clients.cct.DeployApiClient;
@@ -53,6 +49,10 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.io.FileUtils;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.BoundRequestBuilder;
+import org.asynchttpclient.Realm;
+import org.asynchttpclient.Response;
 import org.hjson.JsonObject;
 import org.hjson.JsonType;
 import org.hjson.JsonValue;
@@ -320,6 +320,10 @@ public class CommonG {
      */
     public ElasticSearchUtils getElasticSearchClient() {
         return ElasticSearchUtil.INSTANCE.getElasticSearchUtils();
+    }
+
+    public OpenSearchUtils getOpenSearchClient() {
+        return OpenSearchUtil.INSTANCE.getOpenSearchUtils();
     }
 
     /**
@@ -690,7 +694,7 @@ public class CommonG {
         Integer statusCode = response.getStatusCode();
         String httpResponse = response.getResponseBody();
         List<Cookie> cookies = response.getCookies();
-        FluentCaseInsensitiveStringsMap headers = response.getHeaders();
+        HttpHeaders headers = response.getHeaders();
         this.response = new HttpResponse(statusCode, httpResponse, cookies, headers);
     }
 
@@ -1166,11 +1170,9 @@ public class CommonG {
 
         // Setup user and password for requests
         if (user != null) {
-            realm = new Realm.RealmBuilder()
-                    .setPrincipal(user)
-                    .setPassword(password)
+            realm = new Realm.Builder(user, password)
                     .setUsePreemptiveAuth(true)
-                    .setScheme(AuthScheme.BASIC)
+                    .setScheme(Realm.AuthScheme.BASIC)
                     .build();
         }
 
@@ -1205,8 +1207,14 @@ public class CommonG {
 
                 if (this.getSeleniumCookies().size() > 0) {
                     for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
-                        request.addCookie(new Cookie(cookie.getName(), cookie.getValue(),
-                                false, cookie.getDomain(), cookie.getPath(), 99, false, false));
+                        Cookie cookieToAdd = new DefaultCookie(cookie.getName(), cookie.getValue());
+                        cookieToAdd.setDomain(cookie.getDomain());
+                        cookieToAdd.setPath(cookie.getPath());
+                        cookieToAdd.setWrap(false);
+                        cookieToAdd.setMaxAge(99);
+                        cookieToAdd.setSecure(false);
+                        cookieToAdd.setHttpOnly(false);
+                        request.addCookie(cookieToAdd);
                     }
                 }
 
@@ -1253,8 +1261,14 @@ public class CommonG {
                 }
                 if (this.getSeleniumCookies().size() > 0) {
                     for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
-                        request.addCookie(new Cookie(cookie.getName(), cookie.getValue(),
-                                false, cookie.getDomain(), cookie.getPath(), 99, false, false));
+                        Cookie cookieToAdd = new DefaultCookie(cookie.getName(), cookie.getValue());
+                        cookieToAdd.setDomain(cookie.getDomain());
+                        cookieToAdd.setPath(cookie.getPath());
+                        cookieToAdd.setWrap(false);
+                        cookieToAdd.setMaxAge(99);
+                        cookieToAdd.setSecure(false);
+                        cookieToAdd.setHttpOnly(false);
+                        request.addCookie(cookieToAdd);
                     }
                 }
 
@@ -1306,8 +1320,14 @@ public class CommonG {
 
                     if (this.getSeleniumCookies().size() > 0) {
                         for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
-                            request.addCookie(new Cookie(cookie.getName(), cookie.getValue(),
-                                    false, cookie.getDomain(), cookie.getPath(), 99, false, false));
+                            Cookie cookieToAdd = new DefaultCookie(cookie.getName(), cookie.getValue());
+                            cookieToAdd.setDomain(cookie.getDomain());
+                            cookieToAdd.setPath(cookie.getPath());
+                            cookieToAdd.setWrap(false);
+                            cookieToAdd.setMaxAge(99);
+                            cookieToAdd.setSecure(false);
+                            cookieToAdd.setHttpOnly(false);
+                            request.addCookie(cookieToAdd);
                         }
                     }
 
@@ -1356,8 +1376,14 @@ public class CommonG {
 
                     if (this.getSeleniumCookies().size() > 0) {
                         for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
-                            request.addCookie(new Cookie(cookie.getName(), cookie.getValue(),
-                                    false, cookie.getDomain(), cookie.getPath(), 99, false, false));
+                            Cookie cookieToAdd = new DefaultCookie(cookie.getName(), cookie.getValue());
+                            cookieToAdd.setDomain(cookie.getDomain());
+                            cookieToAdd.setPath(cookie.getPath());
+                            cookieToAdd.setWrap(false);
+                            cookieToAdd.setMaxAge(99);
+                            cookieToAdd.setSecure(false);
+                            cookieToAdd.setHttpOnly(false);
+                            request.addCookie(cookieToAdd);
                         }
                     }
 
@@ -1405,8 +1431,14 @@ public class CommonG {
 
                     if (this.getSeleniumCookies().size() > 0) {
                         for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
-                            request.addCookie(new Cookie(cookie.getName(), cookie.getValue(),
-                                    false, cookie.getDomain(), cookie.getPath(), 99, false, false));
+                            Cookie cookieToAdd = new DefaultCookie(cookie.getName(), cookie.getValue());
+                            cookieToAdd.setDomain(cookie.getDomain());
+                            cookieToAdd.setPath(cookie.getPath());
+                            cookieToAdd.setWrap(false);
+                            cookieToAdd.setMaxAge(99);
+                            cookieToAdd.setSecure(false);
+                            cookieToAdd.setHttpOnly(false);
+                            request.addCookie(cookieToAdd);
                         }
                     }
 
@@ -2761,12 +2793,17 @@ public class CommonG {
      * @param tokenList
      * @return
      */
-    public List<com.ning.http.client.cookie.Cookie> addSsoToken(HashMap<String, String> ssoCookies, String[] tokenList) {
-        List<com.ning.http.client.cookie.Cookie> cookiesAttributes = new ArrayList<>();
+    public List<Cookie> addSsoToken(HashMap<String, String> ssoCookies, String[] tokenList) {
+        List<Cookie> cookiesAttributes = new ArrayList<>();
         for (String tokenKey : tokenList) {
-            cookiesAttributes.add(new com.ning.http.client.cookie.Cookie(tokenKey, ssoCookies.get(tokenKey),
-                    false, null,
-                    null, 999999, false, false));
+            Cookie cookieToAdd = new DefaultCookie(tokenKey, ssoCookies.get(tokenKey) != null ? ssoCookies.get(tokenKey) : "");
+            cookieToAdd.setDomain(null);
+            cookieToAdd.setPath(null);
+            cookieToAdd.setWrap(false);
+            cookieToAdd.setMaxAge(99);
+            cookieToAdd.setSecure(false);
+            cookieToAdd.setHttpOnly(false);
+            cookiesAttributes.add(cookieToAdd);
         }
         return cookiesAttributes;
     }

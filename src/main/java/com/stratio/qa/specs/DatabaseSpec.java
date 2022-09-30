@@ -23,7 +23,7 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;
-import com.ning.http.client.Response;
+import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.DBObjectsAssert;
 import com.stratio.qa.exceptions.DBException;
 import com.stratio.qa.utils.JDBCConnection;
@@ -101,10 +101,10 @@ public class DatabaseSpec extends BaseGSpec {
     /**
      * Connect to cluster.
      *
-     * @param clusterType DB type (Cassandra|Mongo|Elasticsearch)
+     * @param clusterType DB type (Cassandra|Mongo|Elasticsearch|OpenSearch)
      * @param url         url where is started Cassandra cluster
      */
-    @Given("^I( securely)? connect to '(Cassandra|Mongo|Elasticsearch)' cluster at '(.+)'$")
+    @Given("^I( securely)? connect to '(Cassandra|Mongo|Elasticsearch|OpenSearch)' cluster at '(.+)'$")
     public void connect(String secured, String clusterType, String url) throws DBException, UnknownHostException {
         switch (clusterType) {
             case "Cassandra":
@@ -119,6 +119,12 @@ public class DatabaseSpec extends BaseGSpec {
                 settings_map.put("cluster.name", System.getProperty("ES_CLUSTER", ES_DEFAULT_CLUSTER_NAME));
                 commonspec.getElasticSearchClient().setSettings(settings_map);
                 commonspec.getElasticSearchClient().connect();
+                break;
+            case "OpenSearch":
+                LinkedHashMap<String, Object> settings_map_open_search = new LinkedHashMap<String, Object>();
+                settings_map_open_search.put("cluster.name", System.getProperty("ES_CLUSTER", ES_DEFAULT_CLUSTER_NAME));
+                commonspec.getOpenSearchClient().setSettings(settings_map_open_search);
+                commonspec.getOpenSearchClient().connect();
                 break;
             default:
                 throw new DBException("Unknown cluster type");
@@ -155,6 +161,39 @@ public class DatabaseSpec extends BaseGSpec {
             commonspec.getElasticSearchClient().connect(keyStorePath, keyStorePassword, trustStorePath, trustStorePassword);
         } else {
             commonspec.getElasticSearchClient().connect();
+        }
+    }
+
+    /**
+     * Connect to OpenSearch using custom parameters
+     *
+     * @param host        ES host
+     * @param nativePort  ES port
+     * @param clusterName ES clustername
+     * @param keyStorePath File keystore in format .jks
+     * @param keyStorePassword KeyStore Password
+     * @throws NumberFormatException exception
+     */
+    @Given("^I connect to OpenSearch cluster at host '(.+?)'( using native port '(.+?)')?( with trustStorePath '(.+?)')?( and trustStorePassword '(.+?)')?( with keyStorePath '(.+?)')?( and keyStorePassword '(.+?)')?( using cluster name '(.+?)')?$")
+    public void connectToOpenSearch(String host, String nativePort, String trustStorePath, String trustStorePassword, String keyStorePath, String keyStorePassword, String clusterName) throws NumberFormatException, SSLException {
+        LinkedHashMap<String, Object> settings_map = new LinkedHashMap<String, Object>();
+        if (clusterName != null) {
+            settings_map.put("cluster.name", clusterName);
+        } else {
+            settings_map.put("cluster.name", ES_DEFAULT_CLUSTER_NAME);
+        }
+        commonspec.getOpenSearchClient().setSettings(settings_map);
+        if (nativePort != null) {
+            commonspec.getOpenSearchClient().setNativePort(Integer.valueOf(nativePort));
+        } else {
+            commonspec.getOpenSearchClient().setNativePort(ES_DEFAULT_NATIVE_PORT);
+        }
+        commonspec.getOpenSearchClient().setHost(host);
+
+        if (trustStorePath != null && trustStorePassword != null && keyStorePath != null  && keyStorePassword != null) {
+            commonspec.getOpenSearchClient().connect(keyStorePath, keyStorePassword, trustStorePath, trustStorePassword);
+        } else {
+            commonspec.getOpenSearchClient().connect();
         }
     }
 
@@ -263,11 +302,62 @@ public class DatabaseSpec extends BaseGSpec {
 
 
     /**
+     * Save clustername of opensearch in an environment varible for future use.
+     *
+     * @param host   opensearch connection
+     * @param port   opensearch port
+     * @param envVar thread variable where to store the value
+     * @throws IllegalAccessException    exception
+     * @throws IllegalArgumentException  exception
+     * @throws SecurityException         exception
+     * @throws NoSuchFieldException      exception
+     * @throws ClassNotFoundException    exception
+     * @throws InstantiationException    exception
+     * @throws InvocationTargetException exception
+     * @throws NoSuchMethodException     exception
+     */
+    @Given("^I obtain opensearch cluster name in '([^:]+?)(:.+?)?' and save it in variable '(.+?)'?$")
+    public void saveOpenSearchCluster(String host, String port, String envVar) throws Exception {
+
+        commonspec.setRestProtocol("http://");
+        commonspec.setRestHost(host);
+        commonspec.setRestPort(port);
+
+        Future<Response> response;
+
+        response = commonspec.generateRequest("GET", false, null, null, "/", "", "json", "");
+        commonspec.setResponse("GET", response.get());
+
+        String json;
+        String parsedElement;
+        json = commonspec.getResponse().getResponse();
+        parsedElement = "$..cluster_name";
+
+        String json2 = "[" + json + "]";
+        String value = commonspec.getJSONPathString(json2, parsedElement, "0");
+
+        if (value == null) {
+            throw new Exception("No cluster name is found");
+        } else {
+            ThreadProperty.set(envVar, value);
+        }
+    }
+
+
+    /**
      * Drop all the ElasticSearch indexes.
      */
     @Given("^I drop every existing elasticsearch index$")
     public void dropElasticsearchIndexes() {
         commonspec.getElasticSearchClient().dropAllIndexes();
+    }
+
+    /**
+     * Drop all the OpenSearch indexes.
+     */
+    @Given("^I drop every existing opensearch index$")
+    public void dropOpenSearchIndexes() {
+        commonspec.getOpenSearchClient().dropAllIndexes();
     }
 
     /**
@@ -278,6 +368,16 @@ public class DatabaseSpec extends BaseGSpec {
     @Given("^I drop an elasticsearch index named '(.+?)'$")
     public void dropElasticsearchIndex(String index) {
         commonspec.getElasticSearchClient().dropSingleIndex(index);
+    }
+
+    /**
+     * Drop an specific index of OpenSearch.
+     *
+     * @param index ES index
+     */
+    @Given("^I drop an opensearch index named '(.+?)'$")
+    public void dropOpenSearchIndex(String index) {
+        commonspec.getOpenSearchClient().dropSingleIndex(index);
     }
 
     /**
@@ -565,6 +665,28 @@ public class DatabaseSpec extends BaseGSpec {
 
 
     /**
+     * Create an opensearch index.
+     *
+     * @param index
+     */
+    @When("^I create an opensearch index named '(.+?)'( with '(.*?)' shards)?( with '(.*?)' replicas)?( removing existing index if exist)?$")
+    public void createOpenSearchIndex(String index, String shards, String replicas, String removeIndex) {
+        org.opensearch.common.settings.Settings.Builder settings = org.opensearch.common.settings.Settings.builder();
+
+        if (shards != null) {
+            settings.put("index.number_of_shards", shards);
+        }
+        if (replicas != null) {
+            settings.put("index.number_of_replicas", replicas);
+        }
+        if (removeIndex != null && commonspec.getOpenSearchClient().indexExists(index)) {
+            commonspec.getOpenSearchClient().dropSingleIndex(index);
+        }
+        commonspec.getOpenSearchClient().createSingleIndex(index, settings);
+    }
+
+
+    /**
      * Check number of shards from elasticsearch index.
      *
      * @param index
@@ -622,6 +744,20 @@ public class DatabaseSpec extends BaseGSpec {
     }
 
     /**
+     * Index a document in opensearch.
+     *
+     * @param baseData
+     * @param indexName
+     * @throws Exception
+     */
+    @When("^I index in opensearch a document '(.+?)' with id '(.+?)' in the index named '(.+?)'$")
+    public void indexOpenSearchDocument(String baseData, String id, String indexName) throws Exception {
+        // Retrieve data
+        String retrieveData = commonspec.retrieveData(baseData, "json");
+        commonspec.getOpenSearchClient().indexDocument(indexName, id, retrieveData);
+    }
+
+    /**
      * Check that the ElasticSearch index exists.
      *
      * @param documentId
@@ -630,6 +766,17 @@ public class DatabaseSpec extends BaseGSpec {
     @Then("^An elasticsearch document id '(.+?)' exists in an index named '(.+?)'")
     public void elasticSearchDocumentExist(String documentId, String indexName) {
         assert (commonspec.getElasticSearchClient().existsDocument(indexName, documentId)) : "There is no document in these index";
+    }
+
+    /**
+     * Check that the OpenSearch index exists.
+     *
+     * @param documentId
+     * @param indexName
+     */
+    @Then("^An opensearch document id '(.+?)' exists in an index named '(.+?)'")
+    public void openSearchDocumentExist(String documentId, String indexName) {
+        assert (commonspec.getOpenSearchClient().existsDocument(indexName, documentId)) : "There is no document in these index";
     }
 
     /**
@@ -644,6 +791,17 @@ public class DatabaseSpec extends BaseGSpec {
     }
 
     /**
+     * Check that the OpenSearch document not exists.
+     *
+     * @param documentId
+     * @param indexName
+     */
+    @Then("^An opensearch document id '(.+?)' does not exist in an index named '(.+?)'")
+    public void openSearchDocumentNotExist(String documentId, String indexName) {
+        assert (!commonspec.getOpenSearchClient().existsDocument(indexName, documentId)) : "There is a document in these index";
+    }
+
+    /**
      * Delete a document.
      *
      * @param documentId
@@ -653,6 +811,18 @@ public class DatabaseSpec extends BaseGSpec {
     @Then("^I delete an elasticsearch document with id '(.+?)' in the index named '(.+?)'$")
     public void elasticSearchDocumentDelete(String documentId, String indexName) {
         commonspec.getElasticSearchClient().deleteDocument(indexName, documentId);
+    }
+
+    /**
+     * Delete a document.
+     *
+     * @param documentId
+     * @param indexName
+     * @throws Exception
+     */
+    @Then("^I delete an opensearch document with id '(.+?)' in the index named '(.+?)'$")
+    public void openSearchDocumentDelete(String documentId, String indexName) {
+        commonspec.getOpenSearchClient().deleteDocument(indexName, documentId);
     }
 
     /*
@@ -996,6 +1166,16 @@ public class DatabaseSpec extends BaseGSpec {
     }
 
     /**
+     * Check that the OpenSearch index exists.
+     *
+     * @param indexName
+     */
+    @Then("^An opensearch index named '(.+?)' exists")
+    public void openSearchIndexExist(String indexName) {
+        assert (commonspec.getOpenSearchClient().indexExists(indexName)) : "There is no index with that name";
+    }
+
+    /**
      * Check that the ElasticSearch index does not exist.
      *
      * @param indexName
@@ -1003,6 +1183,16 @@ public class DatabaseSpec extends BaseGSpec {
     @Then("^An elasticsearch index named '(.+?)' does not exist")
     public void elasticSearchIndexDoesNotExist(String indexName) {
         assert !commonspec.getElasticSearchClient().indexExists(indexName) : "There is an index with that name";
+    }
+
+    /**
+     * Check that the OpenSearch index does not exist.
+     *
+     * @param indexName
+     */
+    @Then("^An opensearch index named '(.+?)' does not exist")
+    public void openSearchIndexDoesNotExist(String indexName) {
+        assert !commonspec.getOpenSearchClient().indexExists(indexName) : "There is an index with that name";
     }
 
     /**
@@ -1015,6 +1205,23 @@ public class DatabaseSpec extends BaseGSpec {
     @Then("^The Elasticsearch index named '(.+?)' contains a column named '(.+?)' with the value '(.+?)'$")
     public void elasticSearchIndexContainsDocument(String indexName, String columnName, String columnValue) throws Exception {
         Assertions.assertThat((commonspec.getElasticSearchClient().searchSimpleFilterElasticsearchQuery(
+                indexName,
+                columnName,
+                columnValue,
+                "equals"
+        ).size()) > 0).isTrue().withFailMessage("The index does not contain that document");
+    }
+
+    /**
+     * Check that an opensearch index contains a specific document
+     *
+     * @param indexName
+     * @param columnName
+     * @param columnValue
+     */
+    @Then("^The OpenSearch index named '(.+?)' contains a column named '(.+?)' with the value '(.+?)'$")
+    public void openSearchIndexContainsDocument(String indexName, String columnName, String columnValue) throws Exception {
+        Assertions.assertThat((commonspec.getOpenSearchClient().searchSimpleFilterOpensearchQuery(
                 indexName,
                 columnName,
                 columnValue,

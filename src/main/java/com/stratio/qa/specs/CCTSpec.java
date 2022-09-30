@@ -18,7 +18,7 @@ package com.stratio.qa.specs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.ning.http.client.Response;
+import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.Assertions;
 import com.stratio.qa.models.cct.deployApi.DeployedApp;
 import com.stratio.qa.models.cct.deployApi.DeployedTask;
@@ -64,6 +64,8 @@ public class CCTSpec extends BaseGSpec {
     CCTUtils cctUtils;
 
     RestSpec restSpec;
+
+    MiscSpec miscSpec;
     /**
      * Generic constructor.
      *
@@ -73,6 +75,7 @@ public class CCTSpec extends BaseGSpec {
         this.commonspec = spec;
         restSpec = new RestSpec(spec);
         cctUtils = new CCTUtils(spec);
+        miscSpec = new MiscSpec(spec);
     }
 
     @When("^I get taskId for task '(.+?)' in service with id '(.+?)' from CCT and save the value in environment variable '(.+?)'$")
@@ -314,6 +317,23 @@ public class CCTSpec extends BaseGSpec {
      * @throws Exception
      */
     private String getLog(String logType, Integer lastLinesToRead, String service, String taskAttr, Integer position, String taskState, String taskAttrType) throws Exception {
+        String logPath = getLogPathFromCCT(logType, service, taskAttr, position, taskState, taskAttrType);
+        return readLogsFromMesos(logPath, lastLinesToRead);
+    }
+
+    /**
+     * Get log path from service through CCT
+     *
+     * @param logType         stdout / stderr
+     * @param service         Service ID
+     * @param taskAttr        Task name
+     * @param position        Task position
+     * @param taskState       Task state
+     * @param taskAttrType    Task attribute type
+     * @return Log path
+     * @throws Exception
+     */
+    public String getLogPathFromCCT(String logType, String service, String taskAttr, Integer position, String taskState, String taskAttrType) throws Exception {
         String logPath;
         if (ThreadProperty.get("cct-marathon-services_id") == null) {
             // Deploy-api
@@ -338,7 +358,7 @@ public class CCTSpec extends BaseGSpec {
             return null;
         }
         commonspec.getLogger().debug("Log path: " + logPath);
-        return readLogsFromMesos(logPath, lastLinesToRead);
+        return logPath;
     }
 
     private String generateMesosLogPath(String taskId, String logType) {
@@ -771,6 +791,35 @@ public class CCTSpec extends BaseGSpec {
             }
         }
         return numTasksRunning == numTasks;
+    }
+
+    @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I check that the job with ID '(.+?)' in CCT is in '(created|started|stopped|failed|completed|completed_with_errors)' status")
+    public void checkJobStatus(Integer timeout, Integer wait, String jobId, String expectedStatus) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+        String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/jobs/" + jobId;
+        boolean statusService = false;
+        int i = 0;
+        while (!statusService && i <= timeout) {
+            try {
+                Future<Response> response = commonspec.generateRequest("GET", false, null, null, endPoint, "", null);
+                commonspec.setResponse(endPoint, response.get());
+                miscSpec.saveElementEnvironment(null, "$.status", "jobStatus");
+                statusService = expectedStatus.equalsIgnoreCase(ThreadProperty.get("jobStatus"));
+            } catch (Exception e) {
+                commonspec.getLogger().warn("Error in request " + endPoint + " - " + e);
+            }
+            if (!statusService) {
+                commonspec.getLogger().warn(expectedStatus + " status not found after " + i + " seconds. Current status: " + ThreadProperty.get("jobStatus"));
+                if (i < timeout) {
+                    Thread.sleep(wait * 1000);
+                }
+            }
+            i += wait;
+        }
+        if (!statusService) {
+            fail(expectedStatus + " status not found after " + timeout + " seconds for job " + jobId);
+        }
     }
 
     /**
@@ -1341,8 +1390,7 @@ public class CCTSpec extends BaseGSpec {
             logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
             throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
         }
-
-        //TODO Check application status in KEOS
+        miscSpec.saveElementEnvironment(null, "$.id", "jobId");
     }
 
     /**
@@ -1435,8 +1483,7 @@ public class CCTSpec extends BaseGSpec {
             logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
             throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
         }
-
-        // TODO Check service is deleted successfully
+        miscSpec.saveElementEnvironment(null, "$.id", "jobId");
     }
 
     /**
@@ -1584,12 +1631,12 @@ public class CCTSpec extends BaseGSpec {
      * @param modifications : modifications to perform in the deployed json
      * @throws Exception
      */
-    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?( based on schema '(.+?)')? with:$")
-    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile, String schema, DataTable modifications) throws Exception {
+    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?( based on schema '(.+?)')?( without checking the previous state)? with:$")
+    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile, String schema, String withoutCheckPrevState, DataTable modifications) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             updateCCTServiceKeos(serviceName, jsonFile, schema, tenant, namespace, modifications);
         } else {
-            updateCCTServiceDcos(serviceName, folder, tenant, version, jsonFile, modifications);
+            updateCCTServiceDcos(serviceName, folder, tenant, version, jsonFile, modifications, withoutCheckPrevState == null);
         }
     }
 
@@ -1659,11 +1706,10 @@ public class CCTSpec extends BaseGSpec {
             logger.error("Request to endpoint: " + endPointUpdate + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
             throw new Exception("Request to endpoint: " + endPointUpdate + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
         }
-
-        //TODO Check application status in KEOS
+        miscSpec.saveElementEnvironment(null, "$.id", "jobId");
     }
 
-    private void updateCCTServiceDcos(String serviceName, String folder, String tenant, String version, String jsonFile, DataTable modifications) throws Exception {
+    private void updateCCTServiceDcos(String serviceName, String folder, String tenant, String version, String jsonFile, DataTable modifications, boolean checkServiceStatus) throws Exception {
         Assert.assertNotNull(ThreadProperty.get("deploy_api_id"), "deploy_api_id variable is not set. Check deploy-api is installed and @dcos annotation is working properly.");
 
         // obtain service name
@@ -1686,11 +1732,13 @@ public class CCTSpec extends BaseGSpec {
         }
 
         // Check service is running
-        try {
-            checkServiceStatus(10, 1, service, null, "running");
-        } catch (Exception e) {
-            logger.error("Service: " + service + " is not deployed in cluster.");
-            throw e;
+        if (checkServiceStatus) {
+            try {
+                checkServiceStatus(10, 1, service, null, "running");
+            } catch (Exception e) {
+                logger.error("Service: " + service + " is not deployed in cluster.");
+                throw e;
+            }
         }
 
         String deployedJson = "";
@@ -1749,9 +1797,9 @@ public class CCTSpec extends BaseGSpec {
      * @param version     : version of the deployed service
      * @throws Exception
      */
-    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?$")
-    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile) throws Exception {
-        updateCCTService(serviceName, folder, tenant, namespace, version, jsonFile, null, null);
+    @Given("^I update service '(.+?)'( in folder '(.+?)')?( in tenant '(.+?)')?( in namespace '(.+?)')?( based on version '(.+?)')?( based on json '(.+?)')?( without checking the previous state)?$")
+    public void updateCCTService(String serviceName, String folder, String tenant, String namespace, String version, String jsonFile, String withoutCheckPrevState) throws Exception {
+        updateCCTService(serviceName, folder, tenant, namespace, version, jsonFile, null, withoutCheckPrevState, null);
     }
 
     @Given("^I upload descriptor for service '(.+?)', model '(.+?)' version '(.+?)' based on '(.+?)'$")
@@ -2699,4 +2747,42 @@ public class CCTSpec extends BaseGSpec {
         Assertions.assertThat(ThreadProperty.get(envVar)).isNotEmpty();
     }
 
+    @Given("^I create tenant '(.+?)' through CCT( with users: '(.+?)')?( with groups: '(.+?)')?( without identities)?$")
+    public void createTenant(String tenantName, String tenantUsers, String tenantGroups, String withoutIdentities) throws Exception {
+        commonspec.setCCTConnection(null, null);
+        String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/tenant";
+        JSONObject jsonTenant = new JSONObject();
+        jsonTenant.put("kind", "Tenant");
+        jsonTenant.put("apiVersion", "capsule.clastix.io/v1alpha1");
+        JSONObject owner = new JSONObject();
+        owner.put("name", tenantName);
+        owner.put("kind", "Group");
+        JSONObject spec = new JSONObject();
+        spec.put("owner", owner);
+        jsonTenant.put("spec", spec);
+        JSONObject annotations = new JSONObject();
+        annotations.put("stratio.tenant.kubernetes.io/disable-net-policies", (Object) null);
+        annotations.put("stratio.tenant.kubernetes.io/disable-sec-policies", (Object) null);
+        if (withoutIdentities == null) {
+            annotations.put("stratio.tenant.kubernetes.io/gosec-tenant-initial-uids", tenantUsers != null ? tenantUsers : tenantName + "-user");
+            annotations.put("stratio.tenant.kubernetes.io/gosec-tenant-initial-gids", tenantGroups != null ? tenantGroups : tenantName + "-group");
+        }
+        JSONObject metadata = new JSONObject();
+        metadata.put("annotations", annotations);
+        metadata.put("name", tenantName);
+        metadata.put("uid", (Object) null);
+        jsonTenant.put("metadata", metadata);
+        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, jsonTenant.toString(), "json");
+        commonspec.setResponse("POST", response.get());
+        Assertions.assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(200);
+    }
+
+    @Given("^I create namespace with name '(.+?)' in tenant '(.+?)' through CCT$")
+    public void createNamespace(String namespace, String tenantName) throws Exception {
+        commonspec.setCCTConnection(null, null);
+        String endPoint = ThreadProperty.get("KEOS_CCT_PAAS_INGRESS_PATH") + "/v1/namespace";
+        Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, "name=" + namespace.replaceAll(tenantName + "-", "") + "&tenant=" + tenantName, "string");
+        commonspec.setResponse("POST", response.get());
+        Assertions.assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(200);
+    }
 }

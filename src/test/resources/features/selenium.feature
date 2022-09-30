@@ -19,10 +19,10 @@ Feature: Selenium run test
     When I securely browse to '/'
 
   Scenario: Checking element steps
-    Given My app is running in 'jenkins.int.stratio.com'
+    Given My app is running in 'builder.int.stratio.com'
     When I browse to '/'
     Then in less than '20' seconds, checking each '2' seconds, '1' elements exists with 'id:side-panel'
-    When '1' elements exists with 'xpath://*[@id="header"]/div[2]/a/b'
+    When '1' elements exists with 'xpath://*[@id="page-header"]/div[3]/a/b'
     And I click on the element on index '0'
     Then I wait for element 'id:loginIntroDefault' to be available for '20' seconds
     When '1' elements exists with 'id:loginIntroDefault'

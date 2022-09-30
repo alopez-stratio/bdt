@@ -16,13 +16,14 @@
 
 package com.stratio.qa.clients.mesos;
 
-import com.ning.http.client.Response;
 import com.stratio.qa.clients.BaseClient;
 import com.stratio.qa.models.mesos.Log;
 import com.stratio.qa.models.mesos.MesosStateSummary;
 import com.stratio.qa.models.mesos.MesosTasksResponse;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
+import org.asynchttpclient.Response;
+
 import java.util.Map;
 
 public class MesosApiClient extends BaseClient {

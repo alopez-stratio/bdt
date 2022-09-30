@@ -16,7 +16,7 @@
 
 package com.stratio.qa.utils;
 
-import com.ning.http.client.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.Cookie;
 
 import java.util.ArrayList;
 import java.util.List;

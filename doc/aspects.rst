@@ -86,7 +86,7 @@ If we have the following step:
 
 Given we launch the execution of the tests with:
 ::
-	mvn verify -DSPARKTA_HOST=localhost -DSPARKTA_PORT=9090 -DSPARKTA_API_PORT=9091 -DSELENIUM_GRID=jenkins.int.stratio.com:4444 -DFORCE_BROWSER=chrome_aalfonsotest -Dit.test=com.stratio.sparkta.tests_at.api.fragments.Delete
+	mvn verify -DSPARKTA_HOST=localhost -DSPARKTA_PORT=9090 -DSPARKTA_API_PORT=9091 -DSELENIUM_GRID=builder.int.stratio.com:4444 -DFORCE_BROWSER=chrome_aalfonsotest -Dit.test=com.stratio.sparkta.tests_at.api.fragments.Delete
 
 SPARKTA_HOST and SPARKTA_API_PORT will be replaced by their defined value, localhost and 9091 respectively.
 

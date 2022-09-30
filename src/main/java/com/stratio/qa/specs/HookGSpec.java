@@ -16,9 +16,6 @@
 
 package com.stratio.qa.specs;
 
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.AsyncHttpClientConfig;
-import com.stratio.qa.clients.k8s.KubernetesClient;
 import com.stratio.qa.exceptions.SuppressableException;
 import com.stratio.qa.utils.StepException;
 import com.stratio.qa.utils.ThreadProperty;
@@ -28,6 +25,9 @@ import cucumber.api.java.After;
 import cucumber.api.java.Before;
 import java.io.File;
 
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.AsyncHttpClientConfig;
+import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -46,6 +46,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
+import static org.asynchttpclient.Dsl.asyncHttpClient;
+import static org.asynchttpclient.Dsl.config;
 import static org.testng.Assert.fail;
 
 public class HookGSpec extends BaseGSpec {
@@ -290,9 +292,7 @@ public class HookGSpec extends BaseGSpec {
     @Before(order = ORDER_10, value = "@rest or @dcos or @keos")
     public void restClientSetup() throws Exception {
         commonspec.getLogger().debug("Starting a REST client");
-
-        commonspec.setClient(new AsyncHttpClient(new AsyncHttpClientConfig.Builder().setAcceptAnyCertificate(true).setAllowPoolingConnections(false)
-                .build()));
+        commonspec.setClient(asyncHttpClient(config().setUseInsecureTrustManager(true).setKeepAlive(false).build()));
         commonspec.initClients();
     }
 

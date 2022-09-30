@@ -16,9 +16,10 @@
 
 package com.stratio.qa.doclet;
 
-import com.sun.javadoc.*;
-import com.sun.tools.javadoc.MethodDocImpl;
-
+import jdk.javadoc.doclet.DocletEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -28,41 +29,38 @@ public class AnnotationsDoclet {
     public AnnotationsDoclet() throws IOException {
     }
 
-    public static boolean start(RootDoc root) throws IOException {
-        ClassDoc[] classes = root.classes();
+    public static boolean start(DocletEnvironment root) throws IOException {
+        TypeElement[] classes = root.getIncludedElements().toArray(new TypeElement[0]);
 
         for (int i = 0; i < classes.length; ++i) {
             StringBuilder sb = new StringBuilder();
-            ClassDoc cd = classes[i];
-            printAnnotations(cd.constructors(), sb, classes[i].name());
-            printAnnotations(cd.methods(), sb, classes[i].name());
+            TypeElement cd = classes[i];
+            printAnnotations(cd.getEnclosedElements().toArray(new ExecutableElement[0]), sb, classes[i].getSimpleName().toString());
+            printAnnotations(cd.getTypeParameters().toArray(new ExecutableElement[0]), sb, classes[i].getSimpleName().toString());
         }
 
         return true;
     }
 
-    static void printAnnotations(ExecutableMemberDoc[] mems, StringBuilder sb, String className) throws IOException {
+    static void printAnnotations(ExecutableElement[] mems, StringBuilder sb, String className) throws IOException {
         String annotation = "";
         for (int i = 0; i < mems.length; ++i) {
-            AnnotationDesc[] annotations = mems[i].annotations();
+            AnnotationMirror[] annotations = mems[i].getAnnotationMirrors().toArray(new AnnotationMirror[0]);
             for (int j = 0; j < annotations.length; ++j) {
-                annotation = annotations[j].annotationType().toString();
+                annotation = annotations[j].getAnnotationType().toString();
                 if ((annotation.endsWith("Given")) || (annotation.endsWith("When")) || (annotation.endsWith("Then"))) {
                     FileWriter htmlAnnotationJavadoc = new FileWriter("com/stratio/qa/specs/" + className + "-annotations.html");
                     BufferedWriter out = new BufferedWriter(htmlAnnotationJavadoc);
-
                     sb.append("<html>");
                     sb.append("<head>");
                     sb.append("<title>" + className + " Annotations</title>");
                     sb.append("</head>");
                     sb.append("<body>");
-
                     sb.append("<dl>");
-                    sb.append("<dt><b>Regex</b>: " + annotations[j].elementValues()[0].value().toString() + "</dt>");
-                    sb.append("<dd><b>Step</b>: " + annotations[j].elementValues()[0].value().toString().replace("\\", "") + "</dd>");
-                    sb.append("<dd><b>Method</b>: <a href=\"./" + className + ".html#" + ((MethodDocImpl) mems[i]).name() + "-" + ((MethodDocImpl) mems[i]).signature().replace("(", "").replace(")", "").replace(", ", "-") + "-\">" + ((MethodDocImpl) mems[i]).qualifiedName() + ((MethodDocImpl) mems[i]).signature() + "</a></dd>");
+                    sb.append("<dt><b>Regex</b>: " + annotations[j].getElementValues().values() + "</dt>");
+                    sb.append("<dd><b>Step</b>: " + annotations[j].getElementValues().values().toString().replace("\\", "") + "</dd>");
+                    sb.append("<dd><b>Method</b>: <a href=\"./" + className + ".html#" + ((ExecutableElement) mems[i]).getSimpleName() + "-" + ((ExecutableElement) mems[i]).toString().replace("(", "").replace(")", "").replace(", ", "-") + "-\">" + ((ExecutableElement) mems[i]).getSimpleName() + ((ExecutableElement) mems[i]).toString() + "</a></dd>");
                     sb.append("</dl>");
-
                     sb.append("</body>");
                     sb.append("</html>");
                     out.write(sb.toString());

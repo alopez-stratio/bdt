@@ -16,8 +16,8 @@
 
 package com.stratio.qa.specs;
 
-import com.ning.http.client.FluentCaseInsensitiveStringsMap;
-import com.ning.http.client.Response;
+import io.netty.handler.codec.http.HttpHeaders;
+import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.Assertions;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
@@ -27,7 +27,10 @@ import io.cucumber.datatable.DataTable;
 import org.json.JSONArray;
 
 import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
@@ -409,11 +412,21 @@ public class RestSpec extends BaseGSpec {
         }
     }
 
-    @Then("^I save service response( in environment variable '(.*?)')?( in file '(.*?)')?$")
-    public void saveResponseInEnvironmentVariableFile(String envVar, String fileName) throws Exception {
+    @Then("^I save service response( in environment variable '(.*?)')?( in file '(.*?)')?( using encoding '(.*?)')?$")
+    public void saveResponseInEnvironmentVariableFile(String envVar, String fileName, String encoding) throws Exception {
 
         if (envVar != null || fileName != null) {
             String value = commonspec.getResponse().getResponse();
+
+            Charset usableCharset = StandardCharsets.UTF_8;
+            if (encoding != null) {
+                try {
+                    usableCharset = Charset.forName(encoding);
+                } catch (Exception e) {
+                    commonspec.getLogger().warn("Provided encoding {} is not valid:\n{}", encoding, e.getMessage());
+                    commonspec.getLogger().warn("Using UTF-8 encoding instead");
+                }
+            }
 
             if (envVar != null) {
                 ThreadProperty.set(envVar, value);
@@ -425,13 +438,10 @@ public class RestSpec extends BaseGSpec {
                 String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
                 commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
                 // Note that this Writer will delete the file if it exists
-                Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
-                try {
+                try (Writer out = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(Paths.get(absolutePathFile)), usableCharset))) {
                     out.write(value);
                 } catch (Exception e) {
                     commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
-                } finally {
-                    out.close();
                 }
 
                 Assertions.assertThat(new File(absolutePathFile).isFile());
@@ -477,8 +487,7 @@ public class RestSpec extends BaseGSpec {
     public void saveResponseHeaderValueInEnvironmentVariableFile(String header, String envVar, String fileName) throws Exception {
         try {
             if (envVar != null || fileName != null) {
-                String value = commonspec.getResponse().getResponseHeaders().getFirstValue(header);
-
+                String value = commonspec.getResponse().getResponseHeaders().get(header);
                 if (envVar != null) {
                     ThreadProperty.set(envVar, value);
                 }

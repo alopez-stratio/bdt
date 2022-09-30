@@ -2,8 +2,15 @@
 
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
-## 0.21.0 (upcoming)
+## 1.0.0 (upcoming)
 
+* Pending changelog
+
+## Previous development
+
+### Branched to branch-0.21 (2022-07-01)
+
+* [CYB-57051] Add enriched JSON format to allow applying CR changes directly
 * [EOS-5743] Modify step to retrieve admin and sis basepath from keos.yaml
 * [GS-3881] Adapt management-baas path according to keos version
 * [QATM-3773] Refactor creating cutom users/groups
@@ -19,7 +26,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [DGPB-8260] Add support to Governance requests in k8s
 * [DGPB-8815] Add step to delete collection policies in k8s
 
-## 0.20.0 (December 17, 2020)
+### Branched to branch-0.20 (2020-12-17)
 
 * [CROSSDATA-2740] Fix get service/container port from Marathon API in DCOS 1.8
 * [PQA-40] retrieve ssh user from descriptor
@@ -44,11 +51,11 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [PQA-63]Fixed include tag aspect with params
 * [QATM-3568][QATM-3569] fix password generation through deploy-api and polling api requests
 
-## 0.19.1 (September 16, 2020)
+### Branched to branch-0.19 (2020-09-16)
 
 * [QATM-3474] Generate path log manually if CCT request fails
 
-## 0.19.0 (September 08, 2020)
+### Branched to branch-0.19 (2020-09-08)
 
 * Bump log4j-core, log4j-slf4j-impl and log4j-1.2-api from 2.0 to 2.13.2
 * [GS-2354] Add feature to convert provided date into timestamp
@@ -61,7 +68,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [CON-328] Apply URL encode in URL params when we create secrets through CCT
 * [QATM-3474] Improvements in steps to obtain logs through CCT
 
-## 0.18.0 (August 04, 2020)
+### Branched to branch-0.18 (2020-08-04)
 
 * [ROCK-1999] Add clients, models and Marathon spec
 * [ROCK-1999] Add some cct and marathon steps
@@ -86,7 +93,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [CON-246] Fix loop break when some scenario was failed 
 * [PIT-611] Retrieve secrets from Vault using deploy-api
 
-## 0.17.0 (May 25, 2020)
+### Branched to branch-0.17 (2020-05-25)
 
 * [QATM-3333] Fix user management to connect to LDAP
 * [PIT-499] revamp gosec and cct steps to avoid set gosec sso token and rest host
@@ -102,11 +109,11 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [GS-2111] Refactor get PolicyId step for management-baas
 * [QATM-3284] Support to local variables in loop, multiloop and progloop tags
 
-## 0.16.1 (May 07, 2020)
+### Branched to branch-0.16 (2020-05-07)
 
 * [PIT-523] Fix install step for EOS 0.23.X and Universe 0.4.22
 
-## 0.16.0 (April 29, 2020)
+### Branched to branch-0.16 (2020-04-29)
 
 * [PIT-475]Log management(in less than)
 * [QATM-3283] Fix step to scale services
@@ -130,7 +137,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-3288] Poder actualizar servicio de CCT también con json o sin modificaciones
 * [PIT-419] Encoding
 
-## 0.15.0 (April 14, 2020)
+### Branched to branch-0.15 (2020-04-14)
 
 * [GS-1965] Set warning message instead of exception when gosec variables are not defined
 * [PIT-479] Check services installed in folder
@@ -161,7 +168,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [PIT-463] Steps to upload rules and descriptors to CCT
 * [QATM-3264] Set name in SSH tunnels
 
-## 0.14.0 (March 09, 2020)
+### Branched to branch-0.14 (2020-03-09)
 
 * [GS-1830] Added scim type to HTTP requests
 * [QATM-3165] Add gosecmanagement path to CucumberRunner
@@ -173,7 +180,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-3192] Add steps for configuration-api and calico network management
 * [QATM-3194] Update Kafka client version and steps
 
-## 0.13.0 (February 12, 2020)
+### Branched to branch-0.13 (2020-02-12)
 
 * [QATM-3140] Let step convert json schema save content to file and/or variable
 * [QATM-3125] Fix error in Rocket SSO login
@@ -212,7 +219,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-1993] Upgrade Cucumber to 4.4.0
 * [SECTY-1482] Added step to get profileId from profileName
 
-## 0.12.0 (October 03, 2019)
+### Branched to branch-0.12 (2019-10-03)
 
 * [QATM-2490] Save service response in environment variable without File parameters
 * [QATM-2494] Fix Permission denied error when we try to copy a file and destination file name is not defined 
@@ -247,7 +254,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [SECTY-1482] Create step to get id from tag policies
 * [QATM-2895] Modify step to retrieve info from bootstrap
 
-## 0.11.0 (June 11, 2019)
+### Branched to branch-0.11 (2019-06-11)
 
 * [QATM-2484] Fix copyTo and copyFrom methods for dirs/files handling
 * [QATM-1986] Upgrade Cucumber to 3.0.2
@@ -264,7 +271,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-2488] Add tag to avoid execution when environment variables not defined
 * [QATM-2541] New step local command execution polling
 
-## 0.10.0 (May 23, 2019)
+### Branched to branch-0.10 (2019-05-23)
 
 * [QATM-2137] Fix array json governance
 * [QATM-2139] add new tests for modifyData with arrays
@@ -281,7 +288,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-2303] Create user,policy and groups if they don exist previously
 * [QATM-2333] Ignore pre-release suffix in versions sent as parameter
 
-## 0.9.0 (February 25, 2019)
+### Branched to branch-0.9 (2019-02-25)
 
 * [QATM-1899] Upgrade Cucumber to 2.4.0
 * [QATM-1981] Refactor specs and tests
@@ -294,7 +301,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-2067] @always tag allows execute a test even if an important scenario failed previously
 * [QATM-2099] Try/catch added in RunOnTagAspect
 
-## 0.8.0 (February 07, 2019)
+### Branched to branch-0.8 (2019-02-07)
 
 * [LDG-96] New kafka steps
 * [QASAI-33] New step to check if a cookie has been saved correctly
@@ -349,12 +356,12 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-1977] New step to create metabase cookie
 * [QATM-1979] New step to obtain metabase session id and generate cookie
 
-## 0.7.0 (April 05, 2018)
+### Branched to branch-0.7 (2018-04-05)
 
 * [CROSSDATA-1550] Add @multiloop tag
 * [QATM-1061] Add step to send requests to endpoint with timeout and datatable
 
-## 0.6.0 (February 22, 2018)
+### Branched to branch-0.6 (2018-02-22)
 
 * [QATM-236] Quit after tagged scenario fails
 * [QATM-70] New background tag
@@ -364,28 +371,27 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [QATM-73] New step to read file, modify according to parameters and store in environment variable.
 * [AR-732] Add Command Center - Configuration API Glue
 
-## 0.5.1 (July 05, 2017)
+### Branched to branch-0.5 (2017-07-05)
 
 * [QATM-78] Fix public releasing in maven central
 
-## 0.5.0 (June 12, 2017)
+### Branched to branch-0.5 (2017-06-12)
 
 * [QA-342] New cucumber tag @loop to multiple scenario executions
 
-## 0.4.0 (March 06, 2017)
+### Branched to branch-0.4 (2017-03-06)
 
 * [QA-272] better classes packaging
 * [QA-298] Apache2 license. Step definitions redefined
 
-## 0.3.0 (January 26, 2017)
+### Branched to branch-0.3 (2017-01-26)
 
 * CukesGHooks will invoke the logger with each step
 
-## 0.2.0 (June 2016)
+### 0.2.0 (June 2016)
 
 * Ignored scenarios will fail if ignore cause was an already done jira ticket
 * No more a submodule project
 * Added new aspect to force the browser name and version in tests development ,using FORCE_BROWSER (even availableUniqueBrowsers factory is defined).
 
-  Eg: mvn -U verify -DSELENIUM_GRID=jenkins.int.stratio.com:4444 **-DFORCE_BROWSER=chrome_33**
-
+  Eg: mvn -U verify -DSELENIUM_GRID=builder.int.stratio.com:4444 **-DFORCE_BROWSER=chrome_33**

@@ -155,7 +155,7 @@ public final class BrowsersDataProvider {
     private static List<String> gridBrowsers(Map<String, String> filter) {
 
         ArrayList<String> response = new ArrayList<String>();
-        LOGGER.debug("Trying to get a list of Selenium-available browsers");
+        LOGGER.trace("Trying to get a list of Selenium-available browsers");
 
         String grid = System.getProperty("SELENIUM_GRID");
 

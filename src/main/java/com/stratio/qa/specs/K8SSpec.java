@@ -29,6 +29,8 @@ import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import org.assertj.core.api.Assertions;
+import org.json.JSONObject;
 import org.testng.Assert;
 
 import java.io.*;
@@ -85,10 +87,10 @@ public class K8SSpec extends BaseGSpec {
                 response = commonspec.kubernetesClient.getSecretsList(namespace);
                 break;
             case "clusterroles":
-                response = commonspec.kubernetesClient.getClusterRoleList(namespace);
+                response = commonspec.kubernetesClient.getClusterRoleList();
                 break;
             case "clusterrolebindings":
-                response = commonspec.kubernetesClient.getClusterRoleBindingList(namespace);
+                response = commonspec.kubernetesClient.getClusterRoleBindingList();
                 break;
             case "statefulsets":
                 response = commonspec.kubernetesClient.getStateFulSetList(namespace);
@@ -129,7 +131,7 @@ public class K8SSpec extends BaseGSpec {
         assertThat(commonspec.kubernetesClient.checkEventNamespace(not, namespace, type, name, reason, message)).as("There aren't event that contains the message " + message + " in namespace " + namespace).isTrue();
     }
 
-    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding|ingress|persistentVolumeClaims) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding|ingress|persistentVolumeClaims|job) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
@@ -156,10 +158,10 @@ public class K8SSpec extends BaseGSpec {
                 describeResponse = commonspec.kubernetesClient.describeSecret(name, namespace);
                 break;
             case "clusterrole":
-                describeResponse = commonspec.kubernetesClient.describeClusterRole(name, namespace);
+                describeResponse = commonspec.kubernetesClient.describeClusterRole(name);
                 break;
             case "clusterrolebinding":
-                describeResponse = commonspec.kubernetesClient.describeClusterRoleBinding(name, namespace);
+                describeResponse = commonspec.kubernetesClient.describeClusterRoleBinding(name);
                 break;
             case "statefulset":
                 describeResponse = commonspec.kubernetesClient.describeStateFulSet(name, namespace);
@@ -175,6 +177,9 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "persistentVolumeClaims":
                 describeResponse = commonspec.kubernetesClient.describePersistentVolumeClaims(name, namespace);
+                break;
+            case "job":
+                describeResponse = commonspec.kubernetesClient.describeJobYaml(name, namespace);
                 break;
             default:
                 describeResponse = null;
@@ -197,13 +202,35 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("^I describe custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'( in '(yaml|json)' format)?( and save it in file '(.*?)')?$")
+    @When("^I describe custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)'( in '(yaml|json|enrichedJson)' format)?( and save it in file '(.*?)')?$")
     public void describeCustomResource(String name, String nameItem, String namespace, String format, String fileName) throws Exception {
         String describeResponse;
         format = (format != null) ? format : "yaml";
         describeResponse = commonspec.kubernetesClient.describeCustomResourceJson(name, nameItem, namespace);
         if (describeResponse == null) {
             fail("Error obtaining" + name + nameItem + " information");
+        }
+
+        /*
+          "enrichedJson" format generates a JSON file like executing the command:  kubectl get <CRD_TYPE> -o json
+
+          This is needed in order to apply it directly.
+         */
+        if (format.equals("enrichedJson")) {
+            JSONObject jsonOriginal = new JSONObject(describeResponse);
+            JSONObject jsonModified = new JSONObject(describeResponse);
+
+            jsonModified.remove("additionalProperties");
+            jsonModified.remove("additionalPropertiesNode");
+            jsonModified.remove("finalizers");
+            jsonModified.remove("markedForDeletion");
+            jsonModified.remove("plural");
+            jsonModified.remove("singular");
+
+            jsonModified.put("spec", ((JSONObject) jsonOriginal.get("additionalProperties")).get("spec"));
+            jsonModified.put("status", ((JSONObject) jsonOriginal.get("additionalProperties")).get("status"));
+
+            describeResponse = jsonModified.toString();
         }
 
         if (format.equals("yaml")) {
@@ -488,7 +515,7 @@ public class K8SSpec extends BaseGSpec {
         assertThat(log).contains(expectedLog);
     }
 
-    @When("^I delete (pod|deployment|service|statefulset) with name '(.+?)' in namespace '(.+?)'$")
+    @When("^I delete (pod|deployment|service|statefulset|job|ingress|configmap|secret) with name '(.+?)' in namespace '(.+?)'$")
     public void deleteResource(String type, String name, String namespace) {
         switch (type) {
             case "pod":
@@ -502,6 +529,18 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "statefulset":
                 commonspec.kubernetesClient.deleteStatefulset(name, namespace);
+                break;
+            case "job":
+                commonspec.kubernetesClient.deleteJob(name, namespace);
+                break;
+            case "ingress":
+                commonspec.kubernetesClient.deleteIngress(name, namespace);
+                break;
+            case "configmap":
+                commonspec.kubernetesClient.deleteConfigMap(name, namespace);
+                break;
+            case "secret":
+                commonspec.kubernetesClient.deleteSecret(name, namespace);
                 break;
             default:
         }
@@ -644,18 +683,40 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.createServiceAccount(name, namespace);
     }
 
-    @When("^I create cluster role with name '(.+?)' in namespace '(.+?)' with resources '(.+?)' and verbs '(.+?)'( and api groups '(.+?)')?$")
-    public void createClusterRole(String name, String namespace, String resources, String verbs, String apiGroups) {
-        commonspec.kubernetesClient.createClusterRole(name, namespace, resources, verbs, apiGroups);
+    @When("^I create cluster role with name '(.+?)' with resources '(.+?)' and verbs '(.+?)'( and api groups '(.+?)')?$")
+    public void createClusterRole(String name, String resources, String verbs, String apiGroups) {
+        commonspec.kubernetesClient.createClusterRole(name, resources, verbs, apiGroups);
     }
 
-    @When("^I create cluster role binding with name '(.+?)' in namespace '(.+?)' with ClusterRole '(.+?)' and ServiceAccount '(.+?)'$")
-    public void createClusterRole(String name, String namespace, String clusterRole, String serviceAccount) {
-        commonspec.kubernetesClient.createClusterRoleBinding(name, namespace, clusterRole, serviceAccount);
+    @When("^I create cluster role binding with name '(.+?)' with ClusterRole '(.+?)' and ServiceAccount '(.+?)'$")
+    public void createClusterRole(String name, String clusterRole, String serviceAccount) {
+        commonspec.kubernetesClient.createClusterRoleBinding(name, clusterRole, serviceAccount);
+    }
+
+    @When("^I create configmap with name '(.+?)' in namespace '(.+?)' with key '(.+?)' and value '(.+?)'$")
+    public void createOrReplaceConfigMap(String cmName, String namespace, String cmKey, String cmValue) {
+        commonspec.kubernetesClient.createOrReplaceConfigMap(cmName, namespace, cmKey, cmValue);
+    }
+
+    @When("^I create configmap with name '(.+?)' in namespace '(.+?)' with key '(.+?)' and value defined in file '(.+?)'$")
+    public void createOrReplaceConfigMapValueFile(String cmName, String namespace, String cmKey, String file) {
+        String cmValue = commonspec.retrieveData(file, "yaml");
+        commonspec.kubernetesClient.createOrReplaceConfigMap(cmName, namespace, cmKey, cmValue);
+    }
+
+    @When("^I create configmap with name '(.+?)' in namespace '(.+?)' and values:$")
+    public void createOrReplaceConfigMap(String cmName, String namespace, DataTable variables) {
+        commonspec.kubernetesClient.createOrReplaceConfigMap(cmName, namespace, variables);
     }
 
     @When("^I add/modify variable '(.+?)' with value '(.+?)' in configmap with name '(.+?)' in namespace '(.+?)'$")
     public void addOrModifyConfigmap(String cmKey, String cmValue, String cmName, String namespace) {
+        commonspec.kubernetesClient.addValueInConfigMap(cmName, namespace, cmKey, cmValue);
+    }
+
+    @When("^I add/modify variable '(.+?)' with value defined in file '(.+?)' in configmap with name '(.+?)' in namespace '(.+?)'$")
+    public void addOrModifyConfigmapFile(String cmKey, String cmFileValue, String cmName, String namespace) {
+        String cmValue = commonspec.retrieveData(cmFileValue, "ignored");
         commonspec.kubernetesClient.addValueInConfigMap(cmName, namespace, cmKey, cmValue);
     }
 
@@ -702,5 +763,28 @@ public class K8SSpec extends BaseGSpec {
         });
 
         this.commonspec.kubernetesClient.updateDeploymentEnvVars(envVars, namespace, deploymentName, containerName);
+    }
+
+    @When("^I get key '(.+?)' in configmap with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    public void getList(String key, String configMapName, String namespace, String envVar, String fileName) throws Exception {
+        String value = this.commonspec.kubernetesClient.getConfigMapKey(configMapName, namespace, key);
+        assertThat(value).as("Key doesn't exist in configmap").isNotNull();
+        if (envVar != null) {
+            ThreadProperty.set(envVar, value);
+        }
+        if (fileName != null) {
+            writeInFile(value, fileName);
+        }
+    }
+
+    @When("I patch custom resource '(.+?)' with name '(.+?)' in namespace '(.+?)' with path '(.+?)' and value '(.+?)' as '(.+?)'( with exit status '(\\d+)')?")
+    public void executePatch(String deploymentName, String crdName, String namespace, String path, String value, String type, String sExitStatus) {
+        Integer exitStatus = sExitStatus != null ? Integer.valueOf(sExitStatus) : null;
+        if (exitStatus == null) {
+            exitStatus = 0;
+        }
+        int response = this.commonspec.kubernetesClient.patch(deploymentName, crdName, namespace, path, value, type);
+        Assertions.assertThat(response).isEqualTo(exitStatus);
+
     }
 }

@@ -16,13 +16,13 @@
 
 package com.stratio.qa.clients.cct;
 
-import com.ning.http.client.Response;
 import com.stratio.qa.clients.BaseClient;
 import com.stratio.qa.models.cct.marathonServiceApi.DeployedService;
 import com.stratio.qa.models.cct.marathonServiceApi.DeployedServicesResponse;
 import com.stratio.qa.models.cct.marathonServiceApi.TaskLogsResponse;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
+import org.asynchttpclient.Response;
 
 import java.util.HashMap;
 import java.util.Map;

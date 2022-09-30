@@ -16,7 +16,7 @@
 
 package com.stratio.qa.clients.cct;
 
-import com.ning.http.client.Response;
+import org.asynchttpclient.Response;
 import com.stratio.qa.clients.BaseClient;
 import com.stratio.qa.models.BaseResponse;
 import com.stratio.qa.models.BaseResponseList;

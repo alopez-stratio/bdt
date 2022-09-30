@@ -3,7 +3,7 @@
 Feature: Simple logger test with background
 
   Background:
-    Given My app is running in 'jenkins.int.stratio.com:80'
+    Given I securely send requests to 'builder.int.stratio.com:443'
 
   Scenario: Some simple request
     When I send a 'GET' request to '/'

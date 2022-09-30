@@ -157,6 +157,7 @@ public class CommandExecutionSpec extends BaseGSpec {
         executeCommand(command, null, sExitStatus, envVar);
     }
 
+
     /**
      * Checks if {@code expectedCount} text is found, whithin a {@code timeout} in the output of local command {@code command}
      * and the exit status is the specified in {@code exitStatus}.

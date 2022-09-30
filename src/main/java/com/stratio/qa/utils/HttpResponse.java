@@ -16,8 +16,8 @@
 
 package com.stratio.qa.utils;
 
-import com.ning.http.client.FluentCaseInsensitiveStringsMap;
-import com.ning.http.client.cookie.Cookie;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.cookie.Cookie;
 
 import java.util.List;
 
@@ -29,7 +29,7 @@ public class HttpResponse {
 
     private List<Cookie> cookies;
 
-    public FluentCaseInsensitiveStringsMap headers;
+    public HttpHeaders headers;
 
     /**
      * Constructor of an HttpResponse.
@@ -37,7 +37,7 @@ public class HttpResponse {
      * @param statusCode
      * @param response
      */
-    public HttpResponse(Integer statusCode, String response, List<Cookie> cookies, FluentCaseInsensitiveStringsMap headers) {
+    public HttpResponse(Integer statusCode, String response, List<Cookie> cookies, HttpHeaders headers) {
         this.statusCode = statusCode;
         this.response = response;
         this.setCookies(cookies);
@@ -68,7 +68,7 @@ public class HttpResponse {
         this.cookies = cookies;
     }
 
-    public FluentCaseInsensitiveStringsMap getResponseHeaders() {
+    public HttpHeaders getResponseHeaders() {
         return headers;
     }
 

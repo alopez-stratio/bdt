@@ -59,5 +59,6 @@
         <logger name="org.apache.http" level="ERROR"/>
         <logger name="com.stratio.qa.utils.GosecSSOUtils" level="INFO"/>
         <logger name="com.jayway.jsonpath" level="INFO"/>
+        <logger name="io.netty" level="OFF"/>
     </Loggers>
 </Configuration>

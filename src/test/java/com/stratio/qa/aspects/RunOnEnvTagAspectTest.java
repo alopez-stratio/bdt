@@ -2590,28 +2590,28 @@ public class RunOnEnvTagAspectTest {
 
     @Test
     public void testInvalidRCVersionInRunOnEnv() throws Exception {
-        System.setProperty("VERSION","1.0.0-RC14");
+        System.setProperty("VERSION","1.0.0-RC14a");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0)")))
                 .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
     }
 
     @Test
     public void testInvalidRCVersionInRunOnEnv2() throws Exception {
-        System.setProperty("VERSION","1.0.0-RC14-1.0.0");
+        System.setProperty("VERSION","1.0.0-RC14a-1.0.0");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0-1.0.0)")))
                 .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
     }
 
     @Test
     public void testInvalidMilestoneVersionInRunOnEnv() throws Exception {
-        System.setProperty("VERSION","1.0.0-M14");
+        System.setProperty("VERSION","1.0.0-M14a");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0)")))
                 .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
     }
 
     @Test
     public void testInvalidMilestoneVersionInRunOnEnv2() throws Exception {
-        System.setProperty("VERSION","1.0.0-M14-1.0.0");
+        System.setProperty("VERSION","1.0.0-M14a-1.0.0");
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> runontag.checkParams(runontag.getParams("@runOnEnv(VERSION>1.0.0-1.0.0)")))
                 .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
     }
@@ -2665,5 +2665,31 @@ public class RunOnEnvTagAspectTest {
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=10||VERSION>10)"));
         assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testMilestoneWithMoreThanOneDigit() throws Exception {
+        System.setProperty("KEOS_VERSION","0.6.0-M10");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(KEOS_VERSION=0.6.0||KEOS_VERSION>0.6.0)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testCompareVariablesRun() throws Exception {
+        System.setProperty("TEST","nuevo");
+        System.setProperty("TEST2","nuevo");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(TEST=!TEST2)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testCompareVariablesSkip() throws Exception {
+        System.setProperty("TEST","nuevo");
+        System.setProperty("TEST2","nuevo2");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@skipOnEnv(TEST=!TEST2)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 }

@@ -16,16 +16,19 @@
 
 package com.stratio.qa.clients;
 
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.AsyncHttpClientConfig;
 import com.stratio.qa.clients.cct.DeployApiTest;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.AsyncHttpClientConfig;
 import org.mockserver.configuration.ConfigurationProperties;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.socket.PortFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.asynchttpclient.Dsl.asyncHttpClient;
+import static org.asynchttpclient.Dsl.config;
 
 public abstract class BaseClientTest {
 
@@ -49,7 +52,7 @@ public abstract class BaseClientTest {
     protected void setHTTPClient() {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         commong = new CommonG();
-        commong.setClient(new AsyncHttpClient(new AsyncHttpClientConfig.Builder().setAcceptAnyCertificate(true).setAllowPoolingConnections(false).build()));
+        commong.setClient(asyncHttpClient(config().setUseInsecureTrustManager(true).setKeepAlive(false).build()));
     }
 
     protected abstract <T extends BaseClient> T getClient();

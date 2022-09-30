@@ -18,7 +18,9 @@ package com.stratio.qa.specs;
 
 import com.auth0.jwt.JWTSigner;
 import com.jayway.jsonpath.JsonPath;
-import com.ning.http.client.Response;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import org.asynchttpclient.Response;
 import com.stratio.qa.utils.GosecSSOUtils;
 import com.stratio.qa.utils.RemoteSSHConnection;
 import com.stratio.qa.utils.RemoteSSHConnectionsUtil;
@@ -122,11 +124,17 @@ public class DcosSpec extends BaseGSpec {
      */
     public void setDCOSCookie(String DCOSsecret, String email) throws Exception {
         final JWTSigner signer = new JWTSigner(DCOSsecret);
-        final HashMap<String, Object> claims = new HashMap();
+        final HashMap<String, Object> claims = new HashMap<>();
         claims.put("uid", email);
         final String jwt = signer.sign(claims);
-        com.ning.http.client.cookie.Cookie cookie = new com.ning.http.client.cookie.Cookie("dcos-acs-auth-cookie", jwt, false, "", "", 99999, false, false);
-        List<com.ning.http.client.cookie.Cookie> cookieList = new ArrayList<com.ning.http.client.cookie.Cookie>();
+        Cookie cookie = new DefaultCookie("dcos-acs-auth-cookie", jwt);
+        cookie.setDomain("");
+        cookie.setPath("");
+        cookie.setWrap(false);
+        cookie.setMaxAge(99999);
+        cookie.setSecure(false);
+        cookie.setHttpOnly(false);
+        List<Cookie> cookieList = new ArrayList<>();
         cookieList.add(cookie);
         commonspec.setCookies(cookieList);
         ThreadProperty.set("dcosAuthCookie", jwt);
@@ -168,7 +176,7 @@ public class DcosSpec extends BaseGSpec {
                 }
 
                 String[] adfsTokenArray = adfsTokenList.toArray(new String[adfsTokenList.size()]);
-                List<com.ning.http.client.cookie.Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenArray);
+                List<Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenArray);
                 commonspec.setCookies(cookiesAtributesADFS);
 
             } else {
@@ -181,7 +189,7 @@ public class DcosSpec extends BaseGSpec {
                 if (gov != null) {
                     tokenList = new String[]{"user", "dcos-acs-auth-cookie", "stratio-governance-auth"};
                 }
-                List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
+                List<Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
 
                 this.commonspec.getLogger().debug("Cookies to set:");
                 for (String cookie : tokenList) {
@@ -246,7 +254,7 @@ public class DcosSpec extends BaseGSpec {
             cookieTokenADFS.put(discoveryCookie, adfsCookie);
             String[] adfsTokenList = {discoveryCookie};
 
-            List<com.ning.http.client.cookie.Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenList);
+            List<Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenList);
             commonspec.setCookies(cookiesAtributesADFS);
 
         } else {
@@ -255,7 +263,7 @@ public class DcosSpec extends BaseGSpec {
             ssoUtils.setVerifyHost(hostVerifier == null);
             HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator();
             String[] tokenList = new String[]{discoveryCookie};
-            List<com.ning.http.client.cookie.Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
+            List<Cookie> cookiesAtributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
             this.commonspec.getLogger().debug("Discovery Cookie to set:");
             for (String cookie : tokenList) {
                 this.commonspec.getLogger().debug("\t" + cookie + ":" + ssoCookies.get(cookie));
@@ -498,22 +506,26 @@ public class DcosSpec extends BaseGSpec {
             cookieTokenADFS.put("metabase.SESSION", adfsCookie);
             String[] adfsTokenList = {"metabase.SESSION"};
 
-            List<com.ning.http.client.cookie.Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenList);
+            List<Cookie> cookiesAtributesADFS = this.commonspec.addSsoToken(cookieTokenADFS, adfsTokenList);
             commonspec.getCookies().add(cookiesAtributesADFS.get(0));
 
         } else {
-
             String command = "curl -X POST -k -H 'Cookie: " + this.commonspec.getCookies().get(0) + " ' -H \"Content-Type: application/json\" -d '{\"username\": \"" + user + "\", \"password\": \"" + password + "\"}' " + url;
             commonspec.runLocalCommand(command);
             commonspec.runCommandLoggerAndEnvVar(0, null, Boolean.TRUE);
             Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
             String result = JsonPath.parse(commonspec.getCommandResult().trim()).read("$.id");
-            com.ning.http.client.cookie.Cookie cookie = new com.ning.http.client.cookie.Cookie("metabase.SESSION_ID", result, false, "", "", 99999L, false, false);
-            ArrayList cookieList = new ArrayList();
+            Cookie cookie = new DefaultCookie("metabase.SESSION_ID", result);
+            cookie.setDomain("");
+            cookie.setPath("");
+            cookie.setWrap(false);
+            cookie.setMaxAge(99999L);
+            cookie.setSecure(false);
+            cookie.setHttpOnly(false);
+            ArrayList<Cookie> cookieList = new ArrayList<>();
             cookieList.add(cookie);
             cookieList.add(this.commonspec.getCookies().get(0));
             this.commonspec.setCookies(cookieList);
-
         }
     }
 

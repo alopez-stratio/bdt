@@ -135,6 +135,7 @@ public class GosecSSOUtils {
 
             if (tenant != null) {
                 params.add(new BasicNameValuePair("tenant", tenant));
+                params.add(new BasicNameValuePair("customFields[tenant]", tenant));
             }
 
             params.add(new BasicNameValuePair("lt", loginCode));

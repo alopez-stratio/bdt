@@ -17,11 +17,11 @@
 package com.stratio.qa.clients.marathon;
 
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.ning.http.client.Response;
 import com.stratio.qa.clients.BaseClient;
 import com.stratio.qa.models.marathon.*;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.ThreadProperty;
+import org.asynchttpclient.Response;
 
 public class MarathonApiClient extends BaseClient {
 

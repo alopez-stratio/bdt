@@ -16,10 +16,11 @@
 
 package com.stratio.qa.specs;
 
-import com.ning.http.client.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.Cookie;
 import com.stratio.qa.utils.GosecSSOUtils;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import org.json.JSONObject;
 import com.stratio.qa.assertions.Assertions;
 
@@ -30,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import org.testng.Assert;
 import java.util.concurrent.Future;
-import com.ning.http.client.Response;
+import org.asynchttpclient.Response;
 
 
 /**
@@ -108,7 +109,7 @@ public class KeosSpec extends BaseGSpec {
 
         this.commonspec.getLogger().debug("Cookies to set:");
         for (Cookie cookie : cookiesAtributes) {
-            this.commonspec.getLogger().debug("\t" + cookie.getName() + ":" + cookie.getValue());
+            this.commonspec.getLogger().debug("\t" + cookie.name() + ":" + cookie.value());
         }
     }
 
@@ -162,7 +163,7 @@ public class KeosSpec extends BaseGSpec {
         Assertions.assertThat(rules.exists()).as("File: " + universeFile + " does not exist.").isTrue();
 
         // Obtain endpoint
-        String endPointUpload = "/cct/cct-universe-service/v1/descriptors";
+        String endPointUpload = ThreadProperty.get("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH") + "/v1/descriptors";
 
         // Obtain URL
         String restURL = "https://" + System.getProperty("KEOS_CLUSTER_NAME") + ":443" + endPointUpload;
@@ -202,7 +203,13 @@ public class KeosSpec extends BaseGSpec {
         }
         Assert.assertNotEquals(metabase_session, "", "Error obtaining Metabase Session");
 
-        Cookie cookie = new Cookie("metabase.SESSION", metabase_session, false, "", "", 99999L, false, false);
+        Cookie cookie = new DefaultCookie("metabase.SESSION", metabase_session);
+        cookie.setDomain("");
+        cookie.setPath("");
+        cookie.setWrap(false);
+        cookie.setMaxAge(99999L);
+        cookie.setSecure(false);
+        cookie.setHttpOnly(false);
         List cookieList = new ArrayList();
         cookieList.add(cookie);
         cookieList.add(this.commonspec.getCookies().get(0));

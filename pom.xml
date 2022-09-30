@@ -10,7 +10,7 @@
 
     <groupId>com.stratio.qa</groupId>
     <artifactId>bdt</artifactId>
-    <version>0.21.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
 
     <name>Stratio BDT framework</name>
     <url>https://github.com/Stratio/bdt</url>
@@ -70,25 +70,26 @@
     </contributors>
 
     <properties>
+        <java.version>11</java.version>
         <cucumber-java.version>4.4.0</cucumber-java.version>
         <cucumber-reporting.version>4.4.0</cucumber-reporting.version>
         <assertj-core.version>3.12.2</assertj-core.version>
         <slf4j-api.version>1.7.7</slf4j-api.version>
-        <reflections.version>0.9.9-RC1</reflections.version>
-        <org.jacoco.core.version>0.7.5.201505241946</org.jacoco.core.version>
-        <aspectjweaver.version>1.8.8</aspectjweaver.version>
+        <reflections.version>0.10.2</reflections.version>
+        <org.jacoco.core.version>0.8.8</org.jacoco.core.version>
+        <aspectjweaver.version>1.9.9.1</aspectjweaver.version>
         <cassandra-driver-core.version>3.6.0</cassandra-driver-core.version>
         <guava.version>21.0</guava.version>
         <lz4.version>1.2.0</lz4.version>
         <httpclient.version>4.5.13</httpclient.version>
         <mongo-java-driver.version>2.12.3</mongo-java-driver.version>
         <selenium-java.version>3.9.1</selenium-java.version>
-        <jsoup.version>1.14.2</jsoup.version>
+        <jsoup.version>1.15.3</jsoup.version>
         <json.version>20180130</json.version>
-        <crossdata-drivers.version>2.22.0-4e46896</crossdata-drivers.version>
+        <crossdata-drivers.version>2.22.5-33966ba</crossdata-drivers.version>
         <kafka-scala.version>2.11</kafka-scala.version>
         <kafka.version>2.3.1</kafka.version>
-        <kubernetes-client.version>4.12.0</kubernetes-client.version>
+        <kubernetes-client.version>6.1.1</kubernetes-client.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
@@ -102,7 +103,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
-                    <argLine>${jacoco-IT-argline} -javaagent:${settings.localRepository}/org/aspectj/aspectjweaver/1.8.8/aspectjweaver-1.8.8.jar
+                    <argLine>${jacoco-IT-argline} -javaagent:${settings.localRepository}/org/aspectj/aspectjweaver/${aspectjweaver.version}/aspectjweaver-${aspectjweaver.version}.jar
                         -Xmx1024m -Dfile.encoding=UTF-8</argLine>
                 </configuration>
             </plugin>
@@ -110,13 +111,14 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>11</source>
+                    <target>11</target>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${org.jacoco.core.version}</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -180,37 +182,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.4</version>
+                <version>2.10.4</version>
                 <configuration>
+                    <doclet>com.stratio.qa.doclet.AnnotationsDoclet</doclet>
+                    <docletPath>../../classes</docletPath>
                     <outputDirectory>target/site/apidocs</outputDirectory>
+                    <useStandardDocletOptions>false</useStandardDocletOptions>
                 </configuration>
-                <executions>
-                    <execution>
-                        <id>javadoc</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <phase>package</phase>
-                        <configuration> <!-- add this to disable checking -->
-                            <additionalparam>-Xdoclint:none</additionalparam>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>annotation</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <phase>package</phase>
-                        <configuration>
-                            <doclet>
-                                com.stratio.qa.doclet.AnnotationsDoclet
-                            </doclet>
-                            <docletPath>
-                                ../../classes
-                            </docletPath>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
@@ -332,9 +310,9 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>com.ning</groupId>
+            <groupId>org.asynchttpclient</groupId>
             <artifactId>async-http-client</artifactId>
-            <version>1.9.29</version>
+            <version>2.12.3</version>
         </dependency>
         <dependency>
             <groupId>org.json</groupId>
@@ -376,23 +354,12 @@
         <dependency>
             <groupId>com.jcraft</groupId>
             <artifactId>jsch</artifactId>
-            <version>0.1.53</version>
+            <version>0.1.55</version>
         </dependency>
         <dependency>
             <groupId>net.sourceforge.javacsv</groupId>
             <artifactId>javacsv</artifactId>
             <version>2.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>7.4.2</version>
-            <exclusions>
-                <exclusion>
-                    <artifactId>snakeyaml</artifactId>
-                    <groupId>org.yaml</groupId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch.client</groupId>
@@ -402,7 +369,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.10.5.1</version>
+            <version>2.13.2.1</version>
         </dependency>
         <dependency>
             <groupId>com.auth0</groupId>
@@ -482,13 +449,6 @@
                     <groupId>org.slf4j</groupId>
                 </exclusion>
             </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>sun.jdk</groupId>
-            <artifactId>tools</artifactId>
-            <version>1.8.0</version>
-            <scope>system</scope>
-            <systemPath>${java.home}/../lib/tools.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>org.ldaptive</groupId>
@@ -575,7 +535,18 @@
             <artifactId>ngdbc</artifactId>
             <version>2.4.63</version>
         </dependency>
+        <dependency>
+            <groupId>org.opensearch.client</groupId>
+            <artifactId>opensearch-rest-high-level-client</artifactId>
+            <version>2.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>1.31</version>
+        </dependency>
     </dependencies>
+
     <repositories>
         <repository>
             <id>jitpack.io</id>

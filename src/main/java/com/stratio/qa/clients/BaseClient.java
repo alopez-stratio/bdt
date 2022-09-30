@@ -18,12 +18,13 @@ package com.stratio.qa.clients;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.Param;
-import com.ning.http.client.Response;
 import com.stratio.qa.models.BaseResponse;
 import com.stratio.qa.models.BaseResponseList;
 import com.stratio.qa.specs.CommonG;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.BoundRequestBuilder;
+import org.asynchttpclient.Param;
+import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -102,7 +103,7 @@ public class BaseClient {
     }
 
     protected Response get(String endpoint) throws Exception {
-        AsyncHttpClient.BoundRequestBuilder request = this.httpClient.prepareGet(endpoint);
+        BoundRequestBuilder request = this.httpClient.prepareGet(endpoint);
         request = request.setCookies(commonG.getCookies());
         Response response = request.execute().get();
         this.log.debug("GET to " + response.getUri() + ":" + response.getResponseBody());
@@ -110,7 +111,7 @@ public class BaseClient {
     }
 
     protected Response get(String endpoint, Map<String, String> queryParams) throws Exception {
-        AsyncHttpClient.BoundRequestBuilder request = this.httpClient.prepareGet(endpoint);
+        BoundRequestBuilder request = this.httpClient.prepareGet(endpoint);
         request = request.setCookies(commonG.getCookies());
         List<Param> params = queryParams.entrySet().stream()
                 .map(queryParam -> new Param(queryParam.getKey(), queryParam.getValue())).collect(Collectors.toList());
@@ -121,7 +122,7 @@ public class BaseClient {
     }
 
     protected Response delete(String endpoint) throws Exception {
-        AsyncHttpClient.BoundRequestBuilder request = this.httpClient.prepareDelete(endpoint);
+        BoundRequestBuilder request = this.httpClient.prepareDelete(endpoint);
         request = request.setCookies(commonG.getCookies());
         Response response = request.execute().get();
         this.log.debug("DELETE to " + response.getUri() + ":" + response.getResponseBody());
@@ -129,7 +130,7 @@ public class BaseClient {
     }
 
     protected Response put(String endpoint) throws Exception {
-        AsyncHttpClient.BoundRequestBuilder request = this.httpClient.preparePut(endpoint);
+        BoundRequestBuilder request = this.httpClient.preparePut(endpoint);
         request = request.setCookies(commonG.getCookies());
         Response response = request.execute().get();
         this.log.debug("PUT to " + response.getUri() + ":" + response.getResponseBody());
@@ -137,7 +138,7 @@ public class BaseClient {
     }
 
     protected Response post(String endpoint, String data) throws Exception {
-        AsyncHttpClient.BoundRequestBuilder request = this.httpClient.preparePost(endpoint);
+        BoundRequestBuilder request = this.httpClient.preparePost(endpoint);
         request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
         request = request.setBody(data);
         request = request.setCookies(commonG.getCookies());
@@ -147,7 +148,7 @@ public class BaseClient {
     }
 
     protected Response put(String endpoint, String data) throws Exception {
-        AsyncHttpClient.BoundRequestBuilder request = this.httpClient.preparePut(endpoint);
+        BoundRequestBuilder request = this.httpClient.preparePut(endpoint);
         request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
         request = request.setBody(data);
         request = request.setCookies(commonG.getCookies());

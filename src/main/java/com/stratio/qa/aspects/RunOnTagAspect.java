@@ -204,6 +204,9 @@ public class RunOnTagAspect {
         boolean result = true;
         String param = element.split(operador)[0];
         String value = element.split(operador)[1];
+        if (value.startsWith("!")) {
+            value = System.getProperty(value.substring(1)) != null ? System.getProperty(value.substring(1), "") : ThreadProperty.get(value.substring(1)) != null ? ThreadProperty.get(value.substring(1)) : "";
+        }
         String property = System.getProperty(param) != null ? System.getProperty(param, "") : ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
         if (property.isEmpty()) {
             result = false;
@@ -227,6 +230,9 @@ public class RunOnTagAspect {
         boolean res = result;
         String param = element.split(operador)[0];
         String value = element.split(operador)[1];
+        if (value.startsWith("!")) {
+            value = System.getProperty(value.substring(1)) != null ? System.getProperty(value.substring(1), "") : ThreadProperty.get(value.substring(1)) != null ? ThreadProperty.get(value.substring(1)) : "";
+        }
         String property = System.getProperty(param) != null ? System.getProperty(param, "") : ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
         if (property.isEmpty()) {
             res =  updateResultOperation(operations, posop, result, false);
@@ -280,7 +286,7 @@ public class RunOnTagAspect {
         boolean result = true;
         String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
         String property = System.getProperty(param) != null ? System.getProperty(param, "") : ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
-        String envVarValue = property.replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]|RC[1-9])[0-9]", "error").replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]|RC[1-9])", "");
+        String envVarValue = property.replaceAll("-SNAPSHOT+[0-9a-zA-Z]", "error").replaceAll("-([a-zA-Z0-9]{7}[0-9]|M[1-9]*[0-9][a-zA-Z]|RC[1-9]*[0-9][a-zA-Z])", "error").replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]*[0-9]|RC[1-9]*[0-9])", "");
         if (!Pattern.matches(regexp, envVarValue) || !Pattern.matches(regexp, value)) {
             throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
         } else if (operador == '=') {
