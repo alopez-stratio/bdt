@@ -233,9 +233,19 @@ public class RemoteSSHConnection {
     /**
      * Execute the command in the session created
      *
-     * @param command
+     * @param command command to be run in the remote session
      */
     public void runCommand(String command) throws Exception {
+        runCommand(command, -1);
+    }
+
+    /**
+     * Execute the command in the session created
+     *
+     * @param command command to be run in the remote session
+     * @param timeout max time in seconds that the command is allowed to run
+     */
+    public void runCommand(String command, int timeout) throws Exception {
         String result = "";
         String extras = "export PYTHONWARNINGS=\"ignore:Unverified HTTPS request\" && ";
 
@@ -252,6 +262,7 @@ public class RemoteSSHConnection {
         channel.connect();
 
         byte[] tmp = new byte[1024];
+        long startTime = System.currentTimeMillis();
         while (true) {
             while (in.available() > 0) {
                 int i = in.read(tmp, 0, 1024);
@@ -273,6 +284,12 @@ public class RemoteSSHConnection {
             try {
                 Thread.sleep(1000);
             } catch (Exception ee) {
+            }
+
+            if (timeout > 0 && (System.currentTimeMillis() - startTime) > timeout * 1000L) {
+                this.setResult("The remote command took too long to finish, the connection will be closed");
+                this.setExitStatus(124);
+                break;
             }
         }
 

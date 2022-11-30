@@ -683,13 +683,23 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.createServiceAccount(name, namespace);
     }
 
+    @When("^I create role with name '(.+?)' in namespace '(.+?)' with resources '(.+?)' and verbs '(.+?)'( and api groups '(.+?)')?$")
+    public void createRole(String name, String namespace, String resources, String verbs, String apiGroups) {
+        commonspec.kubernetesClient.createRole(name, resources, verbs, apiGroups, namespace);
+    }
+
     @When("^I create cluster role with name '(.+?)' with resources '(.+?)' and verbs '(.+?)'( and api groups '(.+?)')?$")
     public void createClusterRole(String name, String resources, String verbs, String apiGroups) {
         commonspec.kubernetesClient.createClusterRole(name, resources, verbs, apiGroups);
     }
 
+    @When("^I create role binding with name '(.+?)' with Role '(.+?)' and ServiceAccount '(.+?)'$")
+    public void createRoleBinding(String name, String clusterRole, String serviceAccount) {
+        commonspec.kubernetesClient.createRoleBinding(name, clusterRole, serviceAccount);
+    }
+
     @When("^I create cluster role binding with name '(.+?)' with ClusterRole '(.+?)' and ServiceAccount '(.+?)'$")
-    public void createClusterRole(String name, String clusterRole, String serviceAccount) {
+    public void createClusterRoleBinding(String name, String clusterRole, String serviceAccount) {
         commonspec.kubernetesClient.createClusterRoleBinding(name, clusterRole, serviceAccount);
     }
 

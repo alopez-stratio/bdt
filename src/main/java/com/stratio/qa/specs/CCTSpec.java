@@ -1669,15 +1669,20 @@ public class CCTSpec extends BaseGSpec {
                 logger.error("Request to endpoint: " + endPointDeployment + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
                 throw new Exception("Request to endpoint: " + endPointDeployment + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
             }
-            String deployment = commonspec.getResponse().getResponse();
-
-            // Modify schema with current deployment info and add applicationId
-            List<List<String>> rawData = Arrays.asList(
-                Arrays.asList("$.applicationId", "ADD", service, "string"),
-                Arrays.asList(".deployment", "REPLACE", deployment, "object")
-            );
-            DataTable modificationsDeployment = DataTable.create(rawData);
-            data = this.commonspec.modifyData(data, "json", modificationsDeployment);
+            String appQueryVersion = commonspec.kubernetesClient.getDeploymentVersion(ThreadProperty.get("cct-applications-query_id"), "keos-cct");
+            String[] appQueryVersionArray = appQueryVersion.split("\\.");
+            if ((Integer.parseInt(appQueryVersionArray[0]) == 0 && Integer.parseInt(appQueryVersionArray[1]) >= 6) || Integer.parseInt(appQueryVersionArray[0]) > 0) {
+                data = commonspec.getResponse().getResponse();
+            } else {
+                String deployment = commonspec.getResponse().getResponse();
+                // Modify schema with current deployment info and add applicationId
+                List<List<String>> rawData = Arrays.asList(
+                        Arrays.asList("$.applicationId", "ADD", service, "string"),
+                        Arrays.asList(".deployment", "REPLACE", deployment, "object")
+                );
+                DataTable modificationsDeployment = DataTable.create(rawData);
+                data = this.commonspec.modifyData(data, "json", modificationsDeployment);
+            }
         }
 
         // Add namespace info

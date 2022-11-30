@@ -74,7 +74,7 @@
         <cucumber-java.version>4.4.0</cucumber-java.version>
         <cucumber-reporting.version>4.4.0</cucumber-reporting.version>
         <assertj-core.version>3.12.2</assertj-core.version>
-        <slf4j-api.version>1.7.7</slf4j-api.version>
+        <slf4j-api.version>1.7.36</slf4j-api.version>
         <reflections.version>0.10.2</reflections.version>
         <org.jacoco.core.version>0.8.8</org.jacoco.core.version>
         <aspectjweaver.version>1.9.9.1</aspectjweaver.version>
@@ -86,7 +86,7 @@
         <selenium-java.version>3.9.1</selenium-java.version>
         <jsoup.version>1.15.3</jsoup.version>
         <json.version>20180130</json.version>
-        <crossdata-drivers.version>2.22.5-33966ba</crossdata-drivers.version>
+        <crossdata-drivers.version>2.22.7-e2c665f</crossdata-drivers.version>
         <kafka-scala.version>2.11</kafka-scala.version>
         <kafka.version>2.3.1</kafka.version>
         <kubernetes-client.version>6.1.1</kubernetes-client.version>
@@ -283,19 +283,16 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
             <version>2.17.1</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <version>2.17.1</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>
             <version>2.17.1</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mock-server</groupId>

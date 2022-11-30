@@ -147,7 +147,7 @@ public class KeosSpec extends BaseGSpec {
 
     @Given("^I download k8s universe version '(.+?)'")
     public void downloadK8sUniverse(String version) throws Exception {
-        String command = "wget -P target/test-classes http://sodio.stratio.com/repository/paas/kubernetes-universe/descriptors/kubernetes-universe-descriptors-" + version + ".zip";
+        String command = "wget -P target/test-classes http://qa.int.stratio.com/repository/paas/kubernetes-universe/descriptors/kubernetes-universe-descriptors-" + version + ".zip";
 
         // Execute command
         commonspec.runLocalCommand(command);

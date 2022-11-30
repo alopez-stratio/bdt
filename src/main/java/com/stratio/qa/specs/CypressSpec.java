@@ -39,9 +39,10 @@ public class CypressSpec extends BaseGSpec {
         this.commonspec = spec;
     }
 
-    @When("^I run Cypress testcase '(.+?)'( with config file '(.+?)')?( and store video evidences with path '(.+?)')?( and with exit status '(\\d+)')?( and save the value in environment variable '(.+?)')?$")
-    public void executeCypresswithURLwithVideo(String testcase, String configFile, String videopath, Integer sExitStatus, String envVar, DataTable table) throws Exception {
+    @When("^I run Cypress testcase '(.+?)'( with config file '(.+?)')?( and store video evidences with path '(.+?)')?( and with exit status '(\\d+)')?( and save the value in environment variable '(.+?)')?( with a timeout of '(.+?)' seconds)?$")
+    public void executeCypresswithURLwithVideo(String testcase, String configFile, String videopath, Integer sExitStatus, String envVar, Integer _timeout, DataTable table) throws Exception {
         Integer exitStatus = sExitStatus == null ? 0 : sExitStatus;
+        int timeout = _timeout == null ? -1 : _timeout;
         Map<String, String> variables;
         String cypressVariables;
         try {
@@ -53,13 +54,13 @@ public class CypressSpec extends BaseGSpec {
             cypressVariables = "";
         }
 
-        String configVariable = configFile == null ? "" : " --config-file cypress/integration/" + configFile;
+        String configVariable = configFile == null ? "" : " --config-file cypress/e2e/" + configFile;
         String videoVariable = videopath == null ? "" : " --config trashAssetsBeforeRuns=false,videoUploadOnPasses=true,videosFolder=" + videopath;
-        String command = cypressVariables + " npx cypress run --spec cypress/integration/" + testcase + configVariable + videoVariable;
+        String command = cypressVariables + " npx cypress run --spec cypress/e2e/" + testcase + configVariable + videoVariable;
 
         this.commonspec.getLogger().info("Executing cypress: " + command);
 
-        commonspec.runLocalCommand(command);
+        commonspec.runLocalCommand(command, timeout);
         commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(exitStatus);
     }

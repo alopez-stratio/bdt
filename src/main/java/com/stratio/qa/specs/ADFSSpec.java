@@ -57,18 +57,20 @@ public class ADFSSpec extends BaseGSpec {
 
     /**
      * Create sis-synchronizer secrets
+     *
      * @param adfsCN user to manage federated users
      */
     @Given("^I create sis-synchronizer secrets for CN '(.+?)'$")
     public void createSisSynchronizerSecrets(String adfsCN) throws Exception {
         // Set REST connection
         commonspec.setCCTConnection(null, null);
-        gosecSpec.createUserResource(adfsCN, null, null, "keytab", "certificate", null, null);
+        gosecSpec.createUserResource("custom", adfsCN, null, null, "keytab", "certificate", null, null);
         this.adfsCN = adfsCN;
     }
 
     /**
      * Create ADFS resource if it does not exist
+     *
      * @param resource      type od resource to create
      * @param resourceId    name of the resource to create
      * @param baseData      path to base file to be used to create resource
@@ -137,8 +139,9 @@ public class ADFSSpec extends BaseGSpec {
 
     /**
      * Delete ADFS resource
-     * @param resource      type od resource to delete
-     * @param resourceId    name of the resource to delete
+     *
+     * @param resource   type od resource to delete
+     * @param resourceId name of the resource to delete
      */
     @When("^I delete federated '(user|group)' '(.+?)'$")
     public void deleteADFSResource(String resource, String resourceId) throws Exception {

@@ -16,6 +16,7 @@
 
 package com.stratio.qa.clients.k8s;
 
+import com.jayway.jsonpath.PathNotFoundException;
 import com.stratio.qa.specs.CommandExecutionSpec;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.specs.FileSpec;
@@ -51,6 +52,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static io.fabric8.kubernetes.client.Config.KUBERNETES_AUTH_TRYSERVICEACCOUNT_SYSTEM_PROPERTY;
+
 public class KubernetesClient {
 
     private static KubernetesClient CLIENT;
@@ -83,6 +86,7 @@ public class KubernetesClient {
     }
 
     public void connect(String kubeConfigPath) throws IOException {
+        System.setProperty(KUBERNETES_AUTH_TRYSERVICEACCOUNT_SYSTEM_PROPERTY, "false");
         StringBuilder contentBuilder = new StringBuilder();
         try (Stream<String> stream = Files.lines(Paths.get(kubeConfigPath), StandardCharsets.UTF_8)) {
             stream.forEach(s -> contentBuilder.append(s).append("\n"));
@@ -146,19 +150,63 @@ public class KubernetesClient {
             String keosJson = commonspec.retrieveData(workspaceName + "/keos.json", "json");
             ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(keosJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
 
-            if (commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("auth")) {
-                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("vHost")) {
-                    ThreadProperty.set("ADMIN_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.vHost", null).replaceAll("\"", ""));
+            if (System.getProperty("KEOS_VERSION").matches(".*0\\.[1-4].*")) {
+
+                ThreadProperty.set("KEOS_DOMAIN", commonspec.getJSONPathString(keosJson, "$.keos.domain", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+
+                ThreadProperty.set("ADMIN_VHOST", "admin" + "." + ThreadProperty.get("KEOS_DOMAIN"));
+                ThreadProperty.set("ADMIN_BASEPATH", "/");
+                ThreadProperty.set("SIS_VHOST", "sis" + "." + ThreadProperty.get("KEOS_DOMAIN"));
+                ThreadProperty.set("SIS_BASEPATH", "/sso");
+
+                if (commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("auth")) {
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("vHost")) {
+                        ThreadProperty.set("ADMIN_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.vHost", null).replaceAll("\"", "") + ThreadProperty.get("KEOS_DOMAIN"));
+                    }
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("basepath")) {
+                        ThreadProperty.set("ADMIN_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.basepath", null).replaceAll("\"", ""));
+                    }
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.~", null).contains("vHost")) {
+                        ThreadProperty.set("SIS_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.vHost", null).replaceAll("\"", "") + ThreadProperty.get("KEOS_DOMAIN"));
+                    }
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.~", null).contains("basepath")) {
+                        ThreadProperty.set("SIS_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.basepath", null).replaceAll("\"", ""));
+                    }
                 }
-                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("basepath")) {
-                    ThreadProperty.set("ADMIN_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.basepath", null).replaceAll("\"", ""));
+            }
+
+            if (System.getProperty("KEOS_VERSION").matches(".*0\\.[5-9].*")) {
+
+                try {
+                    ThreadProperty.set("KEOS_DOMAIN", commonspec.getJSONPathString(keosJson, "$.keos.domain", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+                } catch (PathNotFoundException e) {
+                    ThreadProperty.set("KEOS_DOMAIN", System.getProperty("KEOS_CLUSTER_ID") + "." + "int");
                 }
-                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.~", null).contains("vHost")) {
-                    ThreadProperty.set("SIS_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.vHost", null).replaceAll("\"", ""));
+
+                ThreadProperty.set("KEOS_EXTERNAL_DOMAIN", commonspec.getJSONPathString(keosJson, "$.keos.external_domain", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+
+                ThreadProperty.set("ADMIN_SUBDOMAIN", "admin");
+                ThreadProperty.set("ADMIN_BASEPATH", "/");
+                ThreadProperty.set("SIS_SUBDOMAIN", "sis");
+                ThreadProperty.set("SIS_BASEPATH", "/sso");
+
+                if (commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("ingress")) {
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.ingress.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.ingress.admin.~", null).contains("subdomain")) {
+                        ThreadProperty.set("ADMIN_SUBDOMAIN", commonspec.getJSONPathString(keosJson, "$.keos.ingress.admin.subdomain", null).replaceAll("\"", ""));
+                    }
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.ingress.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.ingress.admin.~", null).contains("basepath")) {
+                        ThreadProperty.set("ADMIN_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.ingress.admin.basepath", null).replaceAll("\"", ""));
+                    }
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.ingress.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.ingress.sis.~", null).contains("subdomain")) {
+                        ThreadProperty.set("SIS_SUBDOMAIN", commonspec.getJSONPathString(keosJson, "$.keos.ingress.sis.subdomain", null).replaceAll("\"", ""));
+                    }
+                    if (commonspec.getJSONPathString(keosJson, "$.keos.ingress.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.ingress.sis.~", null).contains("basepath")) {
+                        ThreadProperty.set("SIS_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.ingress.sis.basepath", null).replaceAll("\"", ""));
+                    }
                 }
-                if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("sis") && commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.~", null).contains("basepath")) {
-                    ThreadProperty.set("SIS_BASEPATH", commonspec.getJSONPathString(keosJson, "$.keos.auth.sis.basepath", null).replaceAll("\"", ""));
-                }
+
+                ThreadProperty.set("ADMIN_VHOST", ThreadProperty.get("ADMIN_SUBDOMAIN") + "." + ThreadProperty.get("KEOS_EXTERNAL_DOMAIN"));
+                ThreadProperty.set("SIS_VHOST", ThreadProperty.get("SIS_SUBDOMAIN") + "." + ThreadProperty.get("KEOS_EXTERNAL_DOMAIN"));
             }
 
             ThreadProperty.set("CLUSTER_SSH_PEM_PATH", "./target/test-classes/" + workspaceName + "/key");
@@ -304,7 +352,17 @@ public class KubernetesClient {
         if (gosecBaasIngress != null && gosecBaasIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=" + basepath + "/gosec/baas")) {
             ThreadProperty.set("KEOS_GOSEC_BAAS_INGRESS_PATH", basepath + "/gosec/baas");
         }
+
+        ThreadProperty.set("KEOS_GOSEC_SIS_API_INGRESS_PATH", "/sisapi");
+        Ingress gosecSisApiIngress = k8sClient.network().v1().ingresses().inNamespace("keos-auth").withName("sis-api").get();
+        if (gosecSisApiIngress != null && gosecSisApiIngress.getSpec().getRules().get(0).getHttp().toString().contains("path=" + basepath + "/gosec/sisapi")) {
+            ThreadProperty.set("KEOS_GOSEC_SIS_API_INGRESS_PATH", basepath + "/gosec/sisapi");
+        }
     }
+
+
+
+
 
     private void getK8sCCTConfig(CommonG commonspec) {
         try {
@@ -840,8 +898,8 @@ public class KubernetesClient {
     /**
      * kubectl delete statefulset mystatefulset
      *
-     * @param statefulset   Statefulset to delete
-     * @param namespace Namespace
+     * @param statefulset Statefulset to delete
+     * @param namespace   Namespace
      */
     public void deleteStatefulset(String statefulset, String namespace) {
         k8sClient.apps().statefulSets().inNamespace(namespace).withName(statefulset).delete();
@@ -1170,9 +1228,9 @@ public class KubernetesClient {
      * Add or modify value in configmap
      *
      * @param configMapName Configmap name
-     * @param namespace Namespace
-     * @param key Key
-     * @param value Value
+     * @param namespace     Namespace
+     * @param key           Key
+     * @param value         Value
      */
     public void addValueInConfigMap(String configMapName, String namespace, String key, String value) {
         Map<String, String> configMapData = getConfigMap(configMapName, namespace).getData();
@@ -1311,7 +1369,7 @@ public class KubernetesClient {
     /**
      * Get clusterrole
      *
-     * @param name      clusterrole name
+     * @param name clusterrole name
      */
     public ClusterRole getClusterRole(String name) {
         return k8sClient.rbac().clusterRoles().withName(name).get();
@@ -1333,7 +1391,7 @@ public class KubernetesClient {
     /**
      * kubectl describe clusterrole xxx -n namespace
      *
-     * @param crName    clusterrole name
+     * @param crName clusterrole name
      * @return String with clusterrole
      */
     public String describeClusterRole(String crName) {
@@ -1343,7 +1401,7 @@ public class KubernetesClient {
     /**
      * Get clusterrolebinding
      *
-     * @param name      clusterrolebinding name
+     * @param name clusterrolebinding name
      */
     public ClusterRoleBinding getClusterRoleBinding(String name) {
         return k8sClient.rbac().clusterRoleBindings().withName(name).get();
@@ -1365,7 +1423,7 @@ public class KubernetesClient {
     /**
      * kubectl describe clusterrolebinding xxx -n namespace
      *
-     * @param crName    clusterrolebinding name
+     * @param crName clusterrolebinding name
      * @return String with clusterrolebinding
      */
     public String describeClusterRoleBinding(String crName) {
@@ -1532,7 +1590,7 @@ public class KubernetesClient {
     /**
      * Remove ingress
      *
-     * @param name ingress name
+     * @param name      ingress name
      * @param namespace namespace
      */
     public void deleteIngress(String name, String namespace) {
@@ -1722,6 +1780,23 @@ public class KubernetesClient {
     }
 
     /**
+     * Creates a new role
+     * kubectl create role xxx --verb=get --verb=list --verb=watch --verb=create --verb=delete --resource=pods --resource=services --resource=configmaps --resource=secrets --namespace=<namespace>
+     *
+     * @param roleName
+     * @param resources
+     * @param verbs
+     * @param apiGroups
+     */
+    public void createRole(String roleName, String resources, String verbs, String apiGroups, String namespace) {
+        String[] resourcesList = resources.split(",");
+        String[] verbsList = verbs.split(",");
+        String[] apiGroupsList = apiGroups != null ? apiGroups.split(",") : new String[]{""};
+        PolicyRule policyRule = new PolicyRuleBuilder().addToApiGroups(apiGroupsList).addToResources(resourcesList).addToVerbs(verbsList).build();
+        k8sClient.rbac().roles().resource(new RoleBuilder().withRules(policyRule).withNewMetadata().withName(roleName).withNamespace(namespace).endMetadata().build()).createOrReplace();
+    }
+
+    /**
      * Creates a new clusterRole
      * kubectl create clusterrole xxx --verb=get --verb=list --verb=watch --verb=create --verb=delete --resource=pods --resource=services --resource=configmaps --resource=secrets --namespace=<namespace>
      *
@@ -1736,6 +1811,36 @@ public class KubernetesClient {
         String[] apiGroupsList = apiGroups != null ? apiGroups.split(",") : new String[]{""};
         PolicyRule policyRule = new PolicyRuleBuilder().addToApiGroups(apiGroupsList).addToResources(resourcesList).addToVerbs(verbsList).build();
         k8sClient.rbac().clusterRoles().resource(new ClusterRoleBuilder().withRules(policyRule).withNewMetadata().withName(clusterRoleName).endMetadata().build()).createOrReplace();
+    }
+
+    /**
+     * Creates a new roleBinding
+     * kubectl create rolebinding xxx --role=xxx --serviceaccount=<namespace>:<serviceaccount> --namespace=<namespace>
+     *
+     * @param roleBindingName
+     * @param role
+     * @param serviceAccount
+     */
+    public void createRoleBinding(String roleBindingName, String role, String serviceAccount) {
+        List<Subject> subjects = new ArrayList<>();
+        Subject subject = new Subject();
+        subject.setKind("ServiceAccount");
+        subject.setName(serviceAccount.split(":")[1]);
+        subject.setNamespace(serviceAccount.split(":")[0]);
+        subjects.add(subject);
+        RoleRef roleRef = new RoleRef();
+        roleRef.setApiGroup("rbac.authorization.k8s.io");
+        roleRef.setKind("Role");
+        roleRef.setName(role);
+        RoleBinding roleBindingCreated = new RoleBindingBuilder()
+                .withNewMetadata()
+                .withName(roleBindingName)
+                .withNamespace(serviceAccount.split(":")[0])
+                .endMetadata()
+                .withRoleRef(roleRef)
+                .addAllToSubjects(subjects)
+                .build();
+        k8sClient.rbac().roleBindings().resource(roleBindingCreated).createOrReplace();
     }
 
     /**
@@ -1769,7 +1874,7 @@ public class KubernetesClient {
     /**
      * Describe job in yaml format
      *
-     * @param jobName Job name
+     * @param jobName   Job name
      * @param namespace Namespace
      * @return String with job in yaml format
      */
@@ -1780,7 +1885,7 @@ public class KubernetesClient {
     /**
      * Get job object
      *
-     * @param jobName Job name
+     * @param jobName   Job name
      * @param namespace Namespace
      * @return Job
      */
@@ -1879,7 +1984,7 @@ public class KubernetesClient {
      * @param namespace
      * @param path
      * @param value
-     * @param type  Integer or String
+     * @param type           Integer or String
      * @return 0 if success and 1 if fails
      **/
     public int patch(String deploymentName, String crdName, String namespace, String path, String value, String type) {
@@ -1923,5 +2028,21 @@ public class KubernetesClient {
             }
         }
         return response;
+    }
+
+    /**
+     * Return deployment version
+     *
+     * @param deploymentName Deployment name
+     * @param namespace      Namespace
+     * @return Deployment version
+     */
+    public String getDeploymentVersion(String deploymentName, String namespace) {
+        String version;
+        String image;
+        Deployment deployment = getDeployment(deploymentName, namespace);
+        image = deployment.getSpec().getTemplate().getSpec().getContainers().get(0).getImage();
+        version = image.split(":")[image.split(":").length - 1];
+        return version;
     }
 }

@@ -112,26 +112,32 @@ public class CommandExecutionSpec extends BaseGSpec {
         commonspec.getRemoteSSHConnection().copyTo(localPath, remotePath);
     }
 
-
     /**
      * Executes the command specified in local system
      *
-     * @param command    command to be run locally
+     * @param command     command to be run locally
      * @param sExitStatus command exit status
-     * @param envVar     environment variable name
+     * @param envVar      environment variable name
+     * @param timeout     max time in seconds that the command is allowed to run
      * @throws Exception exception
      **/
-    @Given("^I run '(.+?)' locally( with exit status '(\\d+)')?( and save the value in environment variable '(.+?)')?$")
-    public void executeLocalCommand(String command, String sExitStatus, String envVar) throws Exception {
+    @Given("^I run '(.+?)' locally( with exit status '(\\d+)')?( and save the value in environment variable '(.+?)')?( with a timeout of '(.+?)' seconds)?$")
+    public void executeLocalCommand(String command, String sExitStatus, String envVar, Integer timeout) throws Exception {
         Integer exitStatus = sExitStatus != null ? Integer.valueOf(sExitStatus) : null;
+        timeout = (timeout == null) ? -1 : timeout;
         if (exitStatus == null) {
             exitStatus = 0;
         }
 
-        commonspec.runLocalCommand(command);
+        commonspec.runLocalCommand(command, timeout);
         commonspec.runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.TRUE);
 
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(exitStatus);
+    }
+
+    @Deprecated
+    public void executeLocalCommand(String command, String sExitStatus, String envVar) throws Exception {
+        executeLocalCommand(command, sExitStatus, envVar, -1);
     }
 
     /**
@@ -142,19 +148,25 @@ public class CommandExecutionSpec extends BaseGSpec {
      * @param envVar     environment variable name
      * @throws Exception exception
      **/
-    @Given("^I run '(.+?)' in the ssh connection( with id '(.+?)')?( with exit status '(.+?)')?( and save the value in environment variable '(.+?)')?$")
-    public void executeCommand(String command, String sshConnectionId, String sExitStatus, String envVar) throws Exception {
+    @Given("^I run '(.+?)' in the ssh connection( with id '(.+?)')?( with exit status '(.+?)')?( and save the value in environment variable '(.+?)')?( with a timeout of '(.+?)' seconds)?$")
+    public void executeCommand(String command, String sshConnectionId, String sExitStatus, String envVar, Integer timeout) throws Exception {
         Integer exitStatus = sExitStatus != null ? Integer.valueOf(sExitStatus) : null;
+        timeout = (timeout == null) ? -1 : timeout;
         if (exitStatus == null) {
             exitStatus = 0;
         }
 
-        commonspec.executeCommand(command, sshConnectionId, exitStatus, envVar);
+        commonspec.executeCommand(command, sshConnectionId, exitStatus, envVar, timeout);
+    }
+
+    @Deprecated
+    public void executeCommand(String command, String sshConnectionId, String sExitStatus, String envVar) throws Exception {
+        executeCommand(command, sshConnectionId, sExitStatus, envVar, -1);
     }
 
     @Deprecated
     public void executeCommand(String command, String sExitStatus, String envVar) throws Exception {
-        executeCommand(command, null, sExitStatus, envVar);
+        executeCommand(command, null, sExitStatus, envVar, -1);
     }
 
 

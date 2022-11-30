@@ -80,6 +80,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -738,7 +739,7 @@ public class CommonG {
 
         if ("json".equals(type) || "scim".equals(type)) {
             String std = text.replace("\r", "").replace("\n", ""); // make sure we have unix style text regardless of the input
-            result = JsonValue.readHjson(std).asObject().toString();
+            result = JsonValue.readHjson(std).toString();
         } else {
             result = text;
         }
@@ -1585,6 +1586,10 @@ public class CommonG {
         this.headers = headers;
     }
 
+    public void clearHeaders() {
+        setHeaders(new HashMap<>());
+    }
+
     /**
      * Checks the different results of a previous query to CSV file
      *
@@ -1913,39 +1918,59 @@ public class CommonG {
      * @param command command used to be run locally
      */
     public void runLocalCommand(String command) throws Exception {
+        runLocalCommand(command, -1);
+    }
 
+    /**
+     * Runs a command locally
+     *
+     * @param command command used to be run locally
+     * @param timeout max time in seconds that the command is allowed to run
+     */
+    public void runLocalCommand(String command, int timeout) throws Exception {
         String result = "";
         String line;
         Process p;
+        boolean aborted = false;
         try {
             p = Runtime.getRuntime().exec(new String[]{"/bin/sh", "-c", command});
-            p.waitFor();
+            if (timeout > 0) {
+                if (!p.waitFor(timeout, TimeUnit.SECONDS)) {
+                    this.commandExitStatus = 124;
+                    this.commandResult = "The command took too long to finish";
+                    aborted = true;
+                }
+            } else {
+                p.waitFor();
+            }
         } catch (java.io.IOException e) {
             this.commandExitStatus = 1;
             this.commandResult = "Error";
             return;
         }
 
-        BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
-        while ((line = input.readLine()) != null) {
-            if (result.isEmpty()) {
-                result += line;
-            } else {
-                result += "\n" + line;
+        if (!aborted) {
+            BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            while ((line = input.readLine()) != null) {
+                if (result.isEmpty()) {
+                    result += line;
+                } else {
+                    result += "\n" + line;
+                }
             }
-        }
-        input.close();
+            input.close();
 
-        StringBuilder sbError = new StringBuilder();
-        BufferedReader error = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-        while ((line = error.readLine()) != null) {
-            sbError.append(line).append("\n");
-        }
-        error.close();
+            StringBuilder sbError = new StringBuilder();
+            BufferedReader error = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+            while ((line = error.readLine()) != null) {
+                sbError.append(line).append("\n");
+            }
+            error.close();
 
-        this.commandResult = result;
-        this.commandExitStatus = p.exitValue();
-        this.commandResultError = sbError.toString();
+            this.commandResult = result;
+            this.commandExitStatus = p.exitValue();
+            this.commandResultError = sbError.toString();
+        }
 
         p.destroy();
 
@@ -1996,6 +2021,9 @@ public class CommonG {
         CookiesUtils.setCookies(cookies);
     }
 
+    public void clearCookies() {
+        CookiesUtils.setCookies(new ArrayList<>());
+    }
 
     /**
      * Parse jsonpath expression from a given string.
@@ -2563,37 +2591,36 @@ public class CommonG {
     /**
      * Executes the command specified in remote system
      *
-     * @param command    command to be run locally
-     * @param exitStatus command exit status
-     * @param envVar     environment variable name
-     * @throws Exception exception
-     **/
-    @Deprecated
-    public void executeCommand(String command, Integer exitStatus, String envVar) throws Exception {
-        executeCommand(command, null, exitStatus, envVar);
-    }
-
-    /**
-     * Executes the command specified in remote system
-     *
      * @param command         command to be run locally
      * @param sshConnectionId ssh connection id
      * @param exitStatus      command exit status
      * @param envVar          environment variable name
+     * @param timeout         max time in seconds that the command is allowed to run
      * @throws Exception exception
      **/
-    public void executeCommand(String command, String sshConnectionId, Integer exitStatus, String envVar) throws Exception {
+    public void executeCommand(String command, String sshConnectionId, Integer exitStatus, String envVar, Integer timeout) throws Exception {
         if (exitStatus == null) {
             exitStatus = 0;
         }
+        timeout = (timeout == null) ? -1 : timeout;
         RemoteSSHConnection remoteSSHConnection = sshConnectionId != null ? RemoteSSHConnectionsUtil.getRemoteSSHConnectionsMap().get(sshConnectionId) : getRemoteSSHConnection();
         command = "set -o pipefail && alias grep='grep --color=never' && " + command;
-        remoteSSHConnection.runCommand(command);
+        remoteSSHConnection.runCommand(command, timeout);
         setCommandResult(remoteSSHConnection.getResult());
         setCommandExitStatus(remoteSSHConnection.getExitStatus());
         runCommandLoggerAndEnvVar(exitStatus, envVar, Boolean.FALSE);
 
         Assertions.assertThat(remoteSSHConnection.getExitStatus()).isEqualTo(exitStatus);
+    }
+
+    @Deprecated
+    public void executeCommand(String command, Integer exitStatus, String envVar) throws Exception {
+        executeCommand(command, null, exitStatus, envVar, -1);
+    }
+
+    @Deprecated
+    public void executeCommand(String command, String sshConnectionId, Integer exitStatus, String envVar) throws Exception {
+        executeCommand(command, sshConnectionId, exitStatus, envVar, -1);
     }
 
     public void connectToCrossdataDatabase(boolean security, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination) throws Exception {
