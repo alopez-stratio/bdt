@@ -72,6 +72,8 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -2386,6 +2388,9 @@ public class CommonG {
                 props.setProperty("prepareThreshold", "0");
             }
         }
+        props.setProperty("loginTimeout", "60");
+        props.setProperty("connectTimeout", "60");
+        props.setProperty("socketTimeout", "60");
         try {
             JDBCConnection.setConnection(DriverManager.getConnection("jdbc:postgresql://" + host + ":" + port + "/" + database, props));
         } catch (SQLException se) {
@@ -2833,5 +2838,30 @@ public class CommonG {
             cookiesAttributes.add(cookieToAdd);
         }
         return cookiesAttributes;
+    }
+
+    /**
+     * Check if host is reachable
+     *
+     * @param host Host
+     * @param timeOut timeout
+     * @return True/False
+     */
+    public boolean isHostReachable(String host, int timeOut) throws Exception {
+        int timeoutAux = timeOut;
+        while (timeoutAux > 0) {
+            try {
+                return InetAddress.getByName(host).isReachable(timeoutAux * 1000);
+            } catch (UnknownHostException e) {
+                timeoutAux--;
+                if (timeoutAux > 0) {
+                    getLogger().warn("UnknownHostException returned after {} seconds, it will try again in 1 second", timeOut - timeoutAux);
+                    Thread.sleep(1000);
+                } else {
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 }
