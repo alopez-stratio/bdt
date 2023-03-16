@@ -710,11 +710,15 @@ public class GosecSpec extends BaseGSpec {
         String endPointGetAllUsers = "/service/gosec-identities-daas/identities/users";
         String endPointGetAllGroups = "/service/gosec-identities-daas/identities/groups";
         String endPointTenant = "/service/gosec-identities-daas/identities/tenants/" + tenantId;
+        String requestOp = "PATCH";
+        Integer expectedStatusCode = 204;
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/identities/identities/users";
-            endPointGetAllGroups = "/gosec/identities/identities/groups";
-            endPointTenant = "/gosec/identities/identities/tenants/" + tenantId;
+            endPointGetAllUsers = "/gosec/baas/management/users";
+            endPointGetAllGroups = "/gosec/baas/management/groups";
+            endPointTenant = "/gosec/baas/management/tenant?tid=" + tenantId;
+            requestOp = "PUT";
+            expectedStatusCode = 200;
         }
 
         assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
@@ -741,9 +745,9 @@ public class GosecSpec extends BaseGSpec {
                         commonspec.getLogger().debug("{} is already included in tenant", resourceId);
                     } else {
                         ((JsonArray) jsonTenantInfo.get(uidOrGidTenant)).add(resourceId);
-                        Future<Response> response = commonspec.generateRequest("PATCH", false, null, null, endPointTenant, JsonValue.readHjson(jsonTenantInfo.toString()).toString(), "json", "");
-                        commonspec.setResponse("PATCH", response.get());
-                        if (commonspec.getResponse().getStatusCode() != 204) {
+                        Future<Response> response = commonspec.generateRequest(requestOp, false, null, null, endPointTenant, JsonValue.readHjson(jsonTenantInfo.toString()).toString(), "json", "");
+                        commonspec.setResponse(requestOp, response.get());
+                        if (commonspec.getResponse().getStatusCode() != expectedStatusCode) {
                             throw new Exception("Error adding " + resource + " " + resourceId + " in tenant " + tenantId + " - Status code: " + commonspec.getResponse().getStatusCode());
                         }
                     }
@@ -1213,6 +1217,17 @@ public class GosecSpec extends BaseGSpec {
         String endPointGetAllUsers = "/service/gosec-identities-daas/identities/users";
         String endPointGetAllGroups = "/service/gosec-identities-daas/identities/groups";
         String endPointTenant = "/service/gosec-identities-daas/identities/tenants/" + tenantId;
+        String requestOp = "PATCH";
+        Integer expectedStatusCode = 200;
+
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            endPointGetAllUsers = "/gosec/baas/management/users";
+            endPointGetAllGroups = "/gosec/baas/management/groups";
+            endPointTenant = "/gosec/baas/management/tenant?tid=" + tenantId;
+            requestOp = "PUT";
+            expectedStatusCode = 200;
+        }
+
         assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
         String uidOrGid = "uid";
         String uidOrGidTenant = "uids";
@@ -1252,10 +1267,10 @@ public class GosecSpec extends BaseGSpec {
                             }
                         }
                         putObject.put(uidOrGidTenant, new JSONArray(stringGroups));
-                        commonspec.getLogger().debug("Json for PATCH request---> {}", putObject);
-                        Future<Response> response = commonspec.generateRequest("PATCH", false, null, null, endPointTenant, JsonValue.readHjson(putObject.toString()).toString(), "json", "");
-                        commonspec.setResponse("PATCH", response.get());
-                        if (commonspec.getResponse().getStatusCode() != 204) {
+                        commonspec.getLogger().debug("Json for " + requestOp + " request---> {}", putObject);
+                        Future<Response> response = commonspec.generateRequest(requestOp, false, null, null, endPointTenant, JsonValue.readHjson(putObject.toString()).toString(), "json", "");
+                        commonspec.setResponse(requestOp, response.get());
+                        if (commonspec.getResponse().getStatusCode() != expectedStatusCode) {
                             throw new Exception("Error removing " + resource + " " + resourceId + " in tenant " + tenantId + " - Status code: " + commonspec.getResponse().getStatusCode());
                         }
 
@@ -1881,17 +1896,18 @@ public class GosecSpec extends BaseGSpec {
         String endPointGetAllUsers = "/service/gosec-identities-daas/identities/users";
         String endPointGetAllGroups = "/service/gosec-identities-daas/identities/groups";
         String endPointGetAllRoles = "/service/gosec-identities-daas/profiling/role?count=1&name=" + roleName + "&tid=" + tenantId;
-        String endPointRolePatch = "/service/gosec-identities-daas/profiling/role/bulk/identities?tid=" + tenantId;
+        String jqPathRid = "' | jq .profiles[0].rid | sed s/\\\"//g";
+        String api = "identities";
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/identities/identities/users";
-            endPointGetAllGroups = "/gosec/identities/identities/groups";
-            endPointGetAllRoles = "/gosec/identities/profiling/role?count=1&name=" + roleName + "&tid=" + tenantId;
-            endPointRolePatch = "/gosec/identities/profiling/role/bulk/identities?tid=" + tenantId;
+            endPointGetAllUsers = "/gosec/baas/management/users";
+            endPointGetAllGroups = "/gosec/baas/management/groups";
+            endPointGetAllRoles = "/gosec/baas/management/profiling/roles?count=1&name=" + roleName + "&tid=" + tenantId;
+            jqPathRid = "' | jq .list[0].rid | sed s/\\\"//g";
+            api = "management";
         }
 
         String rid = "roleId";
-        Boolean content = false;
         String select = "USERS";
 
         assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
@@ -1914,8 +1930,9 @@ public class GosecSpec extends BaseGSpec {
         //GET role with provided name and tid
         restSpec.sendRequestNoDataTable("GET", endPointGetAllRoles, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
+
             //GET roleId - rid
-            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq .profiles[0].rid | sed s/\\\"//g");
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + jqPathRid);
             rid = commonspec.getCommandResult().trim();
 
             if ((rid == null) || (rid.equals(""))) {
@@ -1926,7 +1943,7 @@ public class GosecSpec extends BaseGSpec {
             String endPointRole = "/service/gosec-identities-daas/profiling/role/" + rid + "?select=" + select;
 
             if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-                endPointRole = "/gosec/identities/profiling/role/" + rid + "?select=" + select;
+                endPointRole = "/gosec/baas/management/profiling/role?rid=" + rid;
             }
 
             //GET user/group
@@ -1935,55 +1952,10 @@ public class GosecSpec extends BaseGSpec {
                 //GET role
                 restSpec.sendRequestNoDataTable("GET", endPointRole, null, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
-
-                    JsonObject jsonRoleInfo = new JsonObject(JsonValue.readHjson(commonspec.getResponse().getResponse()).asObject());
-                    // Get users/groups from role
-                    JsonArray jsonGroups = (JsonArray) jsonRoleInfo.get(usersOrGroups);
-                    // Get size of users/groups
-                    String[] stringGroups = new String[jsonGroups.size() + 1];
-                    // Create json for put
-                    JSONObject putObject = new JSONObject(commonspec.getResponse().getResponse());
-
-                    for (int i = 0; i < jsonGroups.size(); i++) {
-                        String jsonIds = ((JsonObject) jsonGroups.get(i)).getString(uidOrGid, "");
-
-                        if (jsonIds.equals(resourceId)) {
-                            commonspec.getLogger().warn("{} is already included in the role {}", resourceId, roleName);
-                            content = true;
-                            break;
-                        } else {
-                            stringGroups[i] = jsonIds;
-                        }
-                    }
-
-                    if (!content) {
-                        // Add new user/group in array of uids/gids
-                        stringGroups[jsonGroups.size()] = resourceId;
-                        String[] stringRids = new String[1];
-                        stringRids[0] = rid;
-
-                        //PATCH object
-                        JSONObject patchObject = new JSONObject();
-                        patchObject.put(usersOrGroupsIds, stringGroups);
-                        patchObject.put("op", "add");
-                        patchObject.put("rids", stringRids);
-
-                        commonspec.getLogger().warn("Json for PATCH request---> {}", patchObject);
-
-                        //Create json data with header cluster-owner included
-                        List<List<String>> rawData = Arrays.asList(
-                                Arrays.asList("cluster-owner", "HEADER", "true", "n/a")
-                        );
-                        DataTable gosecDataTable = DataTable.create(rawData);
-                        //Create file with json data
-                        writeInFile(patchObject.toString(), "filePatchProfiling.json");
-
-                        restSpec.sendRequest("PATCH", endPointRolePatch, null, "filePatchProfiling.json", "json", gosecDataTable);
-
-                        if (commonspec.getResponse().getStatusCode() != 200) {
-                            throw new Exception("Error adding User/Group: " + resourceId + " in Role " + roleName + " - Status code: " + commonspec.getResponse().getStatusCode());
-                        }
-
+                    if (api.equals("identities")) {
+                        addResourceToRoleIdentities(resourceId, roleName, tenantId, usersOrGroups, usersOrGroupsIds, uidOrGid, rid);
+                    } else {
+                        addResourceToRoleManagement(resourceId, roleName, tenantId, usersOrGroups, uidOrGid, rid);
                     }
                 } else {
                     throw new Exception("Role" + " " + roleName + " doesn't exist in Gosec for tenant " + tenantId);
@@ -1996,22 +1968,156 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
+    private void addResourceToRoleManagement(String resourceId, String roleName, String tenantId, String usersOrGroups, String uidOrGid, String rid) throws Exception {
+        String endPointRolePatch;
+        String endPointGetName;
+        String endPointUsersWithRoles = "/gosec/baas/management/profiling/users?tid=" + tenantId;
+        String endPointGroupsWithRoles = "/gosec/baas/management/profiling/groups?tid=" + tenantId;
+        String endPointResourceWithRoles;
+        String resourceTypeKey;
+
+        if (usersOrGroups.equals("users")) {
+            endPointResourceWithRoles = endPointUsersWithRoles;
+            endPointRolePatch = "/gosec/baas/management/profiling/user";
+            resourceTypeKey = "user";
+        } else {
+            endPointResourceWithRoles = endPointGroupsWithRoles;
+            endPointRolePatch = "/gosec/baas/management/profiling/group";
+            resourceTypeKey = "group";
+        }
+
+        // Obtain users/groups in role
+        restSpec.sendRequestNoDataTable("GET", endPointResourceWithRoles, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            String command = "echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select(.roles[].name==\"" + roleName + "\") | ." + resourceTypeKey + "." + uidOrGid + "' | sed 's/\"//g'";
+            commonspec.runLocalCommand(command, -1);
+
+            String[] resources = commonspec.getCommandResult().trim().split("\n");
+
+            if (!Arrays.asList(resources).contains(resourceId)) {
+                // Prepare request body for PATCH
+                JSONObject patchObject = new JSONObject();
+                JSONArray resourcesPATCH = new JSONArray();
+
+                // Add operation
+                patchObject.put("op", "add");
+
+                // Create resource object
+                JSONObject resource = new JSONObject();
+                // Obtain resource name
+                String name;
+                endPointGetName = "/gosec/baas/management/profiling/" + resourceTypeKey + "?" + uidOrGid + "=" + resourceId + "&tid=" + tenantId;
+                restSpec.sendRequestNoDataTable("GET", endPointGetName, null, null, null);
+                if (commonspec.getResponse().getStatusCode() == 200) {
+                    JSONObject resourceNameObject = new JSONObject(commonspec.getResponse().getResponse());
+                    name = ((JSONObject) resourceNameObject.get(resourceTypeKey)).get("name").toString();
+                } else {
+                    throw new Exception("Problem obtaining name of resource " + resourceId);
+                }
+                resource.put(uidOrGid, resourceId);
+                resource.put("name", name);
+                resourcesPATCH.put(resource);
+
+                // Add user or group array
+                patchObject.put(usersOrGroups, resourcesPATCH);
+
+                // Create role object
+                JSONArray roles = new JSONArray();
+                JSONObject role = new JSONObject();
+                role.put("rid", rid);
+                role.put("name", roleName);
+                roles.put(role);
+
+                // Add role array
+                patchObject.put("roles", roles);
+
+                commonspec.getLogger().warn("Json for PATCH request---> {}", patchObject);
+
+                //Create file with json data
+                writeInFile(patchObject.toString(), "filePatchProfiling.json");
+
+                // Make PATCH request
+                restSpec.sendRequestNoDataTable("PATCH", endPointRolePatch, null, "filePatchProfiling.json", "json");
+                if (commonspec.getResponse().getStatusCode() != 204) {
+                    throw new Exception("Error adding User/Group: " + resourceId + " in Role " + roleName + " - Status code: " + commonspec.getResponse().getStatusCode());
+                }
+            } else {
+                commonspec.getLogger().warn("{} is already included in the role {}", resourceId, roleName);
+            }
+        }
+    }
+
+    private void addResourceToRoleIdentities(String resourceId, String roleName, String tenantId, String usersOrGroups, String usersOrGroupsIds, String uidOrGid, String rid) throws Exception {
+        String endPointRolePatch = "/service/gosec-identities-daas/profiling/role/bulk/identities?tid=" + tenantId;
+        Boolean content = false;
+
+        JsonObject jsonRoleInfo = new JsonObject(JsonValue.readHjson(commonspec.getResponse().getResponse()).asObject());
+        // Get users/groups from role
+        JsonArray jsonGroups = (JsonArray) jsonRoleInfo.get(usersOrGroups);
+        // Get size of users/groups
+        String[] stringGroups = new String[jsonGroups.size() + 1];
+        // Create json for put
+        JSONObject putObject = new JSONObject(commonspec.getResponse().getResponse());
+
+        for (int i = 0; i < jsonGroups.size(); i++) {
+            String jsonIds = ((JsonObject) jsonGroups.get(i)).getString(uidOrGid, "");
+
+            if (jsonIds.equals(resourceId)) {
+                commonspec.getLogger().warn("{} is already included in the role {}", resourceId, roleName);
+                content = true;
+                break;
+            } else {
+                stringGroups[i] = jsonIds;
+            }
+        }
+
+        if (!content) {
+            // Add new user/group in array of uids/gids
+            stringGroups[jsonGroups.size()] = resourceId;
+            String[] stringRids = new String[1];
+            stringRids[0] = rid;
+
+            //PATCH object
+            JSONObject patchObject = new JSONObject();
+            patchObject.put(usersOrGroupsIds, stringGroups);
+            patchObject.put("op", "add");
+            patchObject.put("rids", stringRids);
+
+            commonspec.getLogger().warn("Json for PATCH request---> {}", patchObject);
+
+            //Create json data with header cluster-owner included
+            List<List<String>> rawData = Arrays.asList(
+                    Arrays.asList("cluster-owner", "HEADER", "true", "n/a")
+            );
+            DataTable gosecDataTable = DataTable.create(rawData);
+            //Create file with json data
+            writeInFile(patchObject.toString(), "filePatchProfiling.json");
+
+            restSpec.sendRequest("PATCH", endPointRolePatch, null, "filePatchProfiling.json", "json", gosecDataTable);
+
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                throw new Exception("Error adding User/Group: " + resourceId + " in Role " + roleName + " - Status code: " + commonspec.getResponse().getStatusCode());
+            }
+        }
+    }
+
     @When("^I delete '(user|group)' '(.+?)' from role '(.+?)' in tenant '(.+?)'$")
     public void deleteResourceInRole(String resource, String resourceId, String roleName, String tenantId) throws Exception {
         String endPointGetAllUsers = "/service/gosec-identities-daas/identities/users";
         String endPointGetAllGroups = "/service/gosec-identities-daas/identities/groups";
         String endPointGetAllRoles = "/service/gosec-identities-daas/profiling/role?count=1&name=" + roleName + "&tid=" + tenantId;
-        String endPointRolePatch = "/service/gosec-identities-daas/profiling/role/bulk/identities?tid=" + tenantId;
+        String jqPathRid = "' | jq .profiles[0].rid | sed s/\\\"//g";
+        String api = "identities";
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/identities/identities/users";
-            endPointGetAllGroups = "/gosec/identities/identities/groups";
-            endPointGetAllRoles = "/gosec/identities/profiling/role?count=1&name=" + roleName + "&tid=" + tenantId;
-            endPointRolePatch = "/gosec/identities/profiling/role/bulk/identities?tid=" + tenantId;
+            endPointGetAllUsers = "/gosec/baas/management/users";
+            endPointGetAllGroups = "/gosec/baas/management/groups";
+            endPointGetAllRoles = "/gosec/baas/management/profiling/roles?count=1&name=" + roleName + "&tid=" + tenantId;
+            jqPathRid = "' | jq .list[0].rid | sed s/\\\"//g";
+            api = "management";
         }
 
         String rid = "roleId";
-        Boolean content = false;
         String select = "USERS";
 
         assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
@@ -2035,7 +2141,7 @@ public class GosecSpec extends BaseGSpec {
         restSpec.sendRequestNoDataTable("GET", endPointGetAllRoles, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
             //GET roleId - rid
-            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq .profiles[0].rid | sed s/\\\"//g");
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + jqPathRid);
             rid = commonspec.getCommandResult().trim();
 
             if ((rid == null) || (rid.equals(""))) {
@@ -2046,7 +2152,7 @@ public class GosecSpec extends BaseGSpec {
             String endPointRole = "/service/gosec-identities-daas/profiling/role/" + rid + "?select=" + select;
 
             if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-                endPointRole = "/gosec/identities/profiling/role/" + rid + "?select=" + select;
+                endPointRole = "/gosec/baas/management/profiling/role?rid=" + rid;
             }
 
             //GET user/group
@@ -2055,60 +2161,10 @@ public class GosecSpec extends BaseGSpec {
                 //GET role
                 restSpec.sendRequestNoDataTable("GET", endPointRole, null, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
-
-                    JsonObject jsonRoleInfo = new JsonObject(JsonValue.readHjson(commonspec.getResponse().getResponse()).asObject());
-                    // Get users/groups from role
-                    JsonArray jsonGroups = (JsonArray) jsonRoleInfo.get(usersOrGroups);
-                    // Get size of users/groups
-                    String[] stringGroups = new String[jsonGroups.size() + 1];
-                    // Create json for put
-                    JSONObject putObject = new JSONObject(commonspec.getResponse().getResponse());
-
-                    for (int i = 0; i < jsonGroups.size(); i++) {
-                        String jsonIds = ((JsonObject) jsonGroups.get(i)).getString(uidOrGid, "");
-
-                        if (jsonIds.equals(resourceId)) {
-                            commonspec.getLogger().debug("Deleting resource: {} from the role: {}", resourceId, roleName);
-                            content = true;
-                            break;
-                        } else {
-                            stringGroups[i] = jsonIds;
-                        }
-                    }
-
-                    if (!content) {
-                        commonspec.getLogger().warn("Resource: {} is not included in role: {} for tenant: {}", resourceId, roleName, tenantId);
-
+                    if (api.equals("identities")) {
+                        removeResourceFromRoleIdentities(resourceId, roleName, tenantId, usersOrGroups, usersOrGroupsIds, uidOrGid, rid);
                     } else {
-                        // Include resourceId to stringDelete[]
-                        String[] stringDelete = new String[1];
-                        stringDelete[0] = resourceId;
-                        // Include rid to stringRids[]
-                        String[] stringRids = new String[1];
-                        stringRids[0] = rid;
-
-                        //PATCH object
-                        JSONObject patchObject = new JSONObject();
-                        patchObject.put(usersOrGroupsIds, stringDelete);
-                        patchObject.put("op", "delete");
-                        patchObject.put("rids", stringRids);
-
-                        commonspec.getLogger().warn("Json for PATCH request---> {}", patchObject);
-
-                        //Create json data with header cluster-owner included
-                        List<List<String>> rawData = Arrays.asList(
-                                Arrays.asList("cluster-owner", "HEADER", "true", "n/a")
-                        );
-                        DataTable gosecDataTable = DataTable.create(rawData);
-                        //Create file with json data
-                        writeInFile(patchObject.toString(), "filePatchProfiling.json");
-
-                        restSpec.sendRequest("PATCH", endPointRolePatch, null, "filePatchProfiling.json", "json", gosecDataTable);
-
-                        if (commonspec.getResponse().getStatusCode() != 200) {
-                            throw new Exception("Error deleting User/Group: " + resourceId + " in Role " + roleName + " - Status code: " + commonspec.getResponse().getStatusCode());
-                        }
-
+                        removeResourceFromRoleManagement(resourceId, roleName, tenantId, usersOrGroups, uidOrGid, rid);
                     }
                 } else {
                     throw new Exception("Role" + " " + roleName + " doesn't exist in Gosec for tenant " + tenantId);
@@ -2119,6 +2175,144 @@ public class GosecSpec extends BaseGSpec {
         } else {
             throw new Exception("Role" + " " + roleName + " doesn't exist in Gosec for tenant " + tenantId);
         }
+    }
+
+    private void removeResourceFromRoleManagement(String resourceId, String roleName, String tenantId, String usersOrGroups, String uidOrGid, String rid) throws Exception {
+        String endPointRolePatch;
+        String endPointGetName;
+        String endPointUsersWithRoles = "/gosec/baas/management/profiling/users?tid=" + tenantId;
+        String endPointGroupsWithRoles = "/gosec/baas/management/profiling/groups?tid=" + tenantId;
+        String endPointResourceWithRoles;
+        String resourceTypeKey;
+
+        if (usersOrGroups.equals("users")) {
+            endPointResourceWithRoles = endPointUsersWithRoles;
+            endPointRolePatch = "/gosec/baas/management/profiling/user";
+            resourceTypeKey = "user";
+        } else {
+            endPointResourceWithRoles = endPointGroupsWithRoles;
+            endPointRolePatch = "/gosec/baas/management/profiling/group";
+            resourceTypeKey = "group";
+        }
+
+        // Obtain users/groups in role
+        restSpec.sendRequestNoDataTable("GET", endPointResourceWithRoles, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            String command = "echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select(.roles[].name==\"" + roleName + "\") | ." + resourceTypeKey + "." + uidOrGid + "' | sed 's/\"//g'";
+            commonspec.runLocalCommand(command, -1);
+
+            String[] resources = commonspec.getCommandResult().trim().split("\n");
+
+            if (Arrays.asList(resources).contains(resourceId)) {
+                // Prepare request body for PATCH
+                JSONObject patchObject = new JSONObject();
+                JSONArray resourcesPATCH = new JSONArray();
+
+                // Add operation
+                patchObject.put("op", "delete");
+
+                // Create resource object
+                JSONObject resource = new JSONObject();
+                // Obtain resource name
+                String name;
+                endPointGetName = "/gosec/baas/management/profiling/" + resourceTypeKey + "?" + uidOrGid + "=" + resourceId + "&tid=" + tenantId;
+                restSpec.sendRequestNoDataTable("GET", endPointGetName, null, null, null);
+                if (commonspec.getResponse().getStatusCode() == 200) {
+                    JSONObject resourceNameObject = new JSONObject(commonspec.getResponse().getResponse());
+                    name = ((JSONObject) resourceNameObject.get(resourceTypeKey)).get("name").toString();
+                } else {
+                    throw new Exception("Problem obtaining name of resource " + resourceId);
+                }
+                resource.put(uidOrGid, resourceId);
+                resource.put("name", name);
+                resourcesPATCH.put(resource);
+
+                // Add user or group array
+                patchObject.put(usersOrGroups, resourcesPATCH);
+
+                // Add role
+                JSONArray roles = new JSONArray();
+                JSONObject role = new JSONObject();
+                role.put("rid", rid);
+                role.put("name", roleName);
+                roles.put(role);
+                patchObject.put("roles", roles);
+
+                commonspec.getLogger().warn("Json for PATCH request---> {}", patchObject);
+
+                //Create file with json data
+                writeInFile(patchObject.toString(), "filePatchProfiling.json");
+
+                // Make PATCH request
+                restSpec.sendRequestNoDataTable("PATCH", endPointRolePatch, null, "filePatchProfiling.json", "json");
+                if (commonspec.getResponse().getStatusCode() != 204) {
+                    throw new Exception("Error removing User/Group: " + resourceId + " in Role " + roleName + " - Status code: " + commonspec.getResponse().getStatusCode());
+                }
+            } else {
+                commonspec.getLogger().warn("{} is not included in the role {}", resourceId, roleName);
+            }
+        }
+    }
+
+    private void removeResourceFromRoleIdentities(String resourceId, String roleName, String tenantId, String usersOrGroups, String usersOrGroupsIds, String uidOrGid, String rid) throws Exception {
+        String endPointRolePatch = "/service/gosec-identities-daas/profiling/role/bulk/identities?tid=" + tenantId;
+        Boolean content = false;
+
+        JsonObject jsonRoleInfo = new JsonObject(JsonValue.readHjson(commonspec.getResponse().getResponse()).asObject());
+        // Get users/groups from role
+        JsonArray jsonGroups = (JsonArray) jsonRoleInfo.get(usersOrGroups);
+        // Get size of users/groups
+        String[] stringGroups = new String[jsonGroups.size() + 1];
+        // Create json for put
+        JSONObject putObject = new JSONObject(commonspec.getResponse().getResponse());
+
+        for (int i = 0; i < jsonGroups.size(); i++) {
+            String jsonIds = ((JsonObject) jsonGroups.get(i)).getString(uidOrGid, "");
+
+            if (jsonIds.equals(resourceId)) {
+                commonspec.getLogger().debug("Deleting resource: {} from the role: {}", resourceId, roleName);
+                content = true;
+                break;
+            } else {
+                stringGroups[i] = jsonIds;
+            }
+        }
+
+        if (!content) {
+            commonspec.getLogger().warn("Resource: {} is not included in role: {} for tenant: {}", resourceId, roleName, tenantId);
+
+        } else {
+            // Include resourceId to stringDelete[]
+            String[] stringDelete = new String[1];
+            stringDelete[0] = resourceId;
+            // Include rid to stringRids[]
+            String[] stringRids = new String[1];
+            stringRids[0] = rid;
+
+            //PATCH object
+            JSONObject patchObject = new JSONObject();
+            patchObject.put(usersOrGroupsIds, stringDelete);
+            patchObject.put("op", "delete");
+            patchObject.put("rids", stringRids);
+
+            commonspec.getLogger().warn("Json for PATCH request---> {}", patchObject);
+
+            //Create json data with header cluster-owner included
+            List<List<String>> rawData = Arrays.asList(
+                    Arrays.asList("cluster-owner", "HEADER", "true", "n/a")
+            );
+            DataTable gosecDataTable = DataTable.create(rawData);
+            //Create file with json data
+            writeInFile(patchObject.toString(), "filePatchProfiling.json");
+
+            restSpec.sendRequest("PATCH", endPointRolePatch, null, "filePatchProfiling.json", "json", gosecDataTable);
+
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                throw new Exception("Error deleting User/Group: " + resourceId + " in Role " + roleName + " - Status code: " + commonspec.getResponse().getStatusCode());
+            }
+
+        }
+
     }
 
     @When("^I run '(partial|total)' ldap synchronizer$")
@@ -2140,7 +2334,7 @@ public class GosecSpec extends BaseGSpec {
     @When("^I get id from profile structure with name '(.+?)' and save it in environment variable '(.+?)'$")
     public void getProfilingStructureId(String name, String envVar) throws Exception {
         Boolean content = false;
-        String endPointGetAllStructures = "/gosec/baas/management/profiling/structure/application";
+        String endPointGetAllStructures = "/gosec/baas/management/profiling/application";
 
         restSpec.sendRequestNoDataTable("GET", endPointGetAllStructures, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
@@ -2165,6 +2359,22 @@ public class GosecSpec extends BaseGSpec {
             commonspec.getLogger().error("Error getting profile structures");
         }
     }
-}
 
+    @When("^I get rid from role with name '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getRidRole(String roleName, String envVar) throws Exception {
+        Boolean content = false;
+        String endPointGetRole = "/gosec/baas/management/profiling/roles?name=" + roleName;
+
+        restSpec.sendRequestNoDataTable("GET", endPointGetRole, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + roleName + "\").rid' | sed s/\\\"//g");
+            commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
+            if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
+                fail("Error obtaining rid from role " + roleName);
+            }
+        } else {
+            commonspec.getLogger().warn("Role with rid: {} does not exist", roleName);
+        }
+    }
+}
 

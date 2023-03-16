@@ -43,7 +43,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
 import java.sql.*;
 import java.util.*;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
 import static com.stratio.qa.assertions.Assertions.assertThat;
@@ -856,20 +856,33 @@ public class DatabaseSpec extends BaseGSpec {
      * @param query
      * executes query in database
      */
-    @When("^I execute query '(.+?)' through JDBC connection(, returning an exception)?( with message \"(.+?)\")?$")
-    public void executeJdbcQuery(String query, String exceptionReturned, String exceptionMessageExpected) throws Exception {
+    @When("^I execute query '(.+?)' through JDBC connection(, returning an exception)?(, returning a warning)?( with message \"(.+?)\")?$")
+    public void executeJdbcQuery(String query, String exceptionReturned, String warningReturned, String exceptionMessageExpected) throws Exception {
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
         try {
+            String warningMessage = null;
             ThreadProperty.remove("querysize");
             getCommonSpec().setPreviousSqlResult(null);
             Statement myStatement = myConnection.createStatement();
             myStatement.execute(query);
+
+            if (warningReturned != null) {
+                if (myStatement.getWarnings() != null) {
+                    warningMessage = myStatement.getWarnings().toString();
+                } else {
+                    fail("Query was executed successfully but we expected a warning");
+                }
+            }
+
             myStatement.close();
             if (exceptionReturned != null) {
                 fail("Query was executed successfully but we expected an exception");
+            }
+            if (warningReturned != null && exceptionMessageExpected != null) {
+                Assertions.assertThat(warningMessage).contains(exceptionMessageExpected);
             }
         } catch (Exception e) {
             if (exceptionReturned == null) {
@@ -880,6 +893,38 @@ public class DatabaseSpec extends BaseGSpec {
                     Assertions.assertThat(e.getMessage()).as("Query error message").contains(exceptionMessageExpected);
                 }
             }
+        }
+    }
+
+    /*
+     * @param query Query to execute
+     * @param cancelTime query will be cancelled when cancelTime was reached
+     * Executes query in database and cancel it after calcelTime seconds
+     */
+    @When("^I execute query '(.+?)' in background and I cancel it after '(\\d+)' seconds, returning a Query cancelled SQLSyntaxErrorException$")
+    public void executeJdbcQuery(String query, Integer cancelTime) throws Exception {
+        Connection myConnection = this.commonspec.getConnection();
+        if (myConnection == null) {
+            throw new Exception("JDBC connection is not opened");
+        }
+        try {
+            ThreadProperty.remove("querysize");
+            getCommonSpec().setPreviousSqlResult(null);
+            Statement myStatement = myConnection.createStatement();
+            Future<Void> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    Thread.sleep(cancelTime * 1000);
+                    myStatement.cancel();
+                } catch (SQLException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return null;
+            });
+            myStatement.execute(query);
+            future.cancel(true);
+            fail("Query was executed succesfully (it should be cancelled)");
+        } catch (SQLSyntaxErrorException e) {
+            assertThat(e.getMessage()).as("SQLSyntaxErrorException message").contains("Query cancelled");
         }
     }
 
