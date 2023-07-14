@@ -1157,7 +1157,7 @@ public class CommonG {
 
         if ("servicegov".equals(type)) {
             govRolesID = System.getProperty("GOV_SERVICE_ROLESID") != null ? System.getProperty("GOV_SERVICE_ROLESID") : "Service";
-            govUserID = Objects.requireNonNullElse(ThreadProperty.get("GOV_USER_UID"),
+            govUserID = Objects.requireNonNullElse(ThreadProperty.get("GOV_SERVICE_USER_UID"),
                     Objects.requireNonNullElse(System.getProperty("GOV_SERVICE_USERID"), "admin"));
             type = "gov";
 
