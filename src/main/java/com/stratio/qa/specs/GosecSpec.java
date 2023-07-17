@@ -399,10 +399,10 @@ public class GosecSpec extends BaseGSpec {
      * @param loginInfo       : user and password to log in service (OPTIONAL)
      * @throws Exception
      */
-    @When("^I delete '(policy|user|group|collectionPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
-    public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
+    @When("^I delete '(policy|user|group|collectionPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( from LDAP '(.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
+    public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String ldap, String endPoint, String loginInfo) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
+            deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, ldap, endPoint, loginInfo);
         } else {
             deleteResourceIfExistsDcos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
         }
@@ -503,7 +503,7 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    public void deleteResourceIfExistsKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
+    public void deleteResourceIfExistsKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String ldap, String endPoint, String loginInfo) throws Exception {
         Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
         String resourcePrefix = getResourcePrefix(resource);
@@ -511,7 +511,12 @@ public class GosecSpec extends BaseGSpec {
         String endPointPolicies = baasPath + "/management/policies";
         String endPointCollectionsPolicies = baasPath + "/management/policies/domains";
         String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
+
         String realm = "internal";
+
+        if (ldap != null) {
+            realm = ldap.toLowerCase();
+        }
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -568,7 +573,7 @@ public class GosecSpec extends BaseGSpec {
 
                         if (commonspec.getResponse().getStatusCode() == 200) {
                             // Delete resource if exists
-                            deleteResourceIfExistsKeos(resource, stratioIdentity, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
+                            deleteResourceIfExistsKeos(resource, stratioIdentity, tenantOrig, tenantLoginInfo, ldap, endPoint, loginInfo);
                         } else {
                             commonspec.getLogger().warn("Resource {} with stratio-identity {} not found so it's not deleted", resource, stratioIdentity);
                         }
@@ -1093,10 +1098,10 @@ public class GosecSpec extends BaseGSpec {
      * @param modifications   : data to modify the resource
      * @throws Exception if the resource does not exists or the request fails
      */
-    @When("^I update '(policy|user|group|tenant)' '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov)')? with:$")
-    public void updateResource(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
+    @When("^I update '(policy|user|group|tenant)' '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')?( in LDAP '(.+?)')? based on '([^:]+?)'( as '(json|string|gov)')? with:$")
+    public void updateResource(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String ldap, String baseData, String type, DataTable modifications) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            updateResourceKeos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications);
+            updateResourceKeos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications, ldap);
         } else {
             updateResourceDcos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications);
         }
@@ -1185,7 +1190,7 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    private void updateResourceKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
+    private void updateResourceKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications, String ldap) throws Exception {
         Integer[] expectedStatusUpdate = {200, 201, 204};
         String resourcePrefix = getResourcePrefix(resource);
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
@@ -1198,6 +1203,17 @@ public class GosecSpec extends BaseGSpec {
         String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
         List<List<String>> newModifications;
         newModifications = convertDataTableToModifiableList(modifications);
+        String realm = "internal";
+        String userOrGroupName = resourceId;
+
+        if (ldap != null) {
+            realm = ldap.toLowerCase();
+            String[] elementos = userOrGroupName.split("-" + ldap);
+            userOrGroupName = elementos[0];
+        } else {
+            String[] elementos = userOrGroupName.split("-internal");
+            userOrGroupName = elementos[0];
+        }
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -1235,13 +1251,13 @@ public class GosecSpec extends BaseGSpec {
                 } else {
                     if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) { //Stratio-identity new values
                         if (resource.equals("user")) {
-                            commonspec.getLogger().warn("Adding username={}", resourceId);
-                            List<String> newField = Arrays.asList("$.username", "ADD", resourceId, "string");
+                            commonspec.getLogger().warn("Adding username={}", userOrGroupName);
+                            List<String> newField = Arrays.asList("$.username", "ADD", userOrGroupName, "string");
                             newModifications.add(newField);
                         } else {
                             if (resource.equals("group")) {
-                                commonspec.getLogger().warn("Adding groupname={}", resourceId);
-                                List<String> newField = Arrays.asList("$.groupname", "ADD", resourceId, "string");
+                                commonspec.getLogger().warn("Adding groupname={}", userOrGroupName);
+                                List<String> newField = Arrays.asList("$.groupname", "ADD", userOrGroupName, "string");
                                 newModifications.add(newField);
                             }
                         }
@@ -1259,8 +1275,25 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().error("Error updating Resource {} {}: {}", resource, resourceId, commonspec.getResponse().getResponse());
                     throw e;
                 }
-            } else {
-                commonspec.getLogger().error("Resource {}:{} not found so it's not updated", resource, resourceId);
+            } else {  //Try to delete resource using stratio-identity
+                if (managementBaasVersion != null) {
+                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
+                    gosecBaasVersionArray = managementBaasVersion.split("\\.");
+                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
+                        endPointResource = endPoint + resourcePrefix + stratioIdentity;
+
+                        restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
+
+                        if (commonspec.getResponse().getStatusCode() == 200) {
+                            // Update resource if exists
+                            updateResourceKeos(resource, stratioIdentity, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications, ldap);
+                        } else {
+                            commonspec.getLogger().warn("Resource {} with stratio-identity {} not found so it's not updated", resource, stratioIdentity);
+                        }
+                    }
+                } else {
+                    commonspec.getLogger().warn("Resource {} with id {} not found so it's not updated", resource, resourceId);
+                }
             }
         } catch (Exception e) {
             commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}: {}", commonspec.getRestHost(), commonspec.getRestPort());
@@ -1383,15 +1416,15 @@ public class GosecSpec extends BaseGSpec {
      * @param doesNotExist    : (IF false) resource will be overwritten if exists previously  (OPTIONAL)
      * @throws Exception
      */
-    @When("^I create (custom|system) user '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( if it does not exist)?$")
-    public void createUserResource(String type, String userName, String tenantOrig, String tenantLoginInfo, String
+    @When("^I create (custom|system) user '(.+?)'( in tenant '(.+?)')?( in LDAP with REALM '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( if it does not exist)?$")
+    public void createUserResource(String type, String userName, String tenantOrig, String realm, String tenantLoginInfo, String
             keytab, String certificate, String groups, String doesNotExist) throws Exception {
         Boolean booleanExist = false;
         if (doesNotExist != null) {
             booleanExist = true;
         }
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createUserResourceKeos(type, userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, booleanExist);
+            createUserResourceKeos(type, userName, tenantOrig, realm, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         } else {
             createUserResourceDcos(type, userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         }
@@ -1460,7 +1493,7 @@ public class GosecSpec extends BaseGSpec {
 
                 } else {
                     //json for gosec-management-baas endpoint
-                    data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, false);
+                    data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, false, null);
                 }
 
                 // Send POST request
@@ -1491,7 +1524,7 @@ public class GosecSpec extends BaseGSpec {
 
     }
 
-    private void createUserResourceKeos(String type, String userName, String tenantOrig, String
+    private void createUserResourceKeos(String type, String userName, String tenantOrig, String realm, String
             tenantLoginInfo, String keytab, String certificate, String groups, boolean doesNotExist) throws Exception {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endPoint = baasPath + "/management/user";
@@ -1513,7 +1546,7 @@ public class GosecSpec extends BaseGSpec {
         }
 
         String uid = userName.replaceAll("\\s+", ""); //delete white spaces
-        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName);
+        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName, realm);
         if (tenantOrig != null) {
             // Set REST connection
             commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
@@ -1531,7 +1564,7 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().warn("{} user:{} already exist", type, userName);
                 } else {
                     // Delete user and send the request again
-                    deleteResourceIfExistsKeos("user", userName, tenantOrig, tenantLoginInfo, endPoint, null);
+                    deleteResourceIfExistsKeos("user", userName, tenantOrig, tenantLoginInfo, realm, endPoint, null);
 
                     try {
                         assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
@@ -1540,7 +1573,7 @@ public class GosecSpec extends BaseGSpec {
                         throw e;
                     }
                     //send request again
-                    createUserResourceKeos(type, userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
+                    createUserResourceKeos(type, userName, tenantOrig, realm, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
                 }
             }
         } catch (Exception e) {
@@ -1561,15 +1594,15 @@ public class GosecSpec extends BaseGSpec {
      * @param doesNotExist    : (IF false) resource will be overwritten if exists previously  (OPTIONAL)
      * @throws Exception
      */
-    @When("^I create (custom|system) group '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( assigned to users '(.+?)')?( assigned to groups '(.+?)')?( if it does not exist)?$")
-    public void createGroupResource(String type, String groupName, String tenantOrig, String
+    @When("^I create (custom|system) group '(.+?)'( in tenant '(.+?)')?( in LDAP with REALM '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( assigned to users '(.+?)')?( assigned to groups '(.+?)')?( if it does not exist)?$")
+    public void createGroupResource(String type, String groupName, String tenantOrig, String realm, String
             tenantLoginInfo, String users, String groups, String doesNotExist) throws Exception {
         Boolean booleanExist = false;
         if (doesNotExist != null) {
             booleanExist = true;
         }
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createGroupResourceKeos(type, groupName, tenantOrig, tenantLoginInfo, users, groups, booleanExist);
+            createGroupResourceKeos(type, groupName, tenantOrig, tenantLoginInfo, users, groups, booleanExist, realm);
         } else {
             createGroupResourceDcos(type, groupName, tenantOrig, tenantLoginInfo, users, groups, booleanExist);
         }
@@ -1633,7 +1666,7 @@ public class GosecSpec extends BaseGSpec {
 
                 } else {
                     //json for gosec-management-baas endpoint
-                    data = generateBaasGroupJson(gid, groupName, users, groups, type, false);
+                    data = generateBaasGroupJson(gid, groupName, users, groups, type, false, null);
                 }
 
                 // Send POST request
@@ -1665,7 +1698,7 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private void createGroupResourceKeos(String type, String groupName, String tenantOrig, String
-            tenantLoginInfo, String users, String groups, boolean doesNotExist) throws Exception {
+            tenantLoginInfo, String users, String groups, boolean doesNotExist, String realm) throws Exception {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endPoint = baasPath + "/management/group";
         String endPointResource = "";
@@ -1680,7 +1713,7 @@ public class GosecSpec extends BaseGSpec {
             addGroupName = true;
         }
 
-        String data = generateBaasGroupJson(gid, groupName, users, groups, type, addGroupName);
+        String data = generateBaasGroupJson(gid, groupName, users, groups, type, addGroupName, realm);
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -1700,7 +1733,7 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().warn("Custom group:{} already exist", groupName);
                 } else {
                     // Delete group and send the request again
-                    deleteResourceIfExistsKeos("group", groupName, tenantOrig, tenantLoginInfo, endPoint, null);
+                    deleteResourceIfExistsKeos("group", groupName, tenantOrig, tenantLoginInfo, realm, endPoint, null);
 
                     try {
                         assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
@@ -1709,7 +1742,7 @@ public class GosecSpec extends BaseGSpec {
                         throw e;
                     }
                     //send request again
-                    createGroupResourceKeos(type, groupName, tenantOrig, tenantLoginInfo, users, groups, doesNotExist);
+                    createGroupResourceKeos(type, groupName, tenantOrig, tenantLoginInfo, users, groups, doesNotExist, realm);
                 }
             }
         } catch (Exception e) {
@@ -1746,7 +1779,7 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private String generateBaasGroupJson(String gid, String groupName, String users, String groups, String
-            type, Boolean addGroupName) {
+            type, Boolean addGroupName, String realm) {
         JSONObject postJson = new JSONObject();
         String data = "";
         postJson.put("gid", gid);
@@ -1789,6 +1822,9 @@ public class GosecSpec extends BaseGSpec {
         if (addGroupName != null) {
             postJson.put("groupname", gid);
         }
+        if (realm != null) {
+            postJson.put("realm", realm);
+        }
         data = postJson.toString();
         return data;
     }
@@ -1822,7 +1858,7 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private String generateBaasUserJson(String uid, String userName, String groups, String keytab, String
-            certificate, Boolean addEnable, String type, Boolean addUserName) {
+            certificate, Boolean addEnable, String type, Boolean addUserName, String realm) {
         JSONObject postJson = new JSONObject();
         String data = "";
         postJson.put("uid", uid);
@@ -1861,6 +1897,9 @@ public class GosecSpec extends BaseGSpec {
         }
         if (addUserName != null) {
             postJson.put("username", uid);
+        }
+        if (realm != null) {
+            postJson.put("realm", realm);
         }
         data = postJson.toString();
         return data;
@@ -2744,6 +2783,23 @@ public class GosecSpec extends BaseGSpec {
         if (noSync == null) {
             Thread.sleep(5000);
             runLdapSynchronizerWithRetries("total", 5, 10);
+        }
+    }
+
+    @When("^I get id from REALM with name '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getRealmId(String RealmName, String envVar) throws Exception {
+        Boolean content = false;
+        String endPointGetRole = "/gosec/identities/identities/realms/ldap?name=" + RealmName;
+
+        restSpec.sendRequestNoDataTable("GET", endPointGetRole, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (.name == \"" + RealmName + "\").id' | sed s/\\\"//g");
+            commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
+            if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
+                fail("Error obtaining id from REALM " + RealmName);
+            }
+        } else {
+            commonspec.getLogger().warn("REALM with id: {} does not exist", RealmName);
         }
     }
 }

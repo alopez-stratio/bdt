@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 1.0.0 (upcoming)
 
+* [GS-8531] Create new steps on BDT library for multiLdap management
 * [GS-8509] Improve error messages
 * [GS-8334] Changes for stratio-identity feature
 * [GS-8313] Improve ldap identities management in BDT
