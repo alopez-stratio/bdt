@@ -356,9 +356,24 @@ public class ReplacementAspect {
         while (newVal.contains("!{")) {
             String placeholder = newVal.substring(newVal.indexOf("!{"),
                     newVal.indexOf("}", newVal.indexOf("!{")) + 1);
-            String attribute = placeholder.substring(2, placeholder.length() - 1);
-            // we want to use value previously saved
-            String prop = ThreadProperty.get(attribute);
+
+            String modifier = null;
+            String prop;
+            String attribute;
+            if (placeholder.contains(".")) {
+                attribute = placeholder.substring(2, placeholder.indexOf("."));
+                prop = ThreadProperty.get(attribute);
+                modifier = placeholder.substring(placeholder.indexOf(".") + 1, placeholder.length() - 1);
+
+                if ("toLower".equals(modifier)) {
+                    prop = prop.toLowerCase();
+                } else if ("toUpper".equals(modifier)) {
+                    prop = prop.toUpperCase();
+                }
+            } else {
+                attribute = placeholder.substring(2, placeholder.length() - 1);
+                prop = ThreadProperty.get(attribute);
+            }
 
             if (prop == null && (pjp.getThis() instanceof CucumberReporter.TestMethod)) {
                 return element;

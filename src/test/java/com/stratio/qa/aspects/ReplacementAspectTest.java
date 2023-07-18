@@ -152,4 +152,16 @@ public class ReplacementAspectTest {
         assertThat(repAspect.replaceEnvironmentPlaceholders("${STRATIOBDD_ENV2:-{}}", pjp)).as("Unexpected replacement").isEqualTo("{}");
         assertThat(repAspect.replaceEnvironmentPlaceholders("${STRATIOBDD_ENV2:-[]}", pjp)).as("Unexpected replacement").isEqualTo("[]");
     }
+
+    @Test
+    public void replaceThreadValue() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        ThreadProperty.set("threadVar1", "Upper");
+        ProceedingJoinPoint pjp = null;
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThat(repAspect.replacedElement("!{threadVar1}", pjp)).isEqualTo("Upper");
+        assertThat(repAspect.replacedElement("!{threadVar1.toLower}", pjp)).isEqualTo("upper");
+        assertThat(repAspect.replacedElement("!{threadVar1.toUpper}", pjp)).isEqualTo("UPPER");
+    }
 }
