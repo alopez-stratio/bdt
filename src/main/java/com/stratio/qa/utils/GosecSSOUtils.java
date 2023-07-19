@@ -55,6 +55,8 @@ public class GosecSSOUtils {
 
     public String tenant;
 
+    public String ldap;
+
     public String ssoHost = System.getProperty("ssoHost", "sso.paas.labs.stratio.com");
 
     private String governance;
@@ -67,12 +69,13 @@ public class GosecSSOUtils {
 
     private Boolean verifyHost = true;
 
-    public GosecSSOUtils(String ssHost, String userName, String passWord, String tenant, String gov) {
+    public GosecSSOUtils(String ssHost, String userName, String passWord, String tenant, String gov, String ldap) {
         this.ssoHost = ssHost;
         this.userName = userName;
         this.passWord = passWord;
         this.tenant = tenant;
         this.governance = gov;
+        this.ldap = ldap;
     }
 
     /**
@@ -151,6 +154,11 @@ public class GosecSSOUtils {
         if (tenant != null) {
             params.add(new BasicNameValuePair("tenant", tenant));
             params.add(new BasicNameValuePair("customFields[tenant]", tenant));
+        }
+
+        if (ldap != null) {
+            params.add(new BasicNameValuePair("ldap", ldap));
+            params.add(new BasicNameValuePair("customFields[ldap]", ldap));
         }
 
         params.add(new BasicNameValuePair("lt", loginCode));

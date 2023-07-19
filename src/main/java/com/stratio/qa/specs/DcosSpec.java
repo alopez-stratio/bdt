@@ -29,9 +29,11 @@ import com.stratio.qa.utils.vaultansible.VaultAnsible;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
+
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
+
 import org.assertj.core.api.Assertions;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -118,8 +120,9 @@ public class DcosSpec extends BaseGSpec {
 
     /**
      * Set DCOS cookie for future requests
-     * @param DCOSsecret    : DCOS secret to be used
-     * @param email         : email to log in DCOS
+     *
+     * @param DCOSsecret : DCOS secret to be used
+     * @param email      : email to log in DCOS
      * @throws Exception
      */
     public void setDCOSCookie(String DCOSsecret, String email) throws Exception {
@@ -181,7 +184,7 @@ public class DcosSpec extends BaseGSpec {
 
             } else {
 
-                GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, gov);
+                GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, gov, null);
                 ssoUtils.setVerifyHost(hostVerifier == null);
                 HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
 
@@ -237,9 +240,9 @@ public class DcosSpec extends BaseGSpec {
     /**
      * Generate token to authenticate in gosec SSO with Discovery
      *
-     * @param ssoHost  : current sso host
-     * @param userName : username
-     * @param passWord : password
+     * @param ssoHost         : current sso host
+     * @param userName        : username
+     * @param passWord        : password
      * @param discoveryCookie : Cookie for discovery
      * @throws Exception exception
      */
@@ -259,7 +262,7 @@ public class DcosSpec extends BaseGSpec {
 
         } else {
 
-            GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, null);
+            GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, null, null);
             ssoUtils.setVerifyHost(hostVerifier == null);
             HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator();
             String[] tokenList = new String[]{discoveryCookie};
@@ -286,7 +289,7 @@ public class DcosSpec extends BaseGSpec {
     public void setGoSecSSOCookieForIntelligence(String ssoHost, String userName, String passWord, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
         String[] tokenList = new String[]{"jupyterhub-session-id", "jupyterhub-hub-login"};
 
-        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, null);
+        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, passWord, tenant, null, null);
         ssoUtils.setVerifyHost(hostVerifier == null);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
         List<Cookie> cookiesAttributes = this.commonspec.addSsoToken(ssoCookies, tokenList);
@@ -303,8 +306,8 @@ public class DcosSpec extends BaseGSpec {
      * Checks if there are any unused nodes in the cluster and returns the IP of one of them.
      * REQUIRES A PREVIOUSLY-ESTABLISHED SSH CONNECTION TO DCOS-CLI TO WORK
      *
-     * @param hosts     : list of IPs that will be investigated
-     * @param envVar    : environment variable name
+     * @param hosts  : list of IPs that will be investigated
+     * @param envVar : environment variable name
      * @throws Exception
      */
     @Given("^I save the IP of an unused node in hosts '(.+?)' in the in environment variable '(.+?)'?$")
@@ -460,9 +463,9 @@ public class DcosSpec extends BaseGSpec {
     /**
      * A PUT request over the body value.
      *
-     * @param key       : key to be added
-     * @param value     : value to be added
-     * @param service   : service to add key-value pair to
+     * @param key     : key to be added
+     * @param value   : value to be added
+     * @param service : service to add key-value pair to
      * @throws Exception
      */
     @Then("^I add a new DCOS label with key '(.+?)' and value '(.+?)' to the service '(.+?)'?$")
@@ -494,9 +497,9 @@ public class DcosSpec extends BaseGSpec {
     /**
      * Set a environment variable in marathon and deploy again.
      *
-     * @param key       : key to be added
-     * @param value     : value to be added
-     * @param service   : service to add key-value pair to
+     * @param key     : key to be added
+     * @param value   : value to be added
+     * @param service : service to add key-value pair to
      * @throws Exception
      */
     @Then("^I modify marathon environment variable '(.+?)' with value '(.+?)' for service '(.+?)'?$")
@@ -516,9 +519,10 @@ public class DcosSpec extends BaseGSpec {
 
     /**
      * Obtain metabase id for user
-     * @param user      : user to obtain metabase id from
-     * @param password  : password for user
-     * @param url       : endpoint to retrieve info from
+     *
+     * @param user     : user to obtain metabase id from
+     * @param password : password for user
+     * @param url      : endpoint to retrieve info from
      * @throws Exception
      */
     @Then("^I obtain metabase id for user '(.+?)' and password '(.+?)' in endpoint '(.+?)' and save in context cookies$")
@@ -597,13 +601,12 @@ public class DcosSpec extends BaseGSpec {
     }
 
     /**
-     *
-     * @param role          : role
-     * @param service       : service name
-     * @param instance      : instance name
-     * @param tag           : tag
-     * @param constraint    : expected contraint
-     * @param value         : value
+     * @param role       : role
+     * @param service    : service name
+     * @param instance   : instance name
+     * @param tag        : tag
+     * @param constraint : expected contraint
+     * @param value      : value
      * @throws Exception
      */
     public void checkConstraint(String role, String service, String instance, String tag, String constraint, String value) throws Exception {
@@ -704,7 +707,6 @@ public class DcosSpec extends BaseGSpec {
     }
 
     /**
-     *
      * @param role
      * @param service
      * @param element
@@ -718,7 +720,6 @@ public class DcosSpec extends BaseGSpec {
     }
 
     /**
-     *
      * @param role
      * @param service
      * @param element
@@ -730,7 +731,6 @@ public class DcosSpec extends BaseGSpec {
     }
 
     /**
-     *
      * @param role
      * @param instance
      * @param tag
@@ -817,7 +817,6 @@ public class DcosSpec extends BaseGSpec {
     }
 
     /**
-     *
      * @param role
      * @param instance
      * @param tag
@@ -1133,10 +1132,10 @@ public class DcosSpec extends BaseGSpec {
     /**
      * Obtain info from json and expose in thread variable
      *
-     * @param json          : json to look for info in
-     * @param jqExpression  : jq expression to obtain specific info from json
-     * @param envVar        : thread variable where to expose value
-     * @param position      : position in value obtained with jq
+     * @param json         : json to look for info in
+     * @param jqExpression : jq expression to obtain specific info from json
+     * @param envVar       : thread variable where to expose value
+     * @param position     : position in value obtained with jq
      */
     public void obtainJSONInfoAndExpose(String json, String jqExpression, String envVar, String position) {
         String value = "";
@@ -1449,9 +1448,9 @@ public class DcosSpec extends BaseGSpec {
     /**
      * Obtains info from a json stored in a variable and expose it in a thread variable
      *
-     * @param json      : json where to get info from
-     * @param info      : info to be obtained from json
-     * @param envVar    : thread environment variable where to expose obtained info
+     * @param json   : json where to get info from
+     * @param info   : info to be obtained from json
+     * @param envVar : thread environment variable where to expose obtained info
      */
     public void obtainJSONInfo(String json, String info, String envVar) {
         String jqExpression = "";

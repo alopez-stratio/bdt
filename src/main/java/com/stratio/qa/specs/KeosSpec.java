@@ -31,8 +31,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+
 import org.testng.Assert;
+
 import java.util.concurrent.Future;
+
 import org.asynchttpclient.Response;
 
 
@@ -63,9 +66,9 @@ public class KeosSpec extends BaseGSpec {
      * @param pathWithoutLogin : whether to remove /login or keep it
      * @throws Exception exception
      */
-    @Given("^I set sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( without host name verification)?( without login path)?$")
-    public void setGoSecSSOCookieKeos(String token_type, String ssoHost, String userName, String password, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
-        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, token_type);
+    @Given("^I set sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
+    public void setGoSecSSOCookieKeos(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
+        GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, token_type, ldap);
         ssoUtils.setVerifyHost(hostVerifier == null);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
 
@@ -77,7 +80,7 @@ public class KeosSpec extends BaseGSpec {
             case "discovery":
                 Assert.assertTrue(ThreadProperty.has("discovery_sso_cookie_name"),
                         "Discovery SSO Cookie name must be setup first in envVar 'discovery_sso_cookie_name'");
-                tokenList = new String[] {ThreadProperty.get("discovery_sso_cookie_name")};
+                tokenList = new String[]{ThreadProperty.get("discovery_sso_cookie_name")};
                 break;
             case "intelligence":
                 tokenList = new String[]{"jupyterhub-session-id", "jupyterhub-hub-login"};
@@ -126,13 +129,13 @@ public class KeosSpec extends BaseGSpec {
         }
     }
 
-    @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( without host name verification)?( without login path)?$")
-    public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
+    @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
+    public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
         long currentTime = System.currentTimeMillis() / 1000;
         ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost + "_" + userName + "_" + password + "_" + tenant);
         if (cookieCache == null || (cookieCache.getLeft() - currentTime) < 60) {
             this.commonspec.getLogger().debug("Cookie expiration is imminent, I get cookie again");
-            setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, hostVerifier, pathWithoutLogin);
+            setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
         } else {
             this.commonspec.getLogger().debug("Set cookies from cache");
             commonspec.setCookies(cookieCache.getRight());
@@ -211,6 +214,7 @@ public class KeosSpec extends BaseGSpec {
 
     /**
      * Obtain metabase id for the current user and set ups metabase token headers
+     *
      * @param host : discovery host
      * @param path : discovery session endpoint
      * @throws Exception
