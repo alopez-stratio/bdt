@@ -1668,10 +1668,31 @@ public class KubernetesClient {
      */
     public String getIngressList(String namespace) {
         StringBuilder result = new StringBuilder();
-        for (Ingress ingress : k8sClient.network().v1().ingresses().inNamespace(namespace).list().getItems()) {
+        for (Ingress ingress : getIngressListItems(namespace)) {
             result.append(ingress.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get ingress -n namespace
+     *
+     * @param namespace Namespace
+     * @return ingress list
+     */
+    public List<Ingress> getIngressListItems(String namespace) {
+        return k8sClient.network().v1().ingresses().inNamespace(namespace).list().getItems();
+    }
+
+    /**
+     * Get ingress by label selector
+     *
+     * @param namespace Namespace
+     * @return ingress list
+     */
+    public List<Ingress> getIngressFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector = getLabelSelector(selector);
+        return k8sClient.network().v1().ingresses().inNamespace(namespace).withLabelSelector(labelSelector).list().getItems();
     }
 
     /**
