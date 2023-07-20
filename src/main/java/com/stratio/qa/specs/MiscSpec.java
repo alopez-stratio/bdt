@@ -317,6 +317,25 @@ public class MiscSpec extends BaseGSpec {
         }
     }
 
+    /**
+     * Check value stored in environment variable is empty or is not empty
+     * @param envVar    value to check
+     * @param operation [is empty, is not empty]
+     */
+    @Then("^'(.*)' (is empty|is not empty)$")
+    public void checkValue(String envVar, String operation) throws Exception {
+        switch (operation.toLowerCase()) {
+            case "is empty":
+                Assertions.assertThat(envVar).as("Value is not empty.").isEmpty();
+                break;
+            case "is not empty":
+                Assertions.assertThat(envVar).as("Value is empty.").isNotEmpty();
+                break;
+            default:
+                throw new Exception("Not a valid comparison. Valid ones are: ['is empty', 'is not empty']");
+        }
+    }
+
     @Given("^I set tenant variables$")
     public void setTenantVariables() throws Exception {
         String ccTenant = System.getProperty("CC_TENANT", "NONE");
