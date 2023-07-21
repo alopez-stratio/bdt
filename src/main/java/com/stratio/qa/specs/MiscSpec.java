@@ -26,6 +26,7 @@ import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import org.apache.commons.lang.time.DateUtils;
+import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.assertj.core.api.Assertions;
@@ -616,6 +617,10 @@ public class MiscSpec extends BaseGSpec {
         try {
             FileInputStream fis = new FileInputStream(new File(filePath));
             Workbook workbook = new XSSFWorkbook(fis);
+
+            // Set limits to prevent zip bombs
+            int maxInflateRatio = 2000;
+            ZipSecureFile.setMinInflateRatio(maxInflateRatio);
 
             Sheet sheet;
             if (sheetName != null && !sheetName.isEmpty()) {
