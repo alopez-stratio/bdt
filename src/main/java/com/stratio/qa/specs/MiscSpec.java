@@ -26,14 +26,14 @@ import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import org.apache.commons.lang.time.DateUtils;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.assertj.core.api.Assertions;
 import org.hjson.JsonArray;
 import org.hjson.JsonValue;
 
 import javax.crypto.spec.SecretKeySpec;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.StringReader;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.security.Key;
 import java.security.KeyFactory;
@@ -135,8 +135,8 @@ public class MiscSpec extends BaseGSpec {
     /**
      * Sets multiple ThreadProperty variables using a data table
      * Given I save the following variables:
-     *      | NEW_VAR | NEW_VALUE |
-     *      | OLD_VAR | NEW_VALUE |
+     * | NEW_VAR | NEW_VALUE |
+     * | OLD_VAR | NEW_VALUE |
      */
     @Given("^I save the following variables:$")
     public void saveMultipleVariables(DataTable dataTable) {
@@ -484,7 +484,7 @@ public class MiscSpec extends BaseGSpec {
     /**
      * Get current date and time plus provided seconds and save into environment variable
      *
-     * @param envVar        : environment variable where date time is saved
+     * @param envVar         : environment variable where date time is saved
      * @param addSecondsTime : added seconds
      */
     @Given("^I get date and time with '(.+?)' more seconds from now and save the value in environment variable '(.+?)'$")
@@ -608,5 +608,75 @@ public class MiscSpec extends BaseGSpec {
             commonspec.getLogger().error("Error creating JWT, check data");
             throw e;
         }
+    }
+
+    @Then("^Excel file in path '(.+?)' contains value '(.+?)'( in sheet '(.+?)')?( with column number '(.+?)')?( with column name '(.+?)')?( with row number '(.+?)')?( with row name '(.+?)')?$")
+    public void verifyExcelCellValue(String filePath, String expectedValue, String sheetName,
+                                     String columnNumber, String columnName, String rowNumber, String rowName) throws Exception {
+        try {
+            FileInputStream fis = new FileInputStream(new File(filePath));
+            Workbook workbook = new XSSFWorkbook(fis);
+
+            Sheet sheet;
+            if (sheetName != null && !sheetName.isEmpty()) {
+                sheet = workbook.getSheet(sheetName);
+                if (sheet == null) {
+                    throw new IllegalArgumentException("Sheet with name '" + sheetName + "' not found in the Excel file.");
+                }
+            } else {
+                sheet = workbook.getSheetAt(0); // Use the first sheet by default
+            }
+
+            Cell cell = findCellWithValue(sheet, expectedValue, columnNumber, columnName, rowNumber, rowName);
+            if (cell != null) {
+                System.out.println("String " + expectedValue + " found in cell: " + cell.getStringCellValue());
+            } else {
+                throw new Exception("String " + expectedValue + " NOT found");
+            }
+
+            workbook.close();
+            fis.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Cell findCellWithValue(Sheet sheet, String expectedValue, String columnNumber, String columnName,
+                                   String rowNumber, String rowName) {
+        for (Row row : sheet) {
+            if (rowMatchesCriteria(row, rowNumber, rowName)) {
+                for (Cell cell : row) {
+                    if (cellMatchesCriteria(cell, expectedValue, columnNumber, columnName)) {
+                        return cell;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean rowMatchesCriteria(Row row, String rowNumber, String rowName) {
+        if (rowNumber != null && !rowNumber.isEmpty()) {
+            return row.getRowNum() == Integer.parseInt(rowNumber) - 1;
+        } else if (rowName != null && !rowName.isEmpty()) {
+            Cell cell = row.getCell(0);
+            return cell != null && cell.getCellType() == CellType.STRING && cell.getStringCellValue().equalsIgnoreCase(rowName);
+        }
+        return true; // No criteria specified, match any row
+    }
+
+    private boolean cellMatchesCriteria(Cell cell, String expectedValue, String columnNumber, String columnName) {
+        if (columnNumber != null && !columnNumber.isEmpty()) {
+            return cell.getColumnIndex() == Integer.parseInt(columnNumber) - 1 && cellMatchesValue(cell, expectedValue);
+        } else if (columnName != null && !columnName.isEmpty()) {
+            Cell columnHeaderCell = cell.getSheet().getRow(0).getCell(cell.getColumnIndex());
+            return columnHeaderCell != null && columnHeaderCell.getCellType() == CellType.STRING &&
+                    columnHeaderCell.getStringCellValue().equalsIgnoreCase(columnName) && cellMatchesValue(cell, expectedValue);
+        }
+        return cellMatchesValue(cell, expectedValue); // No criteria specified, match any cell
+    }
+
+    private boolean cellMatchesValue(Cell cell, String expectedValue) {
+        return cell.getCellType() == CellType.STRING && cell.getStringCellValue().contains(expectedValue);
     }
 }

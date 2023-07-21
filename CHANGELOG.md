@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 1.0.0 (upcoming)
 
+* [GS-8575] Step to search for a string in an Excel file
 * [GS-8560] Changes for multiLdap Login
 * [GS-8531] Create new steps on BDT library for multiLdap management
 * [GS-8509] Improve error messages
