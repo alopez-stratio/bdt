@@ -399,10 +399,10 @@ public class GosecSpec extends BaseGSpec {
      * @param loginInfo       : user and password to log in service (OPTIONAL)
      * @throws Exception
      */
-    @When("^I delete '(policy|user|group|collectionPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( from LDAP '(.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
-    public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String ldap, String endPoint, String loginInfo) throws Exception {
+    @When("^I delete '(policy|user|group|collectionPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
+    public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, ldap, endPoint, loginInfo);
+            deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
         } else {
             deleteResourceIfExistsDcos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
         }
@@ -503,7 +503,7 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    public void deleteResourceIfExistsKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String ldap, String endPoint, String loginInfo) throws Exception {
+    public void deleteResourceIfExistsKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
         Integer[] expectedStatusDelete = {200, 204};
         String endPointResource = "";
         String resourcePrefix = getResourcePrefix(resource);
@@ -511,12 +511,6 @@ public class GosecSpec extends BaseGSpec {
         String endPointPolicies = baasPath + "/management/policies";
         String endPointCollectionsPolicies = baasPath + "/management/policies/domains";
         String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
-
-        String realm = "internal";
-
-        if (ldap != null) {
-            realm = ldap.toLowerCase();
-        }
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -562,25 +556,8 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().warn("Error deleting Resource {}: {}", resourceId, commonspec.getResponse().getResponse());
                     throw e;
                 }
-            } else {  //Try to delete resource using stratio-identity
-                if (managementBaasVersion != null) {
-                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
-                    String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
-                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
-                        endPointResource = endPoint + resourcePrefix + stratioIdentity;
-
-                        restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
-
-                        if (commonspec.getResponse().getStatusCode() == 200) {
-                            // Delete resource if exists
-                            deleteResourceIfExistsKeos(resource, stratioIdentity, tenantOrig, tenantLoginInfo, ldap, endPoint, loginInfo);
-                        } else {
-                            commonspec.getLogger().warn("Resource {} with stratio-identity {} not found so it's not deleted", resource, stratioIdentity);
-                        }
-                    }
-                } else {
-                    commonspec.getLogger().warn("Resource {} with id {} not found so it's not deleted", resource, resourceId);
-                }
+            } else {
+                commonspec.getLogger().warn("Resource {} with id {} not found so it's not deleted", resource, resourceId);
             }
         } catch (Exception e) {
             commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}: {}", commonspec.getRestHost(), commonspec.getRestPort());
@@ -744,7 +721,6 @@ public class GosecSpec extends BaseGSpec {
         Integer expectedStatusCode = 204;
 
         String managementBaasVersion = null;
-        String realm = "internal";
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             endPointGetAllUsers = "/gosec/baas/management/users";
@@ -787,26 +763,9 @@ public class GosecSpec extends BaseGSpec {
                 } else {
                     throw new Exception("Error obtaining info from tenant " + tenantId + " - Status code: " + commonspec.getResponse().getStatusCode());
                 }
-            } else {  //Using stratio-identity
-                if (managementBaasVersion != null) {
-                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
-                    String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
-                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
-                        restSpec.sendRequestNoDataTable("GET", endPointGosec, null, null, null);
-                        if (commonspec.getResponse().getStatusCode() == 200) {
-                            if (commonspec.getResponse().getResponse().contains("\"" + uidOrGid + "\":\"" + stratioIdentity + "\"")) {
-                                includeResourceInTenant(resource, stratioIdentity, tenantId);
-                            } else {
-                                throw new Exception(resource + " " + resourceId + " nor " + stratioIdentity + " exist in Gosec");
-                            }
-                        }
-                    } else {
-                        throw new Exception(resource + " " + resourceId + " doesn't exist in Gosec");
-                    }
-                }
+            } else {
+                throw new Exception("Error obtaining " + resource + "s - Status code: " + commonspec.getResponse().getStatusCode());
             }
-        } else {
-            throw new Exception("Error obtaining " + resource + "s - Status code: " + commonspec.getResponse().getStatusCode());
         }
     }
 
@@ -1098,10 +1057,10 @@ public class GosecSpec extends BaseGSpec {
      * @param modifications   : data to modify the resource
      * @throws Exception if the resource does not exists or the request fails
      */
-    @When("^I update '(policy|user|group|tenant)' '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')?( in LDAP '(.+?)')? based on '([^:]+?)'( as '(json|string|gov)')? with:$")
-    public void updateResource(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String ldap, String baseData, String type, DataTable modifications) throws Exception {
+    @When("^I update '(policy|user|group|tenant)' '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov)')? with:$")
+    public void updateResource(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            updateResourceKeos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications, ldap);
+            updateResourceKeos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications);
         } else {
             updateResourceDcos(resource, resourceId, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications);
         }
@@ -1190,7 +1149,7 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    private void updateResourceKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications, String ldap) throws Exception {
+    private void updateResourceKeos(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
         Integer[] expectedStatusUpdate = {200, 201, 204};
         String resourcePrefix = getResourcePrefix(resource);
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
@@ -1203,17 +1162,7 @@ public class GosecSpec extends BaseGSpec {
         String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
         List<List<String>> newModifications;
         newModifications = convertDataTableToModifiableList(modifications);
-        String realm = "internal";
         String userOrGroupName = resourceId;
-
-        if (ldap != null) {
-            realm = ldap.toLowerCase();
-            String[] elementos = userOrGroupName.split("-" + ldap);
-            userOrGroupName = elementos[0];
-        } else {
-            String[] elementos = userOrGroupName.split("-internal");
-            userOrGroupName = elementos[0];
-        }
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -1275,25 +1224,8 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().error("Error updating Resource {} {}: {}", resource, resourceId, commonspec.getResponse().getResponse());
                     throw e;
                 }
-            } else {  //Try to delete resource using stratio-identity
-                if (managementBaasVersion != null) {
-                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
-                    gosecBaasVersionArray = managementBaasVersion.split("\\.");
-                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
-                        endPointResource = endPoint + resourcePrefix + stratioIdentity;
-
-                        restSpec.sendRequestNoDataTable("GET", endPointResource, loginInfo, null, null);
-
-                        if (commonspec.getResponse().getStatusCode() == 200) {
-                            // Update resource if exists
-                            updateResourceKeos(resource, stratioIdentity, tenantOrig, tenantLoginInfo, loginInfo, baseData, type, modifications, ldap);
-                        } else {
-                            commonspec.getLogger().warn("Resource {} with stratio-identity {} not found so it's not updated", resource, stratioIdentity);
-                        }
-                    }
-                } else {
-                    commonspec.getLogger().warn("Resource {} with id {} not found so it's not updated", resource, resourceId);
-                }
+            } else {
+                commonspec.getLogger().warn("Resource {} with id {} not found so it's not updated", resource, resourceId);
             }
         } catch (Exception e) {
             commonspec.getLogger().error("Rest Host or Rest Port are not initialized {}: {}", commonspec.getRestHost(), commonspec.getRestPort());
@@ -1317,7 +1249,6 @@ public class GosecSpec extends BaseGSpec {
         String requestOp = "PATCH";
         Integer expectedStatusCode = 200;
         String managementBaasVersion = null;
-        String realm = "internal";
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             endPointGetAllUsers = "/gosec/baas/management/users";
@@ -1380,29 +1311,12 @@ public class GosecSpec extends BaseGSpec {
                 } else {
                     throw new Exception("Error obtaining info from tenant " + tenantId + " - Status code: " + commonspec.getResponse().getStatusCode());
                 }
-            } else {  //Using stratio-identity
-                if (managementBaasVersion != null) {
-                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
-                    String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
-                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
-                        restSpec.sendRequestNoDataTable("GET", endPointGosec, null, null, null);
-                        if (commonspec.getResponse().getStatusCode() == 200) {
-                            if (commonspec.getResponse().getResponse().contains("\"" + uidOrGid + "\":\"" + stratioIdentity + "\"")) {
-                                removeResourceInTenant(resource, stratioIdentity, tenantId);
-                            } else {
-                                throw new Exception(resource + " " + resourceId + " nor " + stratioIdentity + " exist in Gosec");
-                            }
-                        }
-                    } else {
-                        throw new Exception(resource + " " + resourceId + " doesn't exist in Gosec");
-                    }
-                }
+            } else {
+                throw new Exception("Error obtaining " + resource + "s - Status code: " + commonspec.getResponse().getStatusCode());
+
             }
-        } else {
-            throw new Exception("Error obtaining " + resource + "s - Status code: " + commonspec.getResponse().getStatusCode());
         }
     }
-
 
     /**
      * Create custom user in Gosec Management or Gosec Management BaaS
@@ -1564,7 +1478,7 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().warn("{} user:{} already exist", type, userName);
                 } else {
                     // Delete user and send the request again
-                    deleteResourceIfExistsKeos("user", userName, tenantOrig, tenantLoginInfo, realm, endPoint, null);
+                    deleteResourceIfExistsKeos("user", userName, tenantOrig, tenantLoginInfo, endPoint, null);
 
                     try {
                         assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
@@ -1733,8 +1647,7 @@ public class GosecSpec extends BaseGSpec {
                     commonspec.getLogger().warn("Custom group:{} already exist", groupName);
                 } else {
                     // Delete group and send the request again
-                    deleteResourceIfExistsKeos("group", groupName, tenantOrig, tenantLoginInfo, realm, endPoint, null);
-
+                    deleteResourceIfExistsKeos("group", groupName, tenantOrig, tenantLoginInfo, endPoint, null);
                     try {
                         assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusDelete);
                     } catch (AssertionError e) {
@@ -2059,7 +1972,6 @@ public class GosecSpec extends BaseGSpec {
         String jqPathRid = "' | jq .profiles[0].rid | sed s/\\\"//g";
         String api = "identities";
         String managementBaasVersion = null;
-        String realm = "internal";
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             endPointGetAllUsers = "/gosec/baas/management/users";
@@ -2121,23 +2033,6 @@ public class GosecSpec extends BaseGSpec {
                     }
                 } else {
                     throw new Exception("Role" + " " + roleName + " doesn't exist in Gosec for tenant " + tenantId);
-                }
-            } else {  //Using stratio-identity
-                if (managementBaasVersion != null) {
-                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
-                    String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
-                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
-                        restSpec.sendRequestNoDataTable("GET", endPointGosec, null, null, null);
-                        if (commonspec.getResponse().getStatusCode() == 200) {
-                            if (commonspec.getResponse().getResponse().contains("\"" + uidOrGid + "\":\"" + stratioIdentity + "\"")) {
-                                includeResourceInRole(resource, stratioIdentity, roleName, tenantId);
-                            } else {
-                                throw new Exception(resource + " " + resourceId + " nor " + stratioIdentity + " exist in Gosec");
-                            }
-                        }
-                    } else {
-                        throw new Exception(resource + " " + resourceId + " doesn't exist in Gosec");
-                    }
                 }
             }
         } else {
@@ -2289,7 +2184,6 @@ public class GosecSpec extends BaseGSpec {
         String jqPathRid = "' | jq .profiles[0].rid | sed s/\\\"//g";
         String api = "identities";
         String managementBaasVersion = null;
-        String realm = "internal";
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             endPointGetAllUsers = "/gosec/baas/management/users";
@@ -2351,23 +2245,6 @@ public class GosecSpec extends BaseGSpec {
                     }
                 } else {
                     throw new Exception("Role" + " " + roleName + " doesn't exist in Gosec for tenant " + tenantId);
-                }
-            } else {  //Using stratio-identity
-                if (managementBaasVersion != null) {
-                    String stratioIdentity = resourceId.toLowerCase() + "-" + realm;
-                    String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
-                    if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 0) {
-                        restSpec.sendRequestNoDataTable("GET", endPointGosec, null, null, null);
-                        if (commonspec.getResponse().getStatusCode() == 200) {
-                            if (commonspec.getResponse().getResponse().contains("\"" + uidOrGid + "\":\"" + stratioIdentity + "\"")) {
-                                deleteResourceInRole(resource, stratioIdentity, roleName, tenantId);
-                            } else {
-                                throw new Exception(resource + " " + resourceId + " nor " + stratioIdentity + " exist in Gosec");
-                            }
-                        }
-                    } else {
-                        throw new Exception(resource + " " + resourceId + " doesn't exist in Gosec");
-                    }
                 }
             }
         } else {
@@ -2788,7 +2665,6 @@ public class GosecSpec extends BaseGSpec {
 
     @When("^I get id from REALM with name '(.+?)' and save it in environment variable '(.+?)'$")
     public void getRealmId(String RealmName, String envVar) throws Exception {
-        Boolean content = false;
         String endPointGetRole = "/gosec/identities/identities/realms/ldap?name=" + RealmName;
 
         restSpec.sendRequestNoDataTable("GET", endPointGetRole, null, null, null);
@@ -2800,6 +2676,31 @@ public class GosecSpec extends BaseGSpec {
             }
         } else {
             commonspec.getLogger().warn("REALM with id: {} does not exist", RealmName);
+        }
+    }
+
+    @When("^I get stratio-identity from '(user|group)' with resourceId '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getStratioIdentity(String resource, String resourceId, String envVar) throws Exception {
+        String resources = "users";
+        String name = "username";
+        String uidOrGid = "uid";
+
+        if (resource.equals("group")) {
+            resources = "groups";
+            name = "groupname";
+            uidOrGid = "gid";
+        }
+        String endPointGetStratioIdentity = "/gosec/baas/management/" + resources;
+
+        restSpec.sendRequestNoDataTable("GET", endPointGetStratioIdentity, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (." + name + " == \"" + resourceId + "\")." + uidOrGid + "' | sed s/\\\"//g");
+            commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
+            if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
+                fail("Error obtaining stratio-identity from {}: {} ", resource, resourceId);
+            }
+        } else {
+            commonspec.getLogger().warn("{} with {}:{} does not exist", resource, name, resourceId);
         }
     }
 }
