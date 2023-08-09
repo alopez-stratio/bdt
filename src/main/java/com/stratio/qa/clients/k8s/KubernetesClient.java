@@ -45,6 +45,7 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.plaf.metal.MetalIconFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -57,6 +58,8 @@ import java.util.stream.Stream;
 import static io.fabric8.kubernetes.client.Config.KUBERNETES_AUTH_TRYSERVICEACCOUNT_SYSTEM_PROPERTY;
 import static io.fabric8.kubernetes.client.Config.KUBERNETES_TRYNAMESPACE_PATH_SYSTEM_PROPERTY;
 import static io.fabric8.kubernetes.client.Config.KUBERNETES_KUBECONFIG_FILE;
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertTrue;
 
 public class KubernetesClient {
 
@@ -162,6 +165,38 @@ public class KubernetesClient {
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
         }
 
+        if (System.getProperty("CLUSTER_TYPE").equals("eks") && !System.getProperty("AWS_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_SECRET_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_REGION").isEmpty()) {
+
+            File awsPath = new File(System.getProperty("user.home") + "/.aws/");
+            if (awsPath.mkdir()) {
+                logger.debug("Directory Created");
+            } else {
+                logger.debug("Directory is not created");
+            }
+
+            File credentialsFile = new File(awsPath.getAbsolutePath() + "/credentials");
+            File configFile = new File(awsPath.getAbsolutePath() + "/config");
+
+            String title = "[jenkins]";
+            String aws_access_key_id = "aws_access_key_id = " + System.getProperty("AWS_ACCESS_KEY");
+            String aws_secret_access_key = "aws_secret_access_key = " + System.getProperty("AWS_SECRET_ACCESS_KEY");
+            String region = "region = " + System.getProperty("AWS_REGION");
+
+            FileWriter fileWriter = new FileWriter(credentialsFile);
+            PrintWriter printWriter = new PrintWriter(fileWriter);
+            printWriter.println(title);
+            printWriter.println(aws_access_key_id);
+            printWriter.println(aws_secret_access_key);
+            printWriter.close();
+
+            FileWriter fileWriterConfig = new FileWriter(configFile);
+            PrintWriter printWriterConfig = new PrintWriter(fileWriterConfig);
+            printWriterConfig.println(title);
+            printWriterConfig.println(region);
+            printWriterConfig.close();
+
+        }
+
         // Connect to Kubernetes
         getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
 
@@ -178,6 +213,11 @@ public class KubernetesClient {
         if (setKubernetesHost) {
             if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks")) {
                 commonspec.getLogger().info("Skipping /etc/hosts modification for eks cluster");
+                //add proxy and ip
+                if (!System.getProperty("AWS_IP").isEmpty()) {
+                    commonspec.getETCHOSTSManagementUtils().addK8sHost(System.getProperty("AWS_IP"), ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
+                    commonspec.getETCHOSTSManagementUtils().addK8sHost(System.getProperty("AWS_IP"), ThreadProperty.get("KEOS_SIS_HOST"));
+                }
             } else {
                 commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST_IP"), ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
                 commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("KEOS_SIS_HOST_IP"), ThreadProperty.get("KEOS_SIS_HOST"));

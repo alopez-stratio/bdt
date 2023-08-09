@@ -5,7 +5,7 @@ hose {
     DEVTIMEOUT = 60
     RELEASETIMEOUT = 60
     BUILDTOOL = 'maven'
-    BUILDTOOL_IMAGE = "stratio/qa-builder:0.4.0"
+    BUILDTOOL_IMAGE = "stratio/qa-builder:0.5.0"
     BUILDTOOL_MEMORY_LIMIT = '2Gi'
     BUILDTOOL_MEMORY_REQUEST = '2Gi'
     DEPLOYONPRS = true
