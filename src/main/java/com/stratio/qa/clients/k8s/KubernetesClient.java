@@ -165,7 +165,7 @@ public class KubernetesClient {
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
         }
 
-        if (System.getProperty("CLUSTER_TYPE").equals("eks") && !System.getProperty("AWS_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_SECRET_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_REGION").isEmpty()) {
+        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks") && !System.getProperty("AWS_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_SECRET_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_REGION").isEmpty()) {
 
             File awsPath = new File(System.getProperty("user.home") + "/.aws/");
             if (awsPath.mkdir()) {
