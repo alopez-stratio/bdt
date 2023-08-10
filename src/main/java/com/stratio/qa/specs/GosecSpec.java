@@ -2681,11 +2681,20 @@ public class GosecSpec extends BaseGSpec {
 
     @When("^I get stratio-identity from '(user|group)' with resourceId '(.+?)' and save it in environment variable '(.+?)'$")
     public void getStratioIdentity(String resource, String resourceId, String envVar) throws Exception {
+        ThreadProperty.set(envVar, getStratioIdentity(resource, resourceId));
+    }
+
+    /**
+     * Returns the generated Stratio Identity for a user/group
+     * @param resourceType: user/group
+     * @param resourceId:   username/groupname
+     */
+    public String getStratioIdentity(String resourceType, String resourceId) throws Exception {
         String resources = "users";
         String name = "username";
         String uidOrGid = "uid";
 
-        if (resource.equals("group")) {
+        if (resourceType.equals("group")) {
             resources = "groups";
             name = "groupname";
             uidOrGid = "gid";
@@ -2694,13 +2703,22 @@ public class GosecSpec extends BaseGSpec {
 
         restSpec.sendRequestNoDataTable("GET", endPointGetStratioIdentity, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
-            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.list[] | select (." + name + " == \"" + resourceId + "\")." + uidOrGid + "' | sed s/\\\"//g");
-            commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
-            if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
-                fail("Error obtaining stratio-identity from {}: {} ", resource, resourceId);
+            JSONObject response = new JSONObject(commonspec.getResponse().getResponse());
+            JSONArray list = response.getJSONArray("list");
+
+            for (Object obj : list) {
+                if (obj instanceof JSONObject) {
+                    JSONObject element = (JSONObject) obj;
+                    if (element.optString(name).equals(resourceId)) {
+                        return element.optString(uidOrGid);
+                    }
+                }
             }
+            fail(String.format("Error obtaining stratio-identity from %s: %s", resourceType, resourceId));
         } else {
-            commonspec.getLogger().warn("{} with {}:{} does not exist", resource, name, resourceId);
+            commonspec.getLogger().warn("Error performing request to {}", endPointGetStratioIdentity);
         }
+        return null;
     }
+
 }
