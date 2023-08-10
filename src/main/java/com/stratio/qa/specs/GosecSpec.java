@@ -1853,6 +1853,49 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
+    @When("^I get serviceTypeAlias of service '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getServiceTypeAlias(String serviceType, String envVar) throws Exception {
+        ThreadProperty.set(envVar, getServiceTypeAlias(serviceType));
+    }
+
+    public String getServiceTypeAlias(String serviceType) throws Exception {
+        String serviceTypeAlias = serviceType;
+        String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
+        ThreadProperty.set("managementBaasVersion", managementBaasVersion);
+        RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
+        if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(managementBaasVersion>2.0.0||managementBaasVersion=2.0.0)"))) {
+            switch (serviceType) {
+                case "opendistro":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_OPENDISTRO", "OpenDistro");
+                    break;
+                case "kibana":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_KIBANA", "Kibana");
+                    break;
+                case "postgres":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_POSTGRES", "PostgreSQL®");
+                    break;
+                case "kafka":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_KAFKA", "Apache Kafka®");
+                    break;
+                case "hdfs":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_HDFS", "Apache Hadoop® (HDFS)");
+                    break;
+                case "opensearch":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_OPENSEARCH", "OpenSearch");
+                    break;
+                case "virtualizer":
+                case "crossdata":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_VIRTUALIZER", "Virtualizer");
+                    break;
+                case "rocket":
+                    serviceTypeAlias = System.getProperty("GOSEC_SERVICE_TYPE_ALIAS_ROCKET", "Rocket");
+                    break;
+                default:
+            }
+        }
+        return serviceTypeAlias;
+    }
+
     public void getServiceVersionDcos(String serviceType, String serviceId, String tenant, String
             tenantLoginInfo, String envVar) throws Exception {
         String endpoint = "/service/gosecmanagement/api/service";
@@ -1868,7 +1911,7 @@ public class GosecSpec extends BaseGSpec {
             tenantLoginInfo, String envVar) throws Exception {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endpoint = baasPath + "/management/services";
-        getServiceVersionCommon(endpoint, serviceType, serviceId, tenant, tenantLoginInfo, envVar, "N/A", true);
+        getServiceVersionCommon(endpoint, getServiceTypeAlias(serviceType), serviceId, tenant, tenantLoginInfo, envVar, "N/A", true);
     }
 
     private void getServiceVersionCommon(String endpoint, String serviceType, String serviceId, String
@@ -2686,6 +2729,7 @@ public class GosecSpec extends BaseGSpec {
 
     /**
      * Returns the generated Stratio Identity for a user/group
+     *
      * @param resourceType: user/group
      * @param resourceId:   username/groupname
      */
