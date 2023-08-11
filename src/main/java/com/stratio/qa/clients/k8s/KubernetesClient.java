@@ -246,9 +246,6 @@ public class KubernetesClient {
             if (System.getProperty("KEOS_VERSION") == null) {
                 System.setProperty("KEOS_VERSION", commonspec.getJSONPathString(clusterVersionsJson, "$.clusterVersions.keosVersion", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
             }
-            if (System.getProperty("UNIVERSE_VERSION") == null) {
-                System.setProperty("UNIVERSE_VERSION", commonspec.getJSONPathString(clusterVersionsJson, "$.clusterVersions.universeVersion", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
-            }
         } else if (new File("target/test-classes/" + workspaceName + "/cluster.yaml").exists()) {
             fileSpec.convertYamlToJson(workspaceName + "/cluster.yaml", workspaceName + "/cluster.json");
             String clusterVersionsJson = commonspec.retrieveData(workspaceName + "/cluster.json", "json");
