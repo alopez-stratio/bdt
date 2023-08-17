@@ -205,7 +205,7 @@ public class KeosSpec extends BaseGSpec {
         String command = "curl -X PUT -k " + cookie + " \"" + restURL + "\" " + headers + " " + forms;
 
         // Execute command
-        commonspec.runLocalCommand(command);
+        commonspec.runLocalCommand(command, 600);
 
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
         Assertions.assertThat(commonspec.getCommandResult()).as("Not possible to upload universe: " + commonspec.getCommandResult()).doesNotContain("Error");
