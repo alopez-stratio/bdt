@@ -2856,11 +2856,9 @@ public class CCTSpec extends BaseGSpec {
         annotations.put("stratio.tenant.kubernetes.io/disable-gosec-tenancy", false);
         annotations.put("stratio.tenant.kubernetes.io/tenant-description", tenantName);
 
-        String gosecRealm = ThreadProperty.get("KEOS_USER_REALM").toLowerCase();
-
         if (withoutIdentities == null) {
-            annotations.put("stratio.tenant.kubernetes.io/gosec-tenant-initial-uids", tenantUsers != null ? tenantUsers : tenantName + "-user-" + gosecRealm);
-            annotations.put("stratio.tenant.kubernetes.io/gosec-tenant-initial-gids", tenantGroups != null ? tenantGroups : tenantName + "-group-" + gosecRealm);
+            annotations.put("stratio.tenant.kubernetes.io/gosec-tenant-initial-uids", tenantUsers != null ? tenantUsers : tenantName + "-user");
+            annotations.put("stratio.tenant.kubernetes.io/gosec-tenant-initial-gids", tenantGroups != null ? tenantGroups : tenantName + "-group");
         }
         jsonTenant.put("annotations", annotations);
         commonspec.getLogger().info("Endpoint to create tenant: {}", endPoint);
