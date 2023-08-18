@@ -195,21 +195,21 @@ public class KeosSpec extends BaseGSpec {
         String endPointUpload = ThreadProperty.get("KEOS_CCT_UNIVERSE_SERVICE_INGRESS_PATH") + "/v1/descriptors";
 
         // Obtain URL
-        String restURL = "https://" + System.getProperty("KEOS_CLUSTER_NAME") + ":443" + endPointUpload;
+        String restURL = "https://" + ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST") + ":443" + endPointUpload;
 
         // Form query parameters
         String headers = "-H \"accept: */*\" -H \"Content-Type: multipart/form-data\"";
         String forms = "-F \"file=@" + universeFile + ";type=application/zip\"";
 
         String cookie = "-H \"Cookie:_oauth2_proxy=" + ThreadProperty.get("oauth2ProxyCookie") + "\"";
-        String command = "curl -X PUT -k " + cookie + " \"" + restURL + "\" " + headers + " " + forms;
+        String command = "curl -X PUT -i -k " + cookie + " \"" + restURL + "\" " + headers + " " + forms + " > target/test-classes/outputK8sUniverseUpload.txt";
 
         // Execute command
-        commonspec.runLocalCommand(command, 600);
-
+        commonspec.runLocalCommand(command, 60);
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
-        Assertions.assertThat(commonspec.getCommandResult()).as("Not possible to upload universe: " + commonspec.getCommandResult()).doesNotContain("Error");
 
+        commonspec.runLocalCommand("cat target/test-classes/outputK8sUniverseUpload.txt | grep \"HTTP/2\"");
+        Assertions.assertThat(commonspec.getCommandResult()).as("Upload universe response").contains("200");
     }
 
     /**
