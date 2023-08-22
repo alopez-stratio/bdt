@@ -45,7 +45,6 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.swing.plaf.metal.MetalIconFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -58,8 +57,6 @@ import java.util.stream.Stream;
 import static io.fabric8.kubernetes.client.Config.KUBERNETES_AUTH_TRYSERVICEACCOUNT_SYSTEM_PROPERTY;
 import static io.fabric8.kubernetes.client.Config.KUBERNETES_TRYNAMESPACE_PATH_SYSTEM_PROPERTY;
 import static io.fabric8.kubernetes.client.Config.KUBERNETES_KUBECONFIG_FILE;
-import static org.testng.AssertJUnit.assertFalse;
-import static org.testng.AssertJUnit.assertTrue;
 
 public class KubernetesClient {
 
@@ -2400,5 +2397,61 @@ public class KubernetesClient {
      */
     public void deleteRoleBinding(String roleBinding, String namespace) {
         k8sClient.rbac().roleBindings().inNamespace(namespace).withName(roleBinding).delete();
+    }
+
+    public void getKeosReport() {
+        try {
+            StringBuilder sb = new StringBuilder();
+            // System properties
+            sb.append("SYSTEM PROPERTIES:\n");
+            boolean first = true;
+            Properties properties = System.getProperties();
+            for (String name : properties.stringPropertyNames()) {
+                if (!(name.startsWith("java.") || name.startsWith("sun.") || name.startsWith("os.")
+                        || name.startsWith("awt.") || name.startsWith("surefire.") || name.startsWith("line.separator") || name.isBlank())) {
+                    if (first) {
+                        first = false;
+                    } else {
+                        sb.append(", ");
+                    }
+                    sb.append(name).append("=").append(properties.getProperty(name));
+                }
+            }
+            // Pod images
+            sb.append("\n\nPOD IMAGES:\n");
+            Set<String> list = new TreeSet<>();
+            for (Namespace namespace : k8sClient.namespaces().list().getItems()) {
+                for (Pod pod : k8sClient.pods().inNamespace(namespace.getMetadata().getName()).list().getItems()) {
+                    if (pod.getSpec().getContainers().size() > 0) {
+                        for (Container container : pod.getSpec().getContainers()) {
+                            list.add(container.getImage());
+                        }
+                    }
+                }
+            }
+            for (String s : list) {
+                sb.append(s).append("\n");
+            }
+            writeInFile(sb.toString(), "keosReport.txt", true);
+        } catch (Exception e) {
+            logger.warn("Error generating keos report - " + e.getMessage());
+        }
+    }
+
+    private void writeInFile(String fileContents, String fileName, boolean throwExceptionOnWriteError) throws Exception {
+        // Create file (temporary) and set path to be accessible within test
+        File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
+        String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
+        // Note that this Writer will delete the file if it exists
+        Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
+        try {
+            out.write(fileContents);
+        } catch (Exception e) {
+            if (throwExceptionOnWriteError) {
+                throw new RuntimeException("Custom file {} hasn't been created");
+            }
+        } finally {
+            out.close();
+        }
     }
 }

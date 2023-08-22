@@ -346,6 +346,8 @@ public class HookGSpec extends BaseGSpec {
             commonspec.kubernetesClient.getK8sConfigFromWorkspace(commonspec);
         }
         ThreadProperty.set("isKeosEnv", "true");
+        // Write @keos report
+        commonspec.kubernetesClient.getKeosReport();
     }
 
     @After(order = ORDER_20, value = "@dcos")
