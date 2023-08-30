@@ -98,7 +98,7 @@ public class AWSSpec extends BaseGSpec {
 
         String response = String.join("\n", listObjectBucket);
 
-        writeInFile(response, fileName);
+        writeInFile(response + "\n", fileName);
 
         s3Client.close();
     }
