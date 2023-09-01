@@ -85,6 +85,10 @@ public class KubernetesClient {
         return CLIENT;
     }
 
+    public io.fabric8.kubernetes.client.KubernetesClient getKubernetesClient() {
+        return k8sClient;
+    }
+
     public static Logger getLogger() {
         return logger;
     }
