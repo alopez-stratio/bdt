@@ -2129,24 +2129,27 @@ public class KubernetesClient {
                     // It doesn't supports labels or annotations that contains "/"
                     patchMetadata(genericKubernetesResource, pathList.get(1), pathList.get(2), value);
                 } else {
-                    Object oMap = genericKubernetesResource.getAdditionalProperties().get(pathList.get(0));
-                    oMap = iterateMap(oMap, pathList);
-                    if (oMap instanceof Map) {
-                        Map<String, Object> map = (Map<String, Object>) oMap;
+                    Object obj = genericKubernetesResource.getAdditionalProperties().get(pathList.get(0));
+                    obj = iterateMap(obj, pathList);
+                    if (obj instanceof Map) {
+                        Map<String, Object> map = (Map<String, Object>) obj;
                         patchMap(map, pathList.get(pathList.size() - 1), value, type, true);
-                        try {
-                            k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).replace();
-                            response = 0;
-                            getLogger().debug("Patched");
-                        } catch (KubernetesClientException e) {
-                            logger.warn("Error in CRD patch", e);
-                            response = 1;
-                            if (envVar != null) {
-                                ThreadProperty.set(envVar, e.getMessage());
-                            }
-                        }
+                    } else if (obj instanceof List) {
+                        List<Object> list = (List<Object>) obj;
+                        patchList(list, pathList.get(pathList.size() - 1), value, type, true);
                     } else {
                         throw new Exception("Final element is not a map, so we can't patch this value");
+                    }
+                    try {
+                        k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).replace();
+                        response = 0;
+                        getLogger().debug("Patched");
+                    } catch (KubernetesClientException e) {
+                        logger.warn("Error in CRD patch", e);
+                        response = 1;
+                        if (envVar != null) {
+                            ThreadProperty.set(envVar, e.getMessage());
+                        }
                     }
                 }
             }
@@ -2190,6 +2193,28 @@ public class KubernetesClient {
             }
         } else {
             map.remove(field);
+        }
+    }
+
+    private void patchList(List<Object> list, String field, String value, String type, boolean addOrUpdate) throws IOException {
+        if (addOrUpdate) {
+            if (type != null) {
+                if (type.equalsIgnoreCase("integer")) {
+                    list.add(Integer.parseInt(field), Integer.parseInt(value));
+                } else if (type.equalsIgnoreCase("string")) {
+                    list.add(Integer.parseInt(field), value);
+                } else if (type.equalsIgnoreCase("boolean")) {
+                    list.add(Integer.parseInt(field), Boolean.parseBoolean(value));
+                } else if (type.equalsIgnoreCase("json")) {
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map mapValue = mapper.readValue(value, Map.class);
+                    list.add(Integer.parseInt(field), mapValue);
+                }
+            } else {
+                list.add(value);
+            }
+        } else {
+            list.remove(Integer.parseInt(field));
         }
     }
 
@@ -2246,11 +2271,14 @@ public class KubernetesClient {
                         // It doesn't supports labels or annotations that contains "/"
                         patchMetadata(genericKubernetesResource, pathList.get(1), pathList.get(2), value);
                     } else {
-                        Object oMap = genericKubernetesResource.getAdditionalProperties().get(pathList.get(0));
-                        oMap = iterateMap(oMap, pathList);
-                        if (oMap instanceof Map) {
-                            Map<String, Object> map = (Map<String, Object>) oMap;
+                        Object obj = genericKubernetesResource.getAdditionalProperties().get(pathList.get(0));
+                        obj = iterateMap(obj, pathList);
+                        if (obj instanceof Map) {
+                            Map<String, Object> map = (Map<String, Object>) obj;
                             patchMap(map, pathList.get(pathList.size() - 1), value, type, op);
+                        } else if (obj instanceof List) {
+                            List<Object> list = (List<Object>) obj;
+                            patchList(list, pathList.get(pathList.size() - 1), value, type, op);
                         } else {
                             throw new Exception("Final element is not a map, so we can't patch this value");
                         }
