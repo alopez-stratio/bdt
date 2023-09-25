@@ -448,7 +448,8 @@ public class KubernetesClient {
     private void getK8sCCTConfig(CommonG commonspec) {
         try {
             String centralConfigJson;
-            if (System.getProperty("KEOS_VERSION").matches(".*0\\.[1-5].*")) {
+            RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
+            if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(keosVersion<0.6.0)"))) {
                 centralConfigJson = getConfigMap("command-center-config", "keos-cct").getData().get("central-config.json");
             } else {
                 centralConfigJson = getConfigMap("cct-central-configuration-central-config", "keos-cct").getData().get("central-config.json");
