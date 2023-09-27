@@ -18,6 +18,8 @@ package com.stratio.qa.specs;
 
 import com.jayway.jsonpath.PathNotFoundException;
 import com.stratio.qa.utils.ThreadProperty;
+import cucumber.api.Scenario;
+import cucumber.api.java.Before;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
@@ -59,6 +61,12 @@ public class MiscSpec extends BaseGSpec {
 
     public static final int DEFAULT_TIMEOUT = 1000;
 
+    private Scenario scenario;
+
+    @Before
+    public void before(Scenario scenario) {
+        this.scenario = scenario;
+    }
     /**
      * Generic constructor.
      *
@@ -146,6 +154,10 @@ public class MiscSpec extends BaseGSpec {
             String value = row.get(1);
 
             ThreadProperty.set(key, value);
+
+            if (scenario != null) {
+                scenario.write(String.format("%s -> %s", key, value));
+            }
         }
     }
 
