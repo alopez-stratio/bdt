@@ -68,8 +68,8 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.connect(kubeConfigPath);
     }
 
-    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress|persistentVolumeClaims)( in namespace '(.+?)')? and save it in environment variable '(.+?)'$")
-    public void getList(String type, String namespace, String envVar) {
+    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress|persistentVolumeClaims)( in namespace '(.+?)')?( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
+    public void getList(String type, String namespace, String envVar, String fileName) throws Exception {
         String response = null;
         switch (type) {
             case "pods":
@@ -119,7 +119,12 @@ public class K8SSpec extends BaseGSpec {
                 break;
             default:
         }
-        ThreadProperty.set(envVar, response);
+        if (envVar != null) {
+            ThreadProperty.set(envVar, response);
+        }
+        if (fileName != null) {
+            writeInFile(response, fileName);
+        }
     }
 
     @When("^I get all namespaces and save it in environment variable '(.+?)'$")
@@ -586,7 +591,7 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.scaleDeployment(deployment, namespace, instances);
     }
 
-    @When("^I get (pods|deployments|replicasets|services|statefulsets|configmaps|serviceacounts|roles|rolebindings) using the following label filter '(.+?)'( in namespace '(.+?)')?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    @When("^I get (pods|deployments|replicasets|services|statefulsets|configmaps|serviceacounts|roles|rolebindings|persistentVolumeClaims) using the following label filter '(.+?)'( in namespace '(.+?)')?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void getPodsLabelSelector(String type, String selector, String namespace, String envVar, String fileName) throws Exception {
         String result = "";
         switch (type) {
@@ -616,6 +621,9 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "rolebindings":
                 result = commonspec.kubernetesClient.getRolesBindingsFilteredByLabel(selector, namespace);
+                break;
+            case "persistentVolumeClaims":
+                result = commonspec.kubernetesClient.getPersistentVolumeClaimsFilteredByLabel(selector, namespace);
                 break;
             default:
         }
@@ -949,5 +957,40 @@ public class K8SSpec extends BaseGSpec {
     @When("^I create resourcequota with name '(.+?)', in namespace '(.+?)'(, with hard cpu '(.+?)')?(, with hard memory '(.+?)')?(, with hard pods '(.+?)')?$")
     public void createResourceQuota(String name, String namespace, String cpu, String memory, String pods) {
         commonspec.kubernetesClient.createResourceQuota(name, namespace, cpu, memory, pods);
+    }
+
+    @When("^I get (pods|deployments|replicasets|statefulsets|configmaps|secrets|persistentVolumeClaims) with ownerReference name '(.+?)'( in namespace '(.+?)')?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    public void getK8sObjectByOwnerReferenceName(String type, String ownerReferenceName, String namespace, String envVar, String fileName) throws Exception {
+        String result = "";
+        switch (type) {
+            case "pods":
+                result = commonspec.kubernetesClient.getPodsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            case "deployments":
+                result = commonspec.kubernetesClient.getDeploymentsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            case "replicasets":
+                result = commonspec.kubernetesClient.getReplicaSetsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            case "statefulsets":
+                result = commonspec.kubernetesClient.getStateFulSetsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            case "configmaps":
+                result = commonspec.kubernetesClient.getConfigMapsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            case "secrets":
+                result = commonspec.kubernetesClient.getSecretsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            case "persistentVolumeClaims":
+                result = commonspec.kubernetesClient.getPersistentVolumeClaimsFilteredByOwnerReferenceName(ownerReferenceName, namespace);
+                break;
+            default:
+        }
+        if (envVar != null) {
+            ThreadProperty.set(envVar, result);
+        }
+        if (fileName != null) {
+            writeInFile(result, fileName);
+        }
     }
 }

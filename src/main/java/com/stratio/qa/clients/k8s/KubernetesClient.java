@@ -1244,6 +1244,27 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl get pvc --selector=version=v1 -o jsonpath='{.items[*].metadata.name}'
+     *
+     * @param selector  Label filter (separated by comma)
+     * @param namespace Namespace
+     * @return PVC list filtered
+     */
+    public String getPersistentVolumeClaimsFilteredByLabel(String selector, String namespace) {
+        LabelSelector labelSelector;
+        labelSelector = getLabelSelector(selector);
+        StringBuilder result = new StringBuilder();
+
+        PersistentVolumeClaimList pvcList = namespace != null ?
+                k8sClient.persistentVolumeClaims().inNamespace(namespace).withLabelSelector(labelSelector).list() :
+                k8sClient.persistentVolumeClaims().inAnyNamespace().withLabelSelector(labelSelector).list();
+        for (PersistentVolumeClaim pvc : pvcList.getItems()) {
+            result.append(pvc.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
      * kubectl get pods --field-selector=status.phase=Running
      *
      * @param selector  Label filter (separated by comma)
@@ -1744,6 +1765,132 @@ public class KubernetesClient {
         StringBuilder result = new StringBuilder();
         for (PersistentVolumeClaim pvc : k8sClient.persistentVolumeClaims().inNamespace(namespace).list().getItems()) {
             result.append(pvc.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getPodsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        PodList podList = namespace != null ?
+                k8sClient.pods().inNamespace(namespace).list() :
+                k8sClient.pods().inAnyNamespace().list();
+        for (Pod pod : podList.getItems()) {
+            if (pod.getMetadata().getOwnerReferences() != null && !pod.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : pod.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(pod.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getDeploymentsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        DeploymentList deploymentList = namespace != null ?
+                k8sClient.apps().deployments().inNamespace(namespace).list() :
+                k8sClient.apps().deployments().inAnyNamespace().list();
+        for (Deployment deployment : deploymentList.getItems()) {
+            if (deployment.getMetadata().getOwnerReferences() != null && !deployment.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : deployment.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(deployment.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getReplicaSetsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        ReplicaSetList replicasetList = namespace != null ?
+                k8sClient.apps().replicaSets().inNamespace(namespace).list() :
+                k8sClient.apps().replicaSets().inAnyNamespace().list();
+        for (ReplicaSet rs : replicasetList.getItems()) {
+            if (rs.getMetadata().getOwnerReferences() != null && !rs.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : rs.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(rs.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getStateFulSetsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        StatefulSetList statefulSetList = namespace != null ?
+                k8sClient.apps().statefulSets().inNamespace(namespace).list() :
+                k8sClient.apps().statefulSets().inAnyNamespace().list();
+        for (StatefulSet ss : statefulSetList.getItems()) {
+            if (ss.getMetadata().getOwnerReferences() != null && !ss.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : ss.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(ss.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getConfigMapsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        ConfigMapList configMapList = namespace != null ?
+                k8sClient.configMaps().inNamespace(namespace).list() :
+                k8sClient.configMaps().inAnyNamespace().list();
+        for (ConfigMap cm : configMapList.getItems()) {
+            if (cm.getMetadata().getOwnerReferences() != null && !cm.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : cm.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(cm.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getSecretsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        SecretList secretList = namespace != null ?
+                k8sClient.secrets().inNamespace(namespace).list() :
+                k8sClient.secrets().inAnyNamespace().list();
+        for (Secret secret : secretList.getItems()) {
+            if (secret.getMetadata().getOwnerReferences() != null && !secret.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : secret.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(secret.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    public String getPersistentVolumeClaimsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {
+        StringBuilder result = new StringBuilder();
+        PersistentVolumeClaimList pvcList = namespace != null ?
+                k8sClient.persistentVolumeClaims().inNamespace(namespace).list() :
+                k8sClient.persistentVolumeClaims().inAnyNamespace().list();
+        for (PersistentVolumeClaim pvc : pvcList.getItems()) {
+            if (pvc.getMetadata().getOwnerReferences() != null && !pvc.getMetadata().getOwnerReferences().isEmpty()) {
+                for (OwnerReference ownerReference : pvc.getMetadata().getOwnerReferences()) {
+                    if (ownerReference.getName().equals(ownerReferenceName)) {
+                        result.append(pvc.getMetadata().getName()).append("\n");
+                        break;
+                    }
+                }
+            }
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
     }
