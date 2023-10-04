@@ -2601,6 +2601,15 @@ public class KubernetesClient {
         k8sClient.rbac().roleBindings().inNamespace(namespace).withName(roleBinding).delete();
     }
 
+    /**
+     * Remove crd object
+     *
+     * @param crd crd name
+     */
+    public void deleteCRD(String crd) {
+        k8sClient.apiextensions().v1().customResourceDefinitions().withName(crd).delete();
+    }
+
     public void getKeosReport() {
         try {
             StringBuilder sb = new StringBuilder();
