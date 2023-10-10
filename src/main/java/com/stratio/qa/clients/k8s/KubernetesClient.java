@@ -166,7 +166,7 @@ public class KubernetesClient {
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
         }
 
-        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks") && !System.getProperty("AWS_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_SECRET_ACCESS_KEY").isEmpty() && !System.getProperty("AWS_REGION").isEmpty()) {
+        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks") && Objects.nonNull(System.getProperty("AWS_ACCESS_KEY")) && Objects.nonNull(System.getProperty("AWS_SECRET_ACCESS_KEY")) && Objects.nonNull(System.getProperty("AWS_REGION"))) {
 
             File awsPath = new File(System.getProperty("user.home") + "/.aws/");
             if (awsPath.mkdir()) {
@@ -215,7 +215,7 @@ public class KubernetesClient {
             if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks")) {
                 commonspec.getLogger().info("Skipping /etc/hosts modification for eks cluster");
                 //add proxy and ip
-                if (!System.getProperty("AWS_IP").isEmpty()) {
+                if (Objects.nonNull(System.getProperty("AWS_IP"))) {
                     commonspec.getETCHOSTSManagementUtils().addK8sHost(System.getProperty("AWS_IP"), ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
                     commonspec.getETCHOSTSManagementUtils().addK8sHost(System.getProperty("AWS_IP"), ThreadProperty.get("KEOS_SIS_HOST"));
                 }
