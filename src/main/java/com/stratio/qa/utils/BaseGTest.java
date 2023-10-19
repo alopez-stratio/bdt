@@ -154,11 +154,11 @@ public abstract class BaseGTest {
         File configFileBackup = new File(awsPath.getAbsolutePath() + "/config.bdt.backup");
         try {
             // Check if file exists and backup it
-            if (credentialsFile.exists()) {
+            if (credentialsFileBackup.exists()) {
                 Files.copy(credentialsFileBackup.toPath(), credentialsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 credentialsFileBackup.delete();
             }
-            if (configFile.exists()) {
+            if (configFileBackup.exists()) {
                 Files.copy(configFileBackup.toPath(), configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 configFileBackup.delete();
             }
