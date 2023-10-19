@@ -63,7 +63,7 @@ public class ETCHOSTSManagementSpec extends BaseGSpec {
     @Given("^I restore /etc/hosts( in the ssh connection)?( with id '(.+?)')?$")
     public void restoreHostsFile(String remote, String sshConnectionId) throws Exception {
         // Release lock
-        commonspec.getETCHOSTSManagementUtils().releaseLock(remote, sshConnectionId);
+        commonspec.getETCHOSTSManagementUtils().releaseLock(remote, sshConnectionId, false);
     }
 
     /**

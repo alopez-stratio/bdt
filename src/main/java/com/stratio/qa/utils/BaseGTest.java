@@ -27,7 +27,10 @@ import org.slf4j.LoggerFactory;
 import org.testng.ITestContext;
 import org.testng.annotations.*;
 
+import java.io.File;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -135,10 +138,33 @@ public abstract class BaseGTest {
 
         // Restore local /etc/hosts and remove pending locks, if needed
         ETCHOSTSManagementUtil.INSTANCE.getETCHOSTSManagementUtils().forceReleaseLock(null, null);
-        ETCHOSTSManagementUtil.INSTANCE.getETCHOSTSManagementUtils().removeK8sHost();
 
         // Close JDBC connection
         JDBCConnection.closeConnection();
+
+        // Restore AWS config
+        restoreAWSConfig();
+    }
+
+    private void restoreAWSConfig() {
+        File awsPath = new File(System.getProperty("user.home") + "/.aws/");
+        File credentialsFile = new File(awsPath.getAbsolutePath() + "/credentials");
+        File configFile = new File(awsPath.getAbsolutePath() + "/config");
+        File credentialsFileBackup = new File(awsPath.getAbsolutePath() + "/credentials.bdt.backup");
+        File configFileBackup = new File(awsPath.getAbsolutePath() + "/config.bdt.backup");
+        try {
+            // Check if file exists and backup it
+            if (credentialsFile.exists()) {
+                Files.copy(credentialsFileBackup.toPath(), credentialsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                credentialsFileBackup.delete();
+            }
+            if (configFile.exists()) {
+                Files.copy(configFileBackup.toPath(), configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                configFileBackup.delete();
+            }
+        } catch (Exception e) {
+            logger.error("Error restoring AWS config", e);
+        }
     }
 
     /**

@@ -23,6 +23,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,10 +42,6 @@ public class ETCHOSTSManagementUtils {
 
     private final String etcHostsBackupFile = "/etc/hosts.bdt";
 
-    private final String homeHostsBackupK8sFile = "~/.hosts.bdt.k8s";
-
-    private final String etcHostsBackupK8sFile = "/etc/hosts.bdt.k8s";
-
     private final String homeHostsLockFile;
 
     private final String etcHostsLockFile;
@@ -54,12 +52,15 @@ public class ETCHOSTSManagementUtils {
 
     private final boolean libnssHomehostsInstalled;
 
+    private HashMap<String, String> kubernetesHosts;
+
     public ETCHOSTSManagementUtils() {
         homeHostsLockFile = homeHostsFile + ".lock." + obtainPID();
         etcHostsLockFile = etcHostsFile + ".lock." + obtainPID();
         loops = System.getProperty("LOCK_LOOPS") != null ? Integer.parseInt(System.getProperty("LOCK_LOOPS")) : 3;
         wait_time = System.getProperty("LOCK_WAIT_TIME_MS") != null ? Integer.parseInt(System.getProperty("LOCK_WAIT_TIME_MS")) : 5000; // default: 5 seconds
         libnssHomehostsInstalled = checkIfLibnssHomehostsIsInstalled();
+        kubernetesHosts = new HashMap<>();
     }
 
     private boolean checkIfLibnssHomehostsIsInstalled() {
@@ -126,6 +127,9 @@ public class ETCHOSTSManagementUtils {
         assertThat(lockAcquired).as("It has not been possible to acquire lock over file: " + file).isTrue();
 
         // Add entry in /etc/hosts
+        if (file.equals(homeHostsFile)) {
+            new File(System.getProperty("user.home") + "/.hosts").createNewFile();
+        }
         String backupCommand = sudoOrEmpty + "cp " + file + " " + backupFile;
         String checkBackupCommand = "if [ ! -f " + backupFile + " ]; then " + backupCommand  + "; fi";
         String addCommand = "echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + file;
@@ -143,32 +147,14 @@ public class ETCHOSTSManagementUtils {
     }
 
     public void addK8sHost(String ip, String hostname) throws Exception {
-        String lockFile = (!libnssHomehostsInstalled ? etcHostsLockFile : homeHostsLockFile);
-        String backupFile = (!libnssHomehostsInstalled ? etcHostsBackupFile : homeHostsBackupFile);
-        String backupK8sFile = (!libnssHomehostsInstalled ? etcHostsBackupK8sFile : homeHostsBackupK8sFile);
-        String file = (!libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
-        String sudoOrEmpty = (!libnssHomehostsInstalled ? "sudo " : "");
-        String checkLockCommand = "if [ -f " + lockFile + " ]; then echo 0; else echo 1; fi";
-        boolean lockAcquired = false;
-
-        comm.runLocalCommand(checkLockCommand);
-        if (comm.getCommandResult().matches("0")) {
-            lockAcquired = true;
+        if (kubernetesHosts.get(hostname) == null) {
+            acquireLock(null, null, ip, hostname);
+            kubernetesHosts.put(hostname, ip);
+            logger.debug("Kubernetes host added!");
         }
-
-        if (lockAcquired) {
-            comm.runLocalCommand(sudoOrEmpty + "cp " + backupFile + " " + backupK8sFile);
-            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + file);
-            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + backupFile);
-        } else {
-            comm.runLocalCommand("cp " + file + " " + backupK8sFile);
-            comm.runLocalCommand("echo \"" + ip + "   " + hostname + "\" | " + sudoOrEmpty + "tee -a " + file);
-        }
-
-        logger.debug("Kubernetes hosts added!");
     }
 
-    public void releaseLock(String remote, String sshConnectionId) throws Exception {
+    public void releaseLock(String remote, String sshConnectionId, boolean removeK8sHosts) throws Exception {
         String lockFile = (remote != null || !libnssHomehostsInstalled ? etcHostsLockFile : homeHostsLockFile);
         String backupFile = (remote != null || !libnssHomehostsInstalled ? etcHostsBackupFile : homeHostsBackupFile);
         String file = (remote != null || !libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
@@ -207,6 +193,17 @@ public class ETCHOSTSManagementUtils {
         }
 
         logger.info("Lock RELEASED in file: " + file + " with lock file: " + lockFile);
+
+        if (!removeK8sHosts && remote == null) {
+            reimportK8sHosts();
+        }
+    }
+
+    private void reimportK8sHosts() throws Exception {
+        logger.info("Reimporting K8s hosts...");
+        for (Map.Entry<String, String> set : kubernetesHosts.entrySet()) {
+            acquireLock(null, null, set.getValue(), set.getKey());
+        }
     }
 
     public void forceReleaseLock(String remote, String sshConnectionId) {
@@ -217,7 +214,7 @@ public class ETCHOSTSManagementUtils {
             } else {
                 logger.debug("Checking left behind changes in /etc/hosts locally");
             }
-            releaseLock(remote, sshConnectionId);
+            releaseLock(remote, sshConnectionId, true);
         } catch (Exception e) {
             if (remote != null) {
                 String connectionId = obtainSSHConnectionId(sshConnectionId);
@@ -225,17 +222,6 @@ public class ETCHOSTSManagementUtils {
             } else {
                 logger.debug("Nothing to be cleaned for this execution locally");
             }
-        }
-    }
-
-    public void removeK8sHost() throws Exception {
-        String backupK8sFile = (!libnssHomehostsInstalled ? etcHostsBackupK8sFile : homeHostsBackupK8sFile);
-        String file = (!libnssHomehostsInstalled ? etcHostsFile : homeHostsFile);
-        String sudoOrEmpty = (!libnssHomehostsInstalled ? "sudo " : "");
-        if (new File(backupK8sFile).exists()) {
-            comm.runLocalCommand(sudoOrEmpty + "cp " + backupK8sFile + " " + file);
-            comm.runLocalCommand(sudoOrEmpty + "rm " + backupK8sFile);
-            logger.debug("Kubernetes hosts deleted!");
         }
     }
 }

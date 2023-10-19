@@ -49,6 +49,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -114,26 +115,30 @@ public class KubernetesClient {
             return;
         }
 
-        boolean setKubernetesHost = false;
         String keosJson = "";
-
         if (System.getProperty("CLUSTER_KUBE_CONFIG_PATH") != null) {
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", System.getProperty("CLUSTER_KUBE_CONFIG_PATH"));
             ThreadProperty.set("CLUSTER_SSH_USER", System.getProperty("CLUSTER_SSH_USER") != null ? System.getProperty("CLUSTER_SSH_USER") : "NotSet");
             ThreadProperty.set("CLUSTER_SSH_PEM_PATH", System.getProperty("CLUSTER_SSH_PEM_PATH") != null ? System.getProperty("CLUSTER_SSH_PEM_PATH") : "NotSet");
             getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
-            if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks")) {
-                commonspec.getLogger().info("There is no keos-operator in eks cluster");
+            String keosOperatorPodName = getPodsFilteredByLabel("app.kubernetes.io/instance=keos-operator,app.kubernetes.io/name=keos-operator", "keos-ops");
+            if (keosOperatorPodName.isEmpty()) {
+                commonspec.getLogger().info("keos-operator not found in cluster");
                 ThreadProperty.set("CLUSTER_KEOS_YAML_PATH", System.getProperty("CLUSTER_KEOS_YAML_PATH") != null ? System.getProperty("CLUSTER_KEOS_YAML_PATH") : "/workspace/keos.yaml");
-                commonspec.runLocalCommand("cp " + ThreadProperty.get("CLUSTER_KEOS_YAML_PATH") + " target/test-classes/keos.yaml");
+                if (!new File(ThreadProperty.get("CLUSTER_KEOS_YAML_PATH")).exists()) {
+                    commonspec.getLogger().warn("CLUSTER_KEOS_YAML_PATH (" + ThreadProperty.get("CLUSTER_KEOS_YAML_PATH") + ") file doesn't exist, so some variables will have default values");
+                } else {
+                    commonspec.runLocalCommand("cp " + ThreadProperty.get("CLUSTER_KEOS_YAML_PATH") + " target/test-classes/keos.yaml");
+                }
             } else {
-                String podName = getPodsFilteredByLabel("app.kubernetes.io/instance=keos-operator,app.kubernetes.io/name=keos-operator", "keos-ops");
-                copyFileFromPod(podName, "keos-ops", "/workspace/keos.yaml", "target/test-classes/keos.yaml");
+                copyFileFromPod(keosOperatorPodName, "keos-ops", "/workspace/keos.yaml", "target/test-classes/keos.yaml");
             }
-            FileSpec fileSpec = new FileSpec(commonspec);
-            // Obtain and export values
-            fileSpec.convertYamlToJson("keos.yaml", "keos.json");
-            keosJson = commonspec.retrieveData("keos.json", "json");
+            if (new File("target/test-classes/keos.yaml").exists()) {
+                FileSpec fileSpec = new FileSpec(commonspec);
+                // Obtain and export values
+                fileSpec.convertYamlToJson("keos.yaml", "keos.json");
+                keosJson = commonspec.retrieveData("keos.json", "json");
+            }
         } else {
             String daedalusSystem = "keos-workspaces.int.stratio.com";
             String workspaceName = "keos-workspace-" + clusterName;
@@ -178,6 +183,14 @@ public class KubernetesClient {
             File credentialsFile = new File(awsPath.getAbsolutePath() + "/credentials");
             File configFile = new File(awsPath.getAbsolutePath() + "/config");
 
+            // Check if file exists and backup it
+            if (credentialsFile.exists()) {
+                Files.copy(credentialsFile.toPath(), new File(awsPath.getAbsolutePath() + "/credentials.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            if (configFile.exists()) {
+                Files.copy(configFile.toPath(), new File(awsPath.getAbsolutePath() + "/config.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+
             String title = "[jenkins]";
             String aws_access_key_id = "aws_access_key_id = " + System.getProperty("AWS_ACCESS_KEY");
             String aws_secret_access_key = "aws_secret_access_key = " + System.getProperty("AWS_SECRET_ACCESS_KEY");
@@ -202,7 +215,7 @@ public class KubernetesClient {
         getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
 
         // Load variables from keos.yaml
-        setKubernetesHost = loadVariablesFromKeosYaml(commonspec, keosJson);
+        boolean setKubernetesHost = loadVariablesFromKeosYaml(commonspec, keosJson);
 
         // Vault values
         getK8sVaultConfig(commonspec);
@@ -260,10 +273,10 @@ public class KubernetesClient {
     private boolean loadVariablesFromKeosYaml(CommonG commonspec, String keosJson) throws Exception {
         boolean setKubernetesHost = false;
 
-        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks")) {
-            commonspec.getLogger().info("CLUSTER_SSH_USER variable cannot be set because there is no infra section in keos.yaml in eks cluster");
-        } else {
+        try {
             ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(keosJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
+        } catch (PathNotFoundException e) {
+            commonspec.getLogger().info("CLUSTER_SSH_USER variable cannot be set because there is no infra section in keos.yaml");
         }
 
         if (System.getProperty("KEOS_VERSION") == null) {
@@ -282,7 +295,7 @@ public class KubernetesClient {
             ThreadProperty.set("SIS_VHOST", "sis" + "." + ThreadProperty.get("KEOS_DOMAIN"));
             ThreadProperty.set("SIS_BASEPATH", "/sso");
 
-            if (commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("auth")) {
+            if (!keosJson.isEmpty() && commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("auth")) {
                 if (commonspec.getJSONPathString(keosJson, "$.keos.auth.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.~", null).contains("vHost")) {
                     ThreadProperty.set("ADMIN_VHOST", commonspec.getJSONPathString(keosJson, "$.keos.auth.admin.vHost", null).replaceAll("\"", "") + ThreadProperty.get("KEOS_DOMAIN"));
                 }
@@ -322,7 +335,7 @@ public class KubernetesClient {
             ThreadProperty.set("SIS_SUBDOMAIN", "sis");
             ThreadProperty.set("SIS_BASEPATH", "/sso");
 
-            if (commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("ingress")) {
+            if (!keosJson.isEmpty() && commonspec.getJSONPathString(keosJson, "$.keos.~", null).contains("ingress")) {
                 if (commonspec.getJSONPathString(keosJson, "$.keos.ingress.~", null).contains("admin") && commonspec.getJSONPathString(keosJson, "$.keos.ingress.admin.~", null).contains("subdomain")) {
                     ThreadProperty.set("ADMIN_SUBDOMAIN", commonspec.getJSONPathString(keosJson, "$.keos.ingress.admin.subdomain", null).replaceAll("\"", ""));
                 }
