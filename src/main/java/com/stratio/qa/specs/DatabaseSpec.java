@@ -1334,7 +1334,7 @@ public class DatabaseSpec extends BaseGSpec {
                 Assertions.assertThat(rs.next()).as("table exists " + tableName).isFalse();
             } else {
                 String resultTableName = rs.getString(2);
-                assertThat(resultTableName).as("table exists " + tableName).isEqualToIgnoringCase(tableName);
+                assertThat(resultTableName).as("table exists " + tableName).isNotEqualToIgnoringCase(tableName);
             }
             rs.close();
             myStatement.close();
