@@ -34,6 +34,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.assertj.core.api.Assertions;
 import org.hjson.JsonArray;
 import org.hjson.JsonValue;
+import org.testng.Assert;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
@@ -67,6 +68,7 @@ public class MiscSpec extends BaseGSpec {
     public void before(Scenario scenario) {
         this.scenario = scenario;
     }
+
     /**
      * Generic constructor.
      *
@@ -155,9 +157,7 @@ public class MiscSpec extends BaseGSpec {
 
             ThreadProperty.set(key, value);
 
-            if (scenario != null) {
-                scenario.write(String.format("%s -> %s", key, value));
-            }
+            logIntoScenario(String.format("%s -> %s", key, value));
         }
     }
 
@@ -246,8 +246,13 @@ public class MiscSpec extends BaseGSpec {
     }
 
     /**
-     * Check if expression defined by JSOPath (http://goessner.net/articles/JsonPath/index.html)
-     * match in JSON stored in a environment variable.
+     * Check if expression defined by JSONPath match in JSON stored in an environment variable.
+     * The allowed operations are: [equal, not equal, contains, does not contain, size, not empty, PathNotFound]
+     * Usage:
+     * Then 'var_name' matches the following cases:
+     * | $.columns    | size         | 1    |
+     * | $.columns[0] | equal        | Test |
+     * | $.columns[1] | PathNotFound |      |
      *
      * @param envVar environment variable where JSON is stored
      * @param table  data table in which each row stores one expression
@@ -255,20 +260,28 @@ public class MiscSpec extends BaseGSpec {
     @Then("^'(.+?)' matches the following cases:$")
     public void matchWithExpresion(String envVar, DataTable table) throws Exception {
         String jsonString = ThreadProperty.get(envVar);
+        ArrayList<String> errorList = new ArrayList<>();
 
         for (List<String> row : table.cells()) {
-            String expression = row.get(0);
+            String json_path = row.get(0);
             String condition = row.get(1);
-            String result = row.get(2);
-            try {
-                String value = commonspec.getJSONPathString(jsonString, expression, null);
-                commonspec.evaluateJSONElementOperation(value, condition, result);
-            } catch (PathNotFoundException e) {
-                if (!condition.equals("PathNotFound")) {
-                    throw e;
+            String expected_value = row.get(2);
+
+            if (condition.equals("PathNotFound")) {
+                if (commonspec.hasJSONPath(jsonString, json_path)) {
+                    errorList.add(String.format("%s - [JSONPath is expected to not be found but it exists] Value found: <%s>",
+                            json_path, commonspec.getJSONPathString(jsonString, json_path, null)));
+                }
+            } else {
+                try {
+                    String value = commonspec.getJSONPathString(jsonString, json_path, null);
+                    commonspec.evaluateJSONElementOperation(value, condition, expected_value);
+                } catch (PathNotFoundException | AssertionError e) {
+                    errorList.add(String.format("%s - %s", json_path, e.getMessage()));
                 }
             }
         }
+        Assert.assertEquals(errorList.size(), 0, "\n" + String.join("\n", errorList) + "\n");
     }
 
     /*
@@ -332,6 +345,7 @@ public class MiscSpec extends BaseGSpec {
 
     /**
      * Check value stored in environment variable is empty or is not empty
+     *
      * @param envVar    value to check
      * @param operation [is empty, is not empty]
      */
@@ -695,5 +709,16 @@ public class MiscSpec extends BaseGSpec {
 
     private boolean cellMatchesValue(Cell cell, String expectedValue) {
         return cell.getCellType() == CellType.STRING && cell.getStringCellValue().contains(expectedValue);
+    }
+
+    /**
+     * Logs the given message into Scenario step's output
+     *
+     * @param msg to print
+     */
+    public void logIntoScenario(String msg) {
+        if (scenario != null) {
+            scenario.write(msg);
+        }
     }
 }

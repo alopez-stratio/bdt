@@ -26,6 +26,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
 import com.jayway.jsonpath.spi.json.GsonJsonProvider;
 import com.jayway.jsonpath.spi.mapper.GsonMappingProvider;
 import com.mongodb.DBCursor;
@@ -2103,6 +2104,21 @@ public class CommonG {
             }
         }
         return value;
+    }
+
+    /**
+     * Returns whether the jsonString contains a given JsonPath or not
+     *
+     * @param jsonString Json body origin
+     * @param expr       JsonPath to look for
+     */
+    public boolean hasJSONPath(String jsonString, String expr) {
+        try {
+            getJSONPathString(jsonString, expr, null);
+            return true;
+        } catch (PathNotFoundException e) {
+            return false;
+        }
     }
 
 
