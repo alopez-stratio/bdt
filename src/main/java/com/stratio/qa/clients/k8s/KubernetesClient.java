@@ -1928,10 +1928,7 @@ public class KubernetesClient {
      * @param localHostPort local host port
      */
 
-    public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort, String localPortForwardId) throws IOException {
-        if (localPortForwardMap.get(localPortForwardId) != null) {
-            closePortForward(localPortForwardId);
-        }
+    public void setLocalPortForwardService(String namespace, String name, int containerPort, int localHostPort, String localPortForwardId) {
         localPortForward = k8sClient.services().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
         localPortForwardMap.put(localPortForwardId, localPortForward);
         this.localPortForwardId = localPortForwardId;
@@ -1945,10 +1942,7 @@ public class KubernetesClient {
      * @param containerPort container port
      * @param localHostPort local host port
      */
-    public void setLocalPortForwardPod(String namespace, String name, int containerPort, int localHostPort, String localPortForwardId) throws IOException {
-        if (localPortForwardMap.get(localPortForwardId) != null) {
-            closePortForward(localPortForwardId);
-        }
+    public void setLocalPortForwardPod(String namespace, String name, int containerPort, int localHostPort, String localPortForwardId) {
         localPortForward = k8sClient.pods().inNamespace(namespace).withName(name).portForward(containerPort, localHostPort);
         localPortForwardMap.put(localPortForwardId, localPortForward);
         this.localPortForwardId = localPortForwardId;

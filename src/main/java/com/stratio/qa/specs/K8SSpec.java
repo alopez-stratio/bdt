@@ -647,12 +647,12 @@ public class K8SSpec extends BaseGSpec {
     }
 
     // TODO Remove in future (added to avoid compile errors in qa-unified-tests)
-    public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace) throws IOException {
+    public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace) {
         setLocalPortForward(containerPort, localhostPort, type, name, namespace, null);
     }
 
     @Given("^I forward containerPort '(\\d+)' in localhostPort '(\\d+)' for (pod|service) '(.+?)'( in namespace '(.+?)')?( with id '(.+?)')?$")
-    public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace, String id) throws IOException {
+    public void setLocalPortForward(Integer containerPort, Integer localhostPort, String type, String name, String namespace, String id) {
         id = id != null ? id : name + "_" + namespace + "_" + containerPort + "_" + localhostPort;
         switch (type) {
             case "pod":
