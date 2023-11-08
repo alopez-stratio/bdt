@@ -32,9 +32,12 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.stratio.qa.assertions.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -501,6 +504,24 @@ public class RestSpec extends BaseGSpec {
                 commonspec.getLogger().warn("Response: {}", commonspec.getResponse().getResponse());
                 throw e;
             }
+        }
+    }
+
+    /**
+     * Checks if the service response's status code is one of the expected status codes, separated by comma (,)
+     *
+     * @param expectedStatus list of expected status codes, separated by comma (ex.: 201,409)
+     */
+    @Then("^the service response status must be one of '(.*)'$")
+    public void assertResponseStatus(String expectedStatus) {
+        List<Integer> expectedStatusList = Arrays.stream(expectedStatus.replace(" ", "").split(","))
+                .map(Integer::parseInt).collect(Collectors.toList());
+
+        try {
+            assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusList);
+        } catch (AssertionError e) {
+            commonspec.getLogger().warn("Response: {}", commonspec.getResponse().getResponse());
+            throw e;
         }
     }
 

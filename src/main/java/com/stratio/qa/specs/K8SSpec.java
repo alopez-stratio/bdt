@@ -943,8 +943,9 @@ public class K8SSpec extends BaseGSpec {
     public void copyToRemoteFileWithRetry(String localPath, String remotePath, String podName, String namespace, String container) {
         String[] checkFileIsNotEmptyCommand = {"bash", "-ic", "[ -s " + remotePath + " ]"};
         boolean fileWasUploadedCorrectly = false;
+        int retry_attempts = Integer.parseInt(System.getProperty("KUBECTL_COPY_RETRY_COUNT", "5"));
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < retry_attempts; i++) {
             try {
                 // Copy the file
                 commonspec.kubernetesClient.copyFileToPod(podName, namespace, container, localPath, remotePath);
@@ -957,7 +958,7 @@ public class K8SSpec extends BaseGSpec {
                 continue; // Repeat
             }
         }
-        Assert.assertTrue(fileWasUploadedCorrectly, "The file was not uploaded correctly after 5 attempts");
+        Assert.assertTrue(fileWasUploadedCorrectly, String.format("The file was not uploaded correctly after %s attempts", retry_attempts));
     }
 
     @When("^I create resourcequota with name '(.+?)', in namespace '(.+?)'(, with hard cpu '(.+?)')?(, with hard memory '(.+?)')?(, with hard pods '(.+?)')?$")
