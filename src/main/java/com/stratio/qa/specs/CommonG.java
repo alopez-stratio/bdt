@@ -1282,6 +1282,11 @@ public class CommonG {
                     }
                 }
 
+                if (this.getResponse() != null) {
+                    this.getLogger().debug("Reusing coookies: {}", this.getResponse().getCookies());
+                    request = request.setCookies(this.getResponse().getCookies());
+                }
+
                 for (Cookie cook : this.getCookies()) {
                     request = request.addCookie(cook);
                 }
