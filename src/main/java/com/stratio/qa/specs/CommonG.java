@@ -2660,21 +2660,37 @@ public class CommonG {
         executeCommand(command, sshConnectionId, exitStatus, envVar, -1);
     }
 
-    public void connectToCrossdataDatabase(boolean security, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination) throws Exception {
+    public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit) throws Exception {
         String jdbcConnection = "jdbc:crossdata://Server=" + host + ":" + port + ";UID=" + user + ";PAGINATION=" + pagination;
 
         if (security) {
-            Assert.assertNotNull(keystore_path, "Keystore path is mandatory when security is enabled");
-            Assert.assertNotNull(keystore_pwd, "Keystore password is mandatory when security is enabled");
-            Assert.assertNotNull(truststore_path, "Truststore path is mandatory when security is enabled");
-            Assert.assertNotNull(truststore_pwd, "Truststore password is mandatory when security is enabled");
-            jdbcConnection = jdbcConnection + ";SSL=true;LIMIT=-1;KEYSTORE=" + keystore_path +
-                    ";KEYSTORE_PWD=" + keystore_pwd + ";TRUSTSTORE=" + truststore_path + ";TRUSTSTORE_PWD=" + truststore_pwd;
+            if (!mutualTLS) {
+                Assert.assertNotNull(keystore_path, "Keystore path is mandatory when security is enabled");
+                Assert.assertNotNull(keystore_pwd, "Keystore password is mandatory when security is enabled");
+                Assert.assertNotNull(truststore_path, "Truststore path is mandatory when security is enabled");
+                Assert.assertNotNull(truststore_pwd, "Truststore password is mandatory when security is enabled");
+                jdbcConnection = jdbcConnection + ";SSL=true;KEYSTORE=" + keystore_path +
+                        ";KEYSTORE_PWD=" + keystore_pwd + ";TRUSTSTORE=" + truststore_path + ";TRUSTSTORE_PWD=" + truststore_pwd;
+            } else {
+                if (truststore_path != null && truststore_pwd != null) {
+                    jdbcConnection = jdbcConnection + ";SSL=true;MUTUAL_SSL=false;TRUSTSTORE=" + truststore_path + ";TRUSTSTORE_PWD=" + truststore_pwd;
+                } else {
+                    jdbcConnection = jdbcConnection + ";SSL=true;MUTUAL_SSL=false;INSECURE_TRUSTSTORE=true";
+                }
+            }
         }
 
         if (password != null) {
             jdbcConnection = jdbcConnection + ";PWD=" + password;
         }
+
+        if (limit != null) {
+            jdbcConnection = jdbcConnection + ";LIMIT=" + limit;
+        } else {
+            jdbcConnection = jdbcConnection + ";LIMIT=-1";
+        }
+
+        this.getLogger().debug("Crossdata JDBC Connection: {}", jdbcConnection);
 
         try {
             Class.forName("com.stratio.jdbc.core.jdbc4.StratioDriver");

@@ -1610,10 +1610,10 @@ public class DatabaseSpec extends BaseGSpec {
         ThreadProperty.remove("querysize");
     }
 
-    @Given(value = "^I connect with JDBC to Crossdata server( using TLS)? with parameters: host '(.*?)', port '(.*?)', user '(.*?)'(, password '(.*?)')?(, keystore '(.*?)')?(, keystore password '(.*?)')?(, truststore '(.*?)')?(, truststore password '(.*?)')?( and pagination)?$")
-    public void createXDDriver(String security, String host, String port, String user, String password, String keyStorePath, String keyStorePass, String trustStorePath, String trustStorePass, String pagination) {
+    @Given(value = "^I connect with JDBC to Crossdata server( using TLS)?( without mutualTLS)? with parameters: host '(.*?)', port '(.*?)', user '(.*?)'(, password '(.*?)')?(, keystore '(.*?)')?(, keystore password '(.*?)')?(, truststore '(.*?)')?(, truststore password '(.*?)')?(, limit '(.*?)')?( and pagination)?$")
+    public void createXDDriver(String security, String withoutMutualTLS, String host, String port, String user, String password, String keyStorePath, String keyStorePass, String trustStorePath, String trustStorePass, String limit, String pagination) {
         try {
-            commonspec.connectToCrossdataDatabase(security != null, host, port, keyStorePath, keyStorePass, trustStorePath, trustStorePass, user, password, pagination != null);
+            commonspec.connectToCrossdataDatabase(security != null, withoutMutualTLS != null, host, port, keyStorePath, keyStorePass, trustStorePath, trustStorePass, user, password, pagination != null, limit);
         } catch (Exception e) {
             fail("Error when we trying to connect to Crossdata Database -> " + e.getMessage());
         }
