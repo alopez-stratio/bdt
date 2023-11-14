@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
@@ -2361,6 +2362,32 @@ public class CommonG {
             logger.error("Yaml file can't be converted to Json file", ex);
         }
         return null;
+    }
+
+    /**
+     * Converts a given XML file into JSON
+     * @param xmlFile path to file in XML
+     * @return json result
+     */
+    public String convertXmlToJson(String xmlFile) {
+        return convertXmlStringToJson(retrieveData(xmlFile, "xml"));
+    }
+
+    /**
+     * Converts a given XML String into JSON
+     * @param xml string contents in XML
+     * @return json result
+     */
+    public String convertXmlStringToJson(String xml) {
+        try {
+            ObjectMapper xmlMapper = new XmlMapper();
+            Object xmlObject = xmlMapper.readValue(xml, Object.class);
+            ObjectMapper jsonMapper = new ObjectMapper();
+            return jsonMapper.writeValueAsString(xmlObject);
+        } catch (Exception e) {
+            logger.error("XML can't be converted to JSON", e);
+            return null;
+        }
     }
 
     /**

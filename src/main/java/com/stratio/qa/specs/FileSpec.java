@@ -214,6 +214,19 @@ public class FileSpec extends BaseGSpec {
         writeInFile(retrievedData, fileName, true);
     }
 
+    /**
+     * Converts a XML file to JSON
+     */
+    @When("^I convert the xml file '(.+?)' to json file '(.+?)'$")
+    public void convertXmlToJson(String fileToConvert, String fileName) throws Exception {
+
+        // Retrieve data
+        String retrievedData = commonspec.convertXmlToJson(fileToConvert);
+
+        // Store the file
+        writeInFile(retrievedData, fileName, true);
+    }
+
     @When("^I create zip file '(.+?)' from the following files:$")
     public void createZip(String zipPath, DataTable table) throws Exception {
 
