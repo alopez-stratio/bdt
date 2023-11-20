@@ -2192,6 +2192,9 @@ public class CommonG {
                 case "not empty":
                     assertThat(value).as("Evaluate JSONPath is not empty").isNotEmpty();
                     break;
+                case "matches":
+                    assertThat(value).as("Value does not match regex.").matches(result);
+                    break;
                 default:
                     Assertions.fail("Not implemented condition (" + condition + ")");
                     break;

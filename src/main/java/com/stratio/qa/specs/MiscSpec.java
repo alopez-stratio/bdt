@@ -247,7 +247,7 @@ public class MiscSpec extends BaseGSpec {
 
     /**
      * Check if expression defined by JSONPath match in JSON stored in an environment variable.
-     * The allowed operations are: [equal, not equal, contains, does not contain, size, not empty, PathNotFound]
+     * The allowed operations are: [equal, not equal, contains, does not contain, matches, size, not empty, PathNotFound]
      * Usage:
      * Then 'var_name' matches the following cases:
      * | $.columns    | size         | 1    |
