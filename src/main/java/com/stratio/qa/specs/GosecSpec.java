@@ -1330,15 +1330,15 @@ public class GosecSpec extends BaseGSpec {
      * @param doesNotExist    : (IF false) resource will be overwritten if exists previously  (OPTIONAL)
      * @throws Exception
      */
-    @When("^I create (custom|system) user '(.+?)'( in tenant '(.+?)')?( in LDAP with REALM '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( if it does not exist)?$")
-    public void createUserResource(String type, String userName, String tenantOrig, String realm, String tenantLoginInfo, String
+    @When("^I create (custom|system|federated) user '(.+?)'( in tenant '(.+?)')?( in LDAP with REALM '(.+?)')?( in federated IDP '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( if it does not exist)?$")
+    public void createUserResource(String type, String userName, String tenantOrig, String realm, String federated_idp, String tenantLoginInfo, String
             keytab, String certificate, String groups, String doesNotExist) throws Exception {
         Boolean booleanExist = false;
         if (doesNotExist != null) {
             booleanExist = true;
         }
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createUserResourceKeos(type, userName, tenantOrig, realm, tenantLoginInfo, keytab, certificate, groups, booleanExist);
+            createUserResourceKeos(type, userName, tenantOrig, realm, federated_idp, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         } else {
             createUserResourceDcos(type, userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         }
@@ -1407,7 +1407,7 @@ public class GosecSpec extends BaseGSpec {
 
                 } else {
                     //json for gosec-management-baas endpoint
-                    data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, false, null);
+                    data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, false, null, null);
                 }
 
                 // Send POST request
@@ -1438,7 +1438,7 @@ public class GosecSpec extends BaseGSpec {
 
     }
 
-    private void createUserResourceKeos(String type, String userName, String tenantOrig, String realm, String
+    private void createUserResourceKeos(String type, String userName, String tenantOrig, String realm, String federated_idp, String
             tenantLoginInfo, String keytab, String certificate, String groups, boolean doesNotExist) throws Exception {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endPoint = baasPath + "/management/user";
@@ -1460,7 +1460,7 @@ public class GosecSpec extends BaseGSpec {
         }
 
         String uid = userName.replaceAll("\\s+", ""); //delete white spaces
-        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName, realm);
+        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName, realm, federated_idp);
         if (tenantOrig != null) {
             // Set REST connection
             commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
@@ -1487,7 +1487,7 @@ public class GosecSpec extends BaseGSpec {
                         throw e;
                     }
                     //send request again
-                    createUserResourceKeos(type, userName, tenantOrig, realm, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
+                    createUserResourceKeos(type, userName, tenantOrig, realm, federated_idp, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
                 }
             }
         } catch (Exception e) {
@@ -1771,7 +1771,7 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private String generateBaasUserJson(String uid, String userName, String groups, String keytab, String
-            certificate, Boolean addEnable, String type, Boolean addUserName, String realm) {
+            certificate, Boolean addEnable, String type, Boolean addUserName, String realm, String federated_idp) {
         JSONObject postJson = new JSONObject();
         String data = "";
         postJson.put("uid", uid);
@@ -1783,7 +1783,15 @@ public class GosecSpec extends BaseGSpec {
         } else {
             if (type.equals("custom")) {
                 postJson.put("inputSourceType", "Custom");
+            } else {
+                if (type.equals("federated")) {
+                    postJson.put("inputSourceType", "Federated");
+                }
             }
+        }
+
+        if (federated_idp != null) {
+            postJson.put("realm", federated_idp);
         }
 
         if (groups != null) {
@@ -1818,7 +1826,8 @@ public class GosecSpec extends BaseGSpec {
         return data;
     }
 
-    private void sendIdentitiesPostRequest(String resource, String resourceName, String data, String newEndPoint, String type) throws
+    private void sendIdentitiesPostRequest(String resource, String resourceName, String data, String
+            newEndPoint, String type) throws
             Exception {
         Integer expectedStatusCreate = 201;
         commonspec.getLogger().warn("Json for POST request---> {}", data);
