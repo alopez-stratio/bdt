@@ -2821,7 +2821,7 @@ public class CommonG {
 
         // Set sso token
         KeosSpec keosSpec = new KeosSpec(this);
-        keosSpec.setGoSecSSOCookieKeos(null, ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"), user, password, tenant, null, null, null);
+        keosSpec.setGoSecSSOCookieKeosCache(null, ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"), user, password, tenant, null, null, null);
 
         // Securely send requests
         this.setRestProtocol("https://");
