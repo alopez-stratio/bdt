@@ -17,12 +17,12 @@
 package com.stratio.qa.specs;
 
 import com.stratio.qa.aspects.RunOnTagAspect;
-import cucumber.api.java.en.Given;
-import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.Assertions;
 import com.stratio.qa.utils.ThreadProperty;
+import cucumber.api.java.en.Given;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
+import org.asynchttpclient.Response;
 import org.hjson.JsonArray;
 import org.hjson.JsonObject;
 import org.hjson.JsonValue;
@@ -2647,8 +2647,8 @@ public class GosecSpec extends BaseGSpec {
         getPolicyIdCommon(endPoint, policyName, tenantOrig, tenantLoginInfo, envVar);
     }
 
-    @Given("^I create group '(.+?)' with user '(.+?)' in LDAP( without sync)?$")
-    public void createGroupLdap(String group, String user, String noSync) throws Exception {
+    @Given("^I create group '(.+?)' with user '(.+?)' in LDAP( without sync)?( if the group does not already exist)?$")
+    public void createGroupLdap(String group, String user, String noSync, String skipIfExists) throws Exception {
         String template = "###################\n" +
                 "###    GROUPS    ###\n" +
                 "###################\n" +
@@ -2668,28 +2668,48 @@ public class GosecSpec extends BaseGSpec {
         }
         k8SSpec.getKeyFromConfigMap("ou_people", "kerberos", "keos-idp", "people_ou", null);
         k8SSpec.getKeyFromConfigMap("ou_groups", "kerberos", "keos-idp", "groups_ou", null);
-        template = template.replace("stratio", group).replace("$ou_people", ThreadProperty.get("people_ou")).replace("uid=uid", "uid=" + user).replace("$ou_groups", ThreadProperty.get("groups_ou"));
-        writeInFile(template, "ldapgroup.template");
-        k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapgroup.template", "/tmp/ldapgroup.template", "ldap-0", "keos-idp", "ldap");
+
+        // Check if the group already exists on LDAP
+        boolean alreadyExists;
         List<List<String>> command = Arrays.asList(
                 Arrays.asList("sh"),
                 Arrays.asList("-c"),
-                Arrays.asList("shtpl < /tmp/ldapgroup.template > /tmp/group.ldif")
+                Arrays.asList("source /vault/secrets/idp-secrets ; ldapsearch -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass -b \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"")
         );
-        k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
-        command = Arrays.asList(
-                Arrays.asList("sh"),
-                Arrays.asList("-c"),
-                Arrays.asList("source /vault/secrets/idp-secrets ; cat /tmp/group.ldif | ldapadd -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass")
-        );
-        k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
-        command = Arrays.asList(
-                Arrays.asList("sh"),
-                Arrays.asList("-c"),
-                Arrays.asList("rm -f /tmp/*.template /tmp/*.ldif")
-        );
-        k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
-        assertThat(ThreadProperty.get("output")).as("Log contains query cancelled").contains("adding new entry \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"");
+        try {
+            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
+            alreadyExists = ThreadProperty.get("output").contains("result: 0 Success");
+        } catch (Exception e) {
+            alreadyExists = false;
+        }
+        if (skipIfExists != null && alreadyExists) {
+            logger.info("The group already exists, skipping creation...");
+        } else {
+            Assert.assertFalse(alreadyExists, "The group already exists and can't be created again.");
+
+            template = template.replace("stratio", group).replace("$ou_people", ThreadProperty.get("people_ou")).replace("uid=uid", "uid=" + user).replace("$ou_groups", ThreadProperty.get("groups_ou"));
+            writeInFile(template, "ldapgroup.template");
+            k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapgroup.template", "/tmp/ldapgroup.template", "ldap-0", "keos-idp", "ldap");
+            command = Arrays.asList(
+                    Arrays.asList("sh"),
+                    Arrays.asList("-c"),
+                    Arrays.asList("shtpl < /tmp/ldapgroup.template > /tmp/group.ldif")
+            );
+            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
+            command = Arrays.asList(
+                    Arrays.asList("sh"),
+                    Arrays.asList("-c"),
+                    Arrays.asList("source /vault/secrets/idp-secrets ; cat /tmp/group.ldif | ldapadd -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass")
+            );
+            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
+            command = Arrays.asList(
+                    Arrays.asList("sh"),
+                    Arrays.asList("-c"),
+                    Arrays.asList("rm -f /tmp/*.template /tmp/*.ldif")
+            );
+            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
+            assertThat(ThreadProperty.get("output")).as("Log contains query cancelled").contains("adding new entry \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"");
+        }
         if (noSync == null) {
             Thread.sleep(5000);
             runLdapSynchronizerWithRetries("total", 5, 10);

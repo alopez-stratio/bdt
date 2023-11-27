@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 1.0.0 (upcoming)
 
+* [GS-9100] Improve internal ldap group creation step on BDT
 * [GS-9007] Create Federated users from Gosec R4.1
 * [GS-8613] Changes for stratio-identity
 * [GS-8575] Step to search for a string in an Excel file
