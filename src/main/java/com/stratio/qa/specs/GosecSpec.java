@@ -2751,9 +2751,9 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    @When("^I get stratio-identity from '(user|group)' with resourceId '(.+?)' and save it in environment variable '(.+?)'$")
-    public void getStratioIdentity(String resource, String resourceId, String envVar) throws Exception {
-        ThreadProperty.set(envVar, getStratioIdentity(resource, resourceId));
+    @When("^I get stratio-identity from '(user|group)' with resourceId '(.+?)'( and realm '(.+?)') and save it in environment variable '(.+?)'$")
+    public void getStratioIdentity(String resource, String resourceId, String realm, String envVar) throws Exception {
+        ThreadProperty.set(envVar, getStratioIdentity(resource, resourceId, realm));
     }
 
     /**
@@ -2763,6 +2763,16 @@ public class GosecSpec extends BaseGSpec {
      * @param resourceId:   username/groupname
      */
     public String getStratioIdentity(String resourceType, String resourceId) throws Exception {
+        return getStratioIdentity(resourceType, resourceId, null);
+    }
+
+    /**
+     * Returns the generated Stratio Identity for a user/group with a custom realm
+     *
+     * @param resourceType: user/group
+     * @param resourceId:   username/groupname
+     */
+    public String getStratioIdentity(String resourceType, String resourceId, String realm) throws Exception {
         String resources = "users";
         String name = "username";
         String uidOrGid = "uid";
@@ -2783,7 +2793,9 @@ public class GosecSpec extends BaseGSpec {
                 if (obj instanceof JSONObject) {
                     JSONObject element = (JSONObject) obj;
                     if (element.optString(name).equals(resourceId)) {
-                        return element.optString(uidOrGid);
+                        if (realm == null || element.optString("realm").equals(realm)) {
+                            return element.optString(uidOrGid);
+                        }
                     }
                 }
             }
@@ -2792,6 +2804,33 @@ public class GosecSpec extends BaseGSpec {
             commonspec.getLogger().warn("Error performing request to {}", endPointGetStratioIdentity);
         }
         return null;
+    }
+
+    @When("^I get user with (UID|username) '(.+?)'( and realm '(.+?)')? in tenant '(.+?)' with tenant user and tenant password '(.+:.+?)' and save it( in environment variable '(.*?)')?( in file '(.*?)')?$")
+    public void getResourceInfo(String type, String id, String realm, String tenantOrig, String tenantLoginInfo, String envVar, String file) throws Exception {
+        if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+            String uid = id;
+            if (type.equals("username")) {
+                uid = getStratioIdentity("user", id, realm);
+                commonspec.getLogger().info("UID obtained: " + uid);
+            }
+            String endPoint = "/gosec/baas/management/user?uid=";
+            restSpec.sendRequestNoDataTable("GET", endPoint + uid, null, null, null);
+            if (commonspec.getResponse().getStatusCode() == 200) {
+                if (envVar != null) {
+                    ThreadProperty.set(envVar, commonspec.getResponse().getResponse());
+                }
+                if (file != null) {
+                    writeInFile(commonspec.getResponse().getResponse(), file);
+                }
+            } else {
+                fail("User doesn't exist - Response code: " + commonspec.getResponse().getStatusCode());
+            }
+        } else {
+            fail("Not supported in DCOS environment");
+        }
     }
 
 }
