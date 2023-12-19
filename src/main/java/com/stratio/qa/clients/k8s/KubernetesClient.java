@@ -2623,6 +2623,26 @@ public class KubernetesClient {
         k8sClient.apiextensions().v1().customResourceDefinitions().withName(crd).delete();
     }
 
+    /**
+     * Restart deployment
+     *
+     * @param deployment Deployment to restart
+     * @param namespace  Namespace
+     */
+    public void restartDeployment(String deployment, String namespace) {
+        k8sClient.apps().deployments().inNamespace(namespace).withName(deployment).rolling().restart();
+    }
+
+    /**
+     * Restart Statefulset
+     *
+     * @param statefulset Statefulset to restart
+     * @param namespace   Namespace
+     */
+    public void restartStatefulset(String statefulset, String namespace) {
+        k8sClient.apps().statefulSets().inNamespace(namespace).withName(statefulset).rolling().restart();
+    }
+
     public void getKeosReport() {
         try {
             StringBuilder sb = new StringBuilder();

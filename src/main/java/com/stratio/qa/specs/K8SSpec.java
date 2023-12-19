@@ -1000,4 +1000,17 @@ public class K8SSpec extends BaseGSpec {
             writeInFile(result, fileName);
         }
     }
+
+    @When("^I restart (deployment|statefulset) with name '(.+?)' in namespace '(.+?)'?$")
+    public void restartResource(String type, String name, String namespace) throws Exception {
+        switch (type) {
+            case "deployment":
+                commonspec.kubernetesClient.restartDeployment(name, namespace);
+                break;
+            case "statefulset":
+                commonspec.kubernetesClient.restartStatefulset(name, namespace);
+                break;
+            default:
+        }
+    }
 }
