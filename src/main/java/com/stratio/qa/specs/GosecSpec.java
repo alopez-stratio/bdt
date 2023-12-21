@@ -38,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -511,6 +513,7 @@ public class GosecSpec extends BaseGSpec {
         String endPointPolicies = baasPath + "/management/policies";
         String endPointCollectionsPolicies = baasPath + "/management/policies/domains";
         String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
+        String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -520,6 +523,11 @@ public class GosecSpec extends BaseGSpec {
         if (endPoint == null) {
             endPoint = getResourceEndpoint(resource);
         }
+
+        if ((Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 2) && (resource.equals("user"))) {
+            resourceId = resourceId.toLowerCase();
+        }
+
         endPointResource = endPoint + resourcePrefix + resourceId;
 
         try {
@@ -1460,6 +1468,7 @@ public class GosecSpec extends BaseGSpec {
         }
 
         String uid = userName.replaceAll("\\s+", ""); //delete white spaces
+
         String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName, realm, federated_idp);
         if (tenantOrig != null) {
             // Set REST connection
@@ -1772,8 +1781,11 @@ public class GosecSpec extends BaseGSpec {
 
     private String generateBaasUserJson(String uid, String userName, String groups, String keytab, String
             certificate, Boolean addEnable, String type, Boolean addUserName, String realm, String federated_idp) {
+        String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
+        String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
         JSONObject postJson = new JSONObject();
         String data = "";
+
         postJson.put("uid", uid);
         postJson.put("name", userName);
         postJson.put("email", uid + "@stratio.com");
@@ -1822,6 +1834,20 @@ public class GosecSpec extends BaseGSpec {
         if (realm != null) {
             postJson.put("realm", realm);
         }
+        //changes from baas 2.2.x
+        if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 2) {
+            postJson.remove("uid");
+            String patron = ".*[.].*[-].*";
+            Pattern pattern = Pattern.compile(patron);
+            Matcher matcher = pattern.matcher(userName);
+            if (matcher.matches()) {
+                postJson.put("legacy", true);
+            } else {
+                postJson.put("legacy", false);
+            }
+            postJson.put("username", uid.toLowerCase());
+        }
+
         data = postJson.toString();
         return data;
     }
@@ -2751,7 +2777,7 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    @When("^I get stratio-identity from '(user|group)' with resourceId '(.+?)'( and realm '(.+?)') and save it in environment variable '(.+?)'$")
+    @When("^I get stratio-identity from '(user|group)' with resourceId '(.+?)'( and realm '(.+?)')? and save it in environment variable '(.+?)'$")
     public void getStratioIdentity(String resource, String resourceId, String realm, String envVar) throws Exception {
         ThreadProperty.set(envVar, getStratioIdentity(resource, resourceId, realm));
     }
