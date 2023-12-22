@@ -524,10 +524,6 @@ public class GosecSpec extends BaseGSpec {
             endPoint = getResourceEndpoint(resource);
         }
 
-        if ((Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 2) && (resource.equals("user"))) {
-            resourceId = resourceId.toLowerCase();
-        }
-
         endPointResource = endPoint + resourcePrefix + resourceId;
 
         try {
@@ -1845,7 +1841,7 @@ public class GosecSpec extends BaseGSpec {
             } else {
                 postJson.put("legacy", false);
             }
-            postJson.put("username", uid.toLowerCase());
+            postJson.put("username", uid);
         }
 
         data = postJson.toString();
