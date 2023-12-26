@@ -3,6 +3,7 @@
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
 ## 1.0.0 (upcoming)
+* [GS-9210] Addd step to upload user certificates using Gosec API
 * [GS-9207] Addd path value /services on BDT features to get certificates
 * [GS-9200] Changes for new user secrets integration Gosec R4.2
 * [GS-9200] Changes for new user secrets integration Gosec R4.2

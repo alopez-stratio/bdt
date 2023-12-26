@@ -2855,4 +2855,44 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
+    /**
+     * Upload private key and public key for a userId
+     *
+     * @param publicKeyPath: path for publicKey in valid format
+     * @param privateKeyPath: path for privateKey in valid format
+     * @param userId:   userId->stratio-identity
+     */
+    @Given("^I upload public key '(.+?)' and private key '(.+?)' for userId '(.+?)'$")
+    public void uploadUserSecrets(String publicKeyPath, String privateKeyPath, String userId) throws Exception {
+        // Check file exists
+        File publicKeyFile = new File(publicKeyPath);
+        File privateKeyFile = new File(privateKeyPath);
+        Assertions.assertThat(publicKeyFile.exists()).as("File: " + publicKeyPath + " does not exist.").isTrue();
+        Assertions.assertThat(privateKeyFile.exists()).as("File: " + privateKeyPath + " does not exist.").isTrue();
+
+        String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
+        String endPointUploadSecrets = baasPath + "/management/user/secrets/certificate/upload";
+
+        // Obtain URL
+        String restURL = "https://" + ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST") + ":443" + endPointUploadSecrets;
+
+        // Form query parameters
+        String header1 = "-H \"accept: application/json\"";
+        String header2 = "-H \"Content-Type: multipart/form-data\"";
+        String uid = "-F \"uid=" + userId + "\"";
+        String privateFile = "-F \"privateKey=@" + privateKeyFile + ";type=application/x-iwork-keynote-sffkey\"";
+        String publicFile = "-F \"publicKey=@" + publicKeyFile + ";type=application/pkix-cert\"";
+
+        String cookie = "-H \"Cookie:_oauth2_proxy=" + ThreadProperty.get("oauth2ProxyCookie") + "\"";
+        String command = "curl -X POST -i -k " + cookie + " \"" + restURL + "\" " + header1 + " " + header2 + " " + uid + " " + privateFile + " " + publicFile + " > target/test-classes/outputK8sCertificatesUpload.txt";
+
+        commonspec.getLogger().debug("Request:" + command);
+        // Execute command
+        commonspec.runLocalCommand(command, 60);
+        Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
+
+        commonspec.runLocalCommand("cat target/test-classes/outputK8sCertificatesUpload.txt | grep \"HTTP/1\"");
+        Assertions.assertThat(commonspec.getCommandResult()).as("Upload certificates response").contains("204");
+    }
+
 }
