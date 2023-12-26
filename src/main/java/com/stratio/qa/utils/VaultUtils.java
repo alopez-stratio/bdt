@@ -17,7 +17,9 @@
 package com.stratio.qa.utils;
 
 import com.stratio.qa.specs.CommonG;
+
 import java.util.Random;
+
 import org.assertj.core.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +42,8 @@ public class VaultUtils {
     private String userlandBasePath = "/userland";
 
     private String peopleBasePath = "/people";
+
+    private String servicesBasePath = "/services";
 
     private String basePath;
 
@@ -66,7 +70,8 @@ public class VaultUtils {
         this.host = System.getProperty("VAULT_HOST") != null ? System.getProperty("VAULT_HOST") : ThreadProperty.get("VAULT_HOST") != null ? ThreadProperty.get("VAULT_HOST") : "";
         this.token = System.getProperty("VAULT_TOKEN") != null ? System.getProperty("VAULT_TOKEN") : ThreadProperty.get("VAULT_TOKEN") != null ? ThreadProperty.get("VAULT_TOKEN") : "";
         this.protocol = System.getProperty("VAULT_PROTOCOL") != null ? "http://" : "https://";
-        this.port = System.getProperty("EOS_VAULT_PORT") != null ? System.getProperty("EOS_VAULT_PORT") : ThreadProperty.get("EOS_VAULT_PORT") != null ? ThreadProperty.get("EOS_VAULT_PORT") : "8200";;
+        this.port = System.getProperty("EOS_VAULT_PORT") != null ? System.getProperty("EOS_VAULT_PORT") : ThreadProperty.get("EOS_VAULT_PORT") != null ? ThreadProperty.get("EOS_VAULT_PORT") : "8200";
+        ;
     }
 
     public void setProtocol(String protocol) {
@@ -78,9 +83,13 @@ public class VaultUtils {
         this.basePath = this.peopleBasePath;
     }
 
-    public void setBasePath(boolean people) {
-        if (people) {
-            this.basePath = this.peopleBasePath;
+    public void setBasePath(String people) {
+        if (people != null) {
+            if (people.contains("people")) {
+                this.basePath = this.peopleBasePath;
+            } else {
+                this.basePath = this.servicesBasePath;
+            }
         } else {
             this.basePath = this.userlandBasePath;
         }
