@@ -3,9 +3,9 @@
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
 ## 1.0.0 (upcoming)
-* [GS-9229] Addd step to download json secret from password path
-* [GS-9210] Addd step to upload user certificates using Gosec API
-* [GS-9207] Addd path value /services on BDT features to get certificates
+* [GS-9229] Add step to download json secret from password path
+* [GS-9210] Add step to upload user certificates using Gosec API
+* [GS-9207] Add path value /services on BDT features to get certificates
 * [GS-9200] Changes for new user secrets integration Gosec R4.2
 * [GS-9200] Changes for new user secrets integration Gosec R4.2
 * [GS-9100] Improve internal ldap group creation step on BDT
