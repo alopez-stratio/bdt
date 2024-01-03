@@ -18,12 +18,11 @@ package com.stratio.qa.specs;
 
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.Given;
+import org.apache.commons.io.IOUtils;
+import org.assertj.core.api.Assertions;
 
 import java.io.File;
 import java.io.FileInputStream;
-
-import org.apache.commons.io.IOUtils;
-import org.assertj.core.api.Assertions;
 
 
 /**
@@ -261,6 +260,22 @@ public class VaultSpec extends BaseGSpec {
     public void getUsr(String path, String envVar, String inPeople) throws Exception {
         commonspec.getVaultUtils().setBasePath(inPeople);
         commonspec.getVaultUtils().getUser(path, envVar);
+
+        Assertions.assertThat(ThreadProperty.get(envVar)).isNotEmpty();
+    }
+
+    /**
+     * Get 'secret' from specified password. The ouput is the 'secret' saved in environmental variable.
+     *
+     * @param path     Password's path in Vault
+     * @param envVar   environment variable to save the secret
+     * @param inPeople [optional] look into /people or /services in Vault (/userland by default)
+     * @throws Exception
+     */
+    @Given("^I get secret from path '(.+?)' and save it in environment variable '(.+?)'( in (/people|/services))?$")
+    public void getSecret(String path, String envVar, String inPeople) throws Exception {
+        commonspec.getVaultUtils().setBasePath(inPeople);
+        commonspec.getVaultUtils().getSecret(path, envVar);
 
         Assertions.assertThat(ThreadProperty.get(envVar)).isNotEmpty();
     }

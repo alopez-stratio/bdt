@@ -17,12 +17,11 @@
 package com.stratio.qa.utils;
 
 import com.stratio.qa.specs.CommonG;
-
-import java.util.Random;
-
 import org.assertj.core.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Random;
 
 
 public class VaultUtils {
@@ -290,6 +289,15 @@ public class VaultUtils {
         return vaultData;
     }
 
+    private String getSecret(String passPath) throws Exception {
+        String passwordPath = basePath + passwordsPath + passPath;
+        String filter = "jq -r";
+        this.getDataFromPath(passwordPath, filter);
+
+        // Return 'secret'
+        return vaultData;
+    }
+
     public void getPass(String passPath, String passVarName) throws Exception {
         String pass = this.getPassPassword(passPath);
 
@@ -300,6 +308,12 @@ public class VaultUtils {
         String user = this.getUserPassword(passPath);
 
         ThreadProperty.set(passVarName, user);
+    }
+
+    public void getSecret(String passPath, String passVarName) throws Exception {
+        String secret = this.getSecret(passPath);
+
+        ThreadProperty.set(passVarName, secret);
     }
 
 }
