@@ -2549,6 +2549,9 @@ public class GosecSpec extends BaseGSpec {
 
     @Given("^I create user '(.+?)' with password '(.+?)' in LDAP( without sync)?( if the user does not already exist)?$")
     public void createUserLdap(String user, String password, String noSync, String skipIfExists) throws Exception {
+        String configMapName = "kerberos";
+        String peopleKey = "ou_people";
+        String ldapPod = "ldap-0";
         String template = "###################\n" +
                 "###    USERS    ###\n" +
                 "###################\n" +
@@ -2574,7 +2577,12 @@ public class GosecSpec extends BaseGSpec {
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@skipOnEnv(keosVersion<0.6.0)"))) {
             throw new Exception("Spec only supports keos version >= 0.6");
         }
-        k8SSpec.getKeyFromConfigMap("ou_people", "kerberos", "keos-idp", "people_ou", null);
+        if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(keosVersion=1.1.0||keosVersion>1.1.0)"))) {
+            configMapName = "ldap-idp";
+            peopleKey = "people_ou";
+            ldapPod = "ldap-idp-0";
+        }
+        k8SSpec.getKeyFromConfigMap(peopleKey, configMapName, "keos-idp", "people_ou", null);
 
         // Check if the user already exists on LDAP
         boolean alreadyExists;
@@ -2584,7 +2592,7 @@ public class GosecSpec extends BaseGSpec {
                 Arrays.asList("source /vault/secrets/idp-secrets ; ldapsearch -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass -b \"uid=" + user + "," + ThreadProperty.get("people_ou") + "\"")
         );
         try {
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
             alreadyExists = ThreadProperty.get("output").contains("result: 0 Success");
         } catch (Exception e) {
             alreadyExists = false;
@@ -2596,25 +2604,25 @@ public class GosecSpec extends BaseGSpec {
 
             template = template.replace("stratio", user).replace("$ou_people", ThreadProperty.get("people_ou")).replace("userPassword: 1234", "userPassword: " + password);
             writeInFile(template, "ldapuser.template");
-            k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapuser.template", "/tmp/ldapuser.template", "ldap-0", "keos-idp", "ldap");
+            k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapuser.template", "/tmp/ldapuser.template", ldapPod, "keos-idp", "ldap");
             command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("shtpl < /tmp/ldapuser.template > /tmp/user.ldif")
             );
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
             command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("source /vault/secrets/idp-secrets ; cat /tmp/user.ldif | ldapadd -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass")
             );
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
             command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("rm -f /tmp/*.template /tmp/*.ldif")
             );
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
             assertThat(ThreadProperty.get("output")).as("Log contains query cancelled").contains("adding new entry \"uid=" + user + "," + ThreadProperty.get("people_ou") + "\"");
         }
         if (noSync == null) {
@@ -2625,17 +2633,25 @@ public class GosecSpec extends BaseGSpec {
 
     @Given("^I delete user '(.+?)' in LDAP( without sync)?$")
     public void deleteUserLdap(String user, String noSync) throws Exception {
+        String configMapName = "kerberos";
+        String peopleKey = "ou_people";
+        String ldapPod = "ldap-0";
         RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@skipOnEnv(keosVersion<0.6.0)"))) {
             throw new Exception("Spec only supports keos version >= 0.6");
         }
-        k8SSpec.getKeyFromConfigMap("ou_people", "kerberos", "keos-idp", "people_ou", null);
+        if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(keosVersion=1.1.0||keosVersion>1.1.0)"))) {
+            configMapName = "ldap-idp";
+            peopleKey = "people_ou";
+            ldapPod = "ldap-idp-0";
+        }
+        k8SSpec.getKeyFromConfigMap(peopleKey, configMapName, "keos-idp", "people_ou", null);
         List<List<String>> command = Arrays.asList(
                 Arrays.asList("sh"),
                 Arrays.asList("-c"),
                 Arrays.asList("source /vault/secrets/idp-secrets ; ldapdelete -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass \"uid=" + user + "," + ThreadProperty.get("people_ou") + "\"")
         );
-        k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
+        k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
         if (noSync == null) {
             Thread.sleep(5000);
             runLdapSynchronizerWithRetries("total", 5, 10);
@@ -2671,6 +2687,10 @@ public class GosecSpec extends BaseGSpec {
 
     @Given("^I create group '(.+?)' with user '(.+?)' in LDAP( without sync)?( if the group does not already exist)?$")
     public void createGroupLdap(String group, String user, String noSync, String skipIfExists) throws Exception {
+        String configMapName = "kerberos";
+        String peopleKey = "ou_people";
+        String groupsKey = "ou_groups";
+        String ldapPod = "ldap-0";
         String template = "###################\n" +
                 "###    GROUPS    ###\n" +
                 "###################\n" +
@@ -2688,8 +2708,14 @@ public class GosecSpec extends BaseGSpec {
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@skipOnEnv(keosVersion<0.6.0)"))) {
             throw new Exception("Spec only supports keos version >= 0.6");
         }
-        k8SSpec.getKeyFromConfigMap("ou_people", "kerberos", "keos-idp", "people_ou", null);
-        k8SSpec.getKeyFromConfigMap("ou_groups", "kerberos", "keos-idp", "groups_ou", null);
+        if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(keosVersion=1.1.0||keosVersion>1.1.0)"))) {
+            configMapName = "ldap-idp";
+            peopleKey = "people_ou";
+            groupsKey = "groups_ou";
+            ldapPod = "ldap-idp-0";
+        }
+        k8SSpec.getKeyFromConfigMap(peopleKey, configMapName, "keos-idp", "people_ou", null);
+        k8SSpec.getKeyFromConfigMap(groupsKey, configMapName, "keos-idp", "groups_ou", null);
 
         // Check if the group already exists on LDAP
         boolean alreadyExists;
@@ -2699,7 +2725,7 @@ public class GosecSpec extends BaseGSpec {
                 Arrays.asList("source /vault/secrets/idp-secrets ; ldapsearch -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass -b \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"")
         );
         try {
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
             alreadyExists = ThreadProperty.get("output").contains("result: 0 Success");
         } catch (Exception e) {
             alreadyExists = false;
@@ -2711,25 +2737,25 @@ public class GosecSpec extends BaseGSpec {
 
             template = template.replace("stratio", group).replace("$ou_people", ThreadProperty.get("people_ou")).replace("uid=uid", "uid=" + user).replace("$ou_groups", ThreadProperty.get("groups_ou"));
             writeInFile(template, "ldapgroup.template");
-            k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapgroup.template", "/tmp/ldapgroup.template", "ldap-0", "keos-idp", "ldap");
+            k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapgroup.template", "/tmp/ldapgroup.template", ldapPod, "keos-idp", "ldap");
             command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("shtpl < /tmp/ldapgroup.template > /tmp/group.ldif")
             );
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
             command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("source /vault/secrets/idp-secrets ; cat /tmp/group.ldif | ldapadd -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass")
             );
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
             command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("rm -f /tmp/*.template /tmp/*.ldif")
             );
-            k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
             assertThat(ThreadProperty.get("output")).as("Log contains query cancelled").contains("adding new entry \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"");
         }
         if (noSync == null) {
@@ -2740,17 +2766,25 @@ public class GosecSpec extends BaseGSpec {
 
     @Given("^I delete group '(.+?)' in LDAP( without sync)?$")
     public void deleteGroupLdap(String group, String noSync) throws Exception {
+        String configMapName = "kerberos";
+        String groupsKey = "ou_groups";
+        String ldapPod = "ldap-0";
         RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@skipOnEnv(keosVersion<0.6.0)"))) {
             throw new Exception("Spec only supports keos version >= 0.6");
         }
-        k8SSpec.getKeyFromConfigMap("ou_groups", "kerberos", "keos-idp", "groups_ou", null);
+        if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(keosVersion=1.1.0||keosVersion>1.1.0)"))) {
+            configMapName = "ldap-idp";
+            groupsKey = "groups_ou";
+            ldapPod = "ldap-idp-0";
+        }
+        k8SSpec.getKeyFromConfigMap(groupsKey, configMapName, "keos-idp", "groups_ou", null);
         List<List<String>> command = Arrays.asList(
                 Arrays.asList("sh"),
                 Arrays.asList("-c"),
                 Arrays.asList("source /vault/secrets/idp-secrets ; ldapdelete -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"")
         );
-        k8SSpec.runCommandInPodDatatable("ldap-0", "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
+        k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", null, null, null, null, DataTable.create(command));
         if (noSync == null) {
             Thread.sleep(5000);
             runLdapSynchronizerWithRetries("total", 5, 10);
@@ -2858,9 +2892,9 @@ public class GosecSpec extends BaseGSpec {
     /**
      * Upload private key and public key for a userId
      *
-     * @param publicKeyPath: path for publicKey in valid format
+     * @param publicKeyPath:  path for publicKey in valid format
      * @param privateKeyPath: path for privateKey in valid format
-     * @param userId:   userId->stratio-identity
+     * @param userId:         userId->stratio-identity
      */
     @Given("^I upload public key '(.+?)' and private key '(.+?)' for userId '(.+?)'$")
     public void uploadUserSecrets(String publicKeyPath, String privateKeyPath, String userId) throws Exception {

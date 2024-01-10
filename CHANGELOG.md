@@ -3,6 +3,7 @@
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
 ## 1.0.0 (upcoming)
+* [GS-9250] Change ldap access from Keos 1.1.x
 * [GS-9229] Add step to download json secret from password path
 * [GS-9210] Add step to upload user certificates using Gosec API
 * [GS-9207] Add path value /services on BDT features to get certificates
