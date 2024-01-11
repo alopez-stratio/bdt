@@ -209,7 +209,7 @@ public class KeosSpec extends BaseGSpec {
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
 
         commonspec.runLocalCommand("cat target/test-classes/outputK8sUniverseUpload.txt | grep \"HTTP/\"");
-        Assertions.assertThat(commonspec.getCommandResult()).as("Upload universe response").contains("200 OK");
+        Assertions.assertThat(commonspec.getCommandResult()).as("Upload universe response").contains("200");
     }
 
     /**
