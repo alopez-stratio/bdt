@@ -349,7 +349,7 @@ public class MiscTest {
         misc.matchWithExpresion(envVar, table);
     }
 
-    @Test(expectedExceptions = AssertionError.class, expectedExceptionsMessageRegExp = ".*?Expected array for size operation.*?")
+    @Test(expectedExceptions = AssertionError.class, expectedExceptionsMessageRegExp = ".*?Expected array or object for size operation check.*?")
     public void testNotArraySizeInJSON() throws Exception {
         String baseData = "consulMesosJSON.conf";
         String envVar = "exampleEnvVar";

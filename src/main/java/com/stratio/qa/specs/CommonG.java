@@ -2184,9 +2184,11 @@ public class CommonG {
                 case "size":
                     JsonValue jsonObject = JsonValue.readHjson(value);
                     if (jsonObject.isArray()) {
-                        assertThat(jsonObject.asArray()).as("Keys size does not match").hasSize(Integer.parseInt(result));
+                        assertThat(jsonObject.asArray()).as("Array size does not match").hasSize(Integer.parseInt(result));
+                    } else if (jsonObject.isObject()) {
+                        assertThat(jsonObject.asObject()).as("Keys count does not match").hasSize(Integer.parseInt(result));
                     } else {
-                        Assertions.fail("Expected array for size operation check");
+                        Assertions.fail("Expected array or object for size operation check");
                     }
                     break;
                 case "not empty":
@@ -2194,6 +2196,12 @@ public class CommonG {
                     break;
                 case "matches":
                     assertThat(value).as("Value does not match regex.").matches(result);
+                    break;
+                case "lower than":
+                    assertThat(value).as("Evaluate JSONPath is lower than expected value").isLessThan(result);
+                    break;
+                case "higher than":
+                    assertThat(value).as("Evaluate JSONPath is higher than expected value").isGreaterThan(result);
                     break;
                 default:
                     Assertions.fail("Not implemented condition (" + condition + ")");
