@@ -2254,6 +2254,17 @@ public class KubernetesClient {
         k8sClient.apps().deployments().inNamespace(namespace).resource(deployment).replace();
     }
 
+    public void updatePullPolicyImageDeployment(String deploymentName, String namespace, String containerName, String value) {
+        Deployment deployment = k8sClient.apps().deployments().inNamespace(namespace).withName(deploymentName).get();
+        List<Container> containers = deployment.getSpec().getTemplate().getSpec().getContainers();
+        containers.forEach(container -> {
+            if (container.getName().equals(containerName)) {
+                container.setImagePullPolicy(value);
+            }
+        });
+        k8sClient.apps().deployments().inNamespace(namespace).resource(deployment).replace();
+    }
+
     public String getConfigMapKey(String configMapName, String namespace, String key) {
         return getConfigMap(configMapName, namespace).getData().get(key);
     }

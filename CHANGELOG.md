@@ -3,6 +3,7 @@
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
 ## 1.0.0 (upcoming)
+* [DGPB-13193] Add support to update image pull policy deployment 
 * [GS-9250] Change ldap access from Keos 1.1.x
 * [GS-9229] Add step to download json secret from password path
 * [GS-9210] Add step to upload user certificates using Gosec API

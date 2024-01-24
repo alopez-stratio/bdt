@@ -425,6 +425,11 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.exposeDeployment(name, name, "ClusterIP", namespace, port, false);
     }
 
+    @When("^I update image pull policy deployment with id '(.+?)' in namespace '(.+?)' for container '(.+?)' with value '(Always|Never|IfNotPresent)'?$")
+    public void updatePullPolicyApp(String deploymentName, String namespace, String containerName, String value) {
+        commonspec.kubernetesClient.updatePullPolicyImageDeployment(deploymentName, namespace, containerName, value);
+    }
+
     @When("^I expose deployment with name '(.+?)', in namespace '(.+?)' in port '(\\d+)' with type '(ClusterIP|LoadBalancer)'( and service name '(.+?)')?( using CCT app selector)?$")
     public void createDeployment(String name, String namespace, Integer port, String type, String serviceName, String cctAppSelector) {
         commonspec.kubernetesClient.exposeDeployment(name, serviceName, type, namespace, port, cctAppSelector != null);
