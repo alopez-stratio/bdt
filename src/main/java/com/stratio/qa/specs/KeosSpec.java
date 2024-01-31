@@ -66,7 +66,7 @@ public class KeosSpec extends BaseGSpec {
      * @param pathWithoutLogin : whether to remove /login or keep it
      * @throws Exception exception
      */
-    @Given("^I set sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
+    @Given("^I set sso( governance| discovery| intelligence| cosmos)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookieKeos(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
         GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, token_type, ldap);
         ssoUtils.setVerifyHost(hostVerifier == null);
@@ -84,6 +84,9 @@ public class KeosSpec extends BaseGSpec {
                 break;
             case "intelligence":
                 tokenList = new String[]{"jupyterhub-session-id", "jupyterhub-hub-login"};
+                break;
+            case "cosmos":
+                tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth", "dcos-acs-auth-cookie", "dcos-acs-info-cookie"};
                 break;
             default:
                 break;
@@ -121,6 +124,14 @@ public class KeosSpec extends BaseGSpec {
                 Assert.assertNotNull(ssoCookies.get(cookie), "SSO cookie " + cookie + " is not defined after login");
                 ThreadProperty.set(cookie, ssoCookies.get(cookie));
             }
+        }
+
+        if (ssoCookies.get("dcos-acs-auth-cookie") != null) {
+            ThreadProperty.set("cosmosAuthCookie", ssoCookies.get("dcos-acs-auth-cookie"));
+        }
+
+        if (ssoCookies.get("dcos-acs-info-cookie") != null) {
+            ThreadProperty.set("cosmosInfoAuthCookie", ssoCookies.get("dcos-acs-info-cookie"));
         }
 
         this.commonspec.getLogger().debug("Cookies to set:");
