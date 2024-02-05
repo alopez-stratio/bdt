@@ -191,7 +191,7 @@ public class KubernetesClient {
                 Files.copy(configFile.toPath(), new File(awsPath.getAbsolutePath() + "/config.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
 
-            String title = "[jenkins]";
+            String title = "[default]";
             String aws_access_key_id = "aws_access_key_id = " + System.getProperty("AWS_ACCESS_KEY");
             String aws_secret_access_key = "aws_secret_access_key = " + System.getProperty("AWS_SECRET_ACCESS_KEY");
             String region = "region = " + System.getProperty("AWS_REGION");
