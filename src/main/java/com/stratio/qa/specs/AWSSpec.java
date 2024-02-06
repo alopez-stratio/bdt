@@ -27,7 +27,7 @@ public class AWSSpec extends BaseGSpec {
     @When("^I list S3 buckets and save it in environment variable '(.+?)'$")
     public void listS3Buckets(String envVar) throws Exception {
         List<String> listBucket = new ArrayList<String>();
-        Region region = Region.EU_WEST_1;
+        Region region = getRegion();
 
         S3Client s3Client = S3Client.builder()
                 .region(region)
@@ -55,7 +55,7 @@ public class AWSSpec extends BaseGSpec {
     public void listBucketObjects(String bucketName, String path, String fileName) throws Exception {
         List<String> listObjectBucket = new ArrayList<String>();
         boolean all = true;
-        Region region = Region.EU_WEST_1;
+        Region region = getRegion();
 
         S3Client s3Client = S3Client.builder()
                 .region(region)
@@ -111,7 +111,7 @@ public class AWSSpec extends BaseGSpec {
      */
     @When("^I clear S3 bucket with name '(.+?)'( in the path '(.+?)')?$")
     public void deleteObjectsBucket(String bucketName, String path) throws Exception {
-        Region region = Region.EU_WEST_1;
+        Region region = getRegion();
 
         S3Client s3Client = S3Client.builder()
                 .region(region)
@@ -153,7 +153,7 @@ public class AWSSpec extends BaseGSpec {
      */
     @When("^I delete S3 bucket with name '(.+?)'$")
     public void deleteBucket(String bucketName) throws Exception {
-        Region region = Region.EU_WEST_1;
+        Region region = getRegion();
 
         S3Client s3Client = S3Client.builder()
                 .region(region)
@@ -164,6 +164,13 @@ public class AWSSpec extends BaseGSpec {
         s3Client.deleteBucket(deleteBucketRequest);
 
         s3Client.close();
+    }
+
+    private Region getRegion() {
+        if (System.getProperty("aws.region") != null) {
+            return Region.of(System.getProperty("aws.region"));
+        }
+        return Region.EU_WEST_1;
     }
 
 }
