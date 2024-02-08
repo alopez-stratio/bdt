@@ -291,13 +291,16 @@ public class K8SSpec extends BaseGSpec {
                 }
                 found = true;
             } catch (AssertionError | Exception e) {
-                getCommonSpec().getLogger().info("Expected state/status don't found after " + i + " seconds");
+                getCommonSpec().getLogger().info("Expected state/status not found after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
                 Thread.sleep(wait * 1000);
             }
             i += wait;
+        }
+        if (!found) {
+            fail("Expected state/status not found after " + i + " seconds");
         }
     }
 
@@ -323,13 +326,16 @@ public class K8SSpec extends BaseGSpec {
                 }
                 found = true;
             } catch (AssertionError | Exception e) {
-                getCommonSpec().getLogger().info("Expected state/status don't found or pods number are not expected number after " + i + " seconds");
+                getCommonSpec().getLogger().info("Expected state/status not found or pods number is not the expected one after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
                 Thread.sleep(wait * 1000);
             }
             i += wait;
+        }
+        if (!found) {
+            fail("Expected state/status not found or pods number is not the expected one after " + i + " seconds");
         }
     }
 
@@ -343,13 +349,16 @@ public class K8SSpec extends BaseGSpec {
                 Assert.assertEquals(deployment.getStatus().getReadyReplicas() != null ? deployment.getStatus().getReadyReplicas().intValue() : 0, readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
-                getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
+                getCommonSpec().getLogger().info("Expected replicas ready not found after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
                 Thread.sleep(wait * 1000);
             }
             i += wait;
+        }
+        if (!found) {
+            fail("Expected replicas ready not found after " + i + " seconds");
         }
     }
 
@@ -364,13 +373,16 @@ public class K8SSpec extends BaseGSpec {
                 Assert.assertEquals(statefulSet.getStatus().getReadyReplicas().intValue(), readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
-                getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
+                getCommonSpec().getLogger().info("Expected replicas ready not found after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
                 Thread.sleep(wait * 1000);
             }
             i += wait;
+        }
+        if (!found) {
+            fail("Expected replicas ready not found after " + i + " seconds");
         }
     }
 
@@ -383,13 +395,16 @@ public class K8SSpec extends BaseGSpec {
                 Assert.assertEquals((commonspec.kubernetesClient.getReadyReplicasCustomResource(name, nameItem, namespace)).intValue(), readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
-                getCommonSpec().getLogger().info("Expected replicas ready don't found after " + i + " seconds");
+                getCommonSpec().getLogger().info("Expected replicas ready not found after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
                 Thread.sleep(wait * 1000);
             }
             i += wait;
+        }
+        if (!found) {
+            fail("Expected replicas ready not found after " + i + " seconds");
         }
     }
 
@@ -405,13 +420,16 @@ public class K8SSpec extends BaseGSpec {
                 }
                 found = true;
             } catch (AssertionError | Exception e) {
-                getCommonSpec().getLogger().info("Expected global status " + status + " don't found after " + i + " seconds");
+                getCommonSpec().getLogger().info("Expected global status " + status + " not found after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
                 Thread.sleep(wait * 1000);
             }
             i += wait;
+        }
+        if (!found) {
+            fail("Expected global status " + status + " not found after " + i + " seconds");
         }
     }
 
@@ -522,11 +540,11 @@ public class K8SSpec extends BaseGSpec {
                 if (log.contains(expectedLog)) {
                     found = true;
                 } else {
-                    getCommonSpec().getLogger().info("'" + expectedLog + "' don't found in log after " + i + " seconds");
+                    getCommonSpec().getLogger().info("'" + expectedLog + "' not found in log after " + i + " seconds");
                     Thread.sleep(wait * 1000);
                 }
             } catch (Exception e) {
-                getCommonSpec().getLogger().info("'" + expectedLog + "' don't found in log after " + i + " seconds");
+                getCommonSpec().getLogger().info("'" + expectedLog + "' not found in log after " + i + " seconds");
                 if (i >= timeout) {
                     throw e;
                 }
