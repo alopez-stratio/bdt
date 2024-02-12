@@ -16,6 +16,7 @@
 
 package com.stratio.qa.specs;
 
+import com.stratio.qa.aspects.RunOnTagAspect;
 import com.stratio.qa.utils.CookiesUtils;
 import io.netty.handler.codec.http.cookie.Cookie;
 import com.stratio.qa.utils.GosecSSOUtils;
@@ -211,8 +212,18 @@ public class KeosSpec extends BaseGSpec {
         // Form query parameters
         String headers = "-H \"accept: */*\" -H \"Content-Type: multipart/form-data\"";
         String forms = "-F \"file=@" + universeFile + ";type=application/zip\"";
+        String cookie;
 
-        String cookie = "-H \"Cookie:_oauth2_proxy=" + ThreadProperty.get("oauth2ProxyCookie") + "\"";
+        ThreadProperty.set("keosVersion", System.getProperty("KEOS_VERSION"));
+        if (System.getProperty("KEOS_VERSION").contains("-")) {
+            ThreadProperty.set("keosVersion", System.getProperty("KEOS_VERSION").substring(0, System.getProperty("KEOS_VERSION").indexOf("-")));
+        }
+        RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
+        if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(keosVersion<1.1.0)"))) {
+            cookie = "-H \"Cookie:_oauth2_proxy=" + ThreadProperty.get("oauth2ProxyCookie") + "\"";
+        } else {
+            cookie = "-H \"Cookie:stratio-cookie=" + ThreadProperty.get("stratioCookie") + "\"";
+        }
         String command = "curl -X PUT -i -k " + cookie + " \"" + restURL + "\" " + headers + " " + forms + " > target/test-classes/outputK8sUniverseUpload.txt";
 
         // Execute command
