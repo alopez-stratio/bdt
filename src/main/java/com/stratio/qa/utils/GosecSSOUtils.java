@@ -61,7 +61,7 @@ public class GosecSSOUtils {
 
     private String governance;
 
-    public String cosmosApiHost = System.getProperty("cosmosApiHost", "/cosmos-ui/api/management/config/global");
+    public String cosmosApiHost = System.getProperty("cosmosApiHost", "/cosmos-ui/api/management");
 
     public String managementHost = System.getProperty("managementHost", "/service/gosecmanagement");
 
@@ -198,17 +198,13 @@ public class GosecSSOUtils {
         HttpGet getRequest;
         switch (String.valueOf(governance).trim()) {
             case "governance":
+            case "cosmos":
                 if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
                     getRequest = new HttpGet(protocol + ssoHost + governanceKeosProfileHost);
                 } else {
                     getRequest = new HttpGet(protocol + ssoHost + governanceProfileHost);
                 }
                 break;
-
-            case "cosmos":
-                getRequest = new HttpGet(protocol + ssoHost + cosmosApiHost);
-                break;
-
             default:
                 getRequest = new HttpGet(protocol + ssoHost + managementHost);
                 break;
@@ -217,6 +213,14 @@ public class GosecSSOUtils {
         for (Cookie oneCookie : context.getCookieStore().getCookies()) {
             logger.debug(oneCookie.getName() + ":" + oneCookie.getValue());
             cookieToken.put(oneCookie.getName(), oneCookie.getValue());
+        }
+        if (String.valueOf(governance).trim().equals("cosmos")) {
+            getRequest = new HttpGet(protocol + ssoHost + cosmosApiHost);
+            client.execute(getRequest, context);
+            for (Cookie oneCookie : context.getCookieStore().getCookies()) {
+                logger.debug(oneCookie.getName() + ":" + oneCookie.getValue());
+                cookieToken.put(oneCookie.getName(), oneCookie.getValue());
+            }
         }
         return cookieToken;
     }
