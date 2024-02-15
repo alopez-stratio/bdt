@@ -981,6 +981,21 @@ public class K8SSpec extends BaseGSpec {
                 continue; // Repeat
             }
         }
+
+        if (!fileWasUploadedCorrectly) {
+            // Try with kubectl cp. It was added because in EKS environment kubernetes-client doesn't work properly
+            try {
+                commonspec.getLogger().warn("Trying to copy file using kubectl command...");
+                // Copy the file
+                commonspec.kubernetesClient.copyFileToPodKubectl(podName, namespace, container, localPath, remotePath, commonspec);
+                // Check that the file is not empty
+                commonspec.kubernetesClient.execCommand(podName, namespace, container, 15, checkFileIsNotEmptyCommand, null);
+                fileWasUploadedCorrectly = true;
+            } catch (Exception e) {
+                commonspec.getLogger().warn("Kubectl copy returns an exception - " + e.getMessage());
+            }
+        }
+
         Assert.assertTrue(fileWasUploadedCorrectly, String.format("The file was not uploaded correctly after %s attempts", retry_attempts));
     }
 

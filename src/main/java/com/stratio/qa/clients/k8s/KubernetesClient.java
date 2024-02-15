@@ -2019,6 +2019,25 @@ public class KubernetesClient {
         }
     }
 
+    /**
+     * Copy file to pod using kubectl cp
+     * @param podName Pod name
+     * @param namespace Namespace
+     * @param container Container (can be null)
+     * @param filePath Origin file
+     * @param destinationPath Destination file
+     * @param spec CommonG (needed to run local command)
+     * @throws Exception
+     */
+    public void copyFileToPodKubectl(String podName, String namespace, String container, String filePath, String destinationPath, CommonG spec) throws Exception {
+        String kubectlCommand = "kubectl --kubeconfig " + ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH") + " cp " + filePath + " " + namespace + "/" + podName + ":" + destinationPath;
+        if (container != null) {
+            kubectlCommand = kubectlCommand + " --container=" + container;
+        }
+        logger.info("Kubectl command: " + kubectlCommand);
+        spec.runLocalCommand(kubectlCommand);
+    }
+
     public void copyFileFromPod(String podName, String namespace, String filePath, String destinationPath) {
         File local = new File(destinationPath);
         if (local.isDirectory()) {
