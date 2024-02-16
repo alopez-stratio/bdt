@@ -34,7 +34,9 @@ import org.hjson.JsonObject;
 import org.json.JSONObject;
 import org.testng.Assert;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -812,7 +814,8 @@ public class K8SSpec extends BaseGSpec {
             String value = entry.get(2);
 
             switch (action) {
-                case "ADD": envVars.add(new EnvVar(name, value, null));
+                case "ADD":
+                    envVars.add(new EnvVar(name, value, null));
                     break;
                 case "REPLACE": {
                     EnvVar original = envVars.stream().filter(envVar -> envVar.getName().equals(name)).findFirst().orElse(null);
@@ -829,7 +832,8 @@ public class K8SSpec extends BaseGSpec {
                     }
                     break;
                 }
-                default: break;
+                default:
+                    break;
             }
         });
 
@@ -1050,5 +1054,27 @@ public class K8SSpec extends BaseGSpec {
                 break;
             default:
         }
+    }
+
+    @When("^I get pods logs from deployment with the following label filter '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    public void getLogDeployment(String selector, String namespace, String envVar, String fileName) throws Exception {
+        //get pods
+        this.getPodsLabelSelector("pods", selector, namespace, "var", null);
+        String[] pods = ThreadProperty.get("var").split("\n");
+        //get logs from pods and save them in env variable or file
+        for (String pod : pods) {
+            if (envVar != null) {
+                ThreadProperty.set(pod + "_" + envVar, commonspec.kubernetesClient.getPodLog(pod, namespace));
+                getCommonSpec().getLogger().info("Environment variable " + pod + "_" + envVar + " created");
+            }
+
+            if (fileName != null) {
+                writeInFile(commonspec.kubernetesClient.getPodLog(pod, namespace), pod + "_" + fileName);
+                getCommonSpec().getLogger().info("Log file " + pod + "_" + fileName + " created");
+
+            }
+        }
+
+
     }
 }
