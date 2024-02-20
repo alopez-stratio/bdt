@@ -1330,19 +1330,24 @@ public class GosecSpec extends BaseGSpec {
      * @param tenantLoginInfo : user and password to log into tenant (OPTIONAL)
      * @param keytab          : creation of keytab in vault (OPTIONAL)
      * @param certificate     : creation of certificate in vault (OPTIONAL)
+     * @param generatedId     : if 'true' and custom user the userId is auto generated with 32 chars hash (OPTIONAL) baas >= 2.4.x
      * @param groups          : groups for custom user (OPTIONAL)
      * @param doesNotExist    : (IF false) resource will be overwritten if exists previously  (OPTIONAL)
      * @throws Exception
      */
-    @When("^I create (custom|system|federated) user '(.+?)'( in tenant '(.+?)')?( in LDAP with REALM '(.+?)')?( in federated IDP '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( if it does not exist)?$")
+    @When("^I create (custom|system|federated) user '(.+?)'( in tenant '(.+?)')?( in LDAP with REALM '(.+?)')?( in federated IDP '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( generating keytab)?( generating certificate)?( assigned to groups '(.+?)')?( with generated Id)?( if it does not exist)?$")
     public void createUserResource(String type, String userName, String tenantOrig, String realm, String federated_idp, String tenantLoginInfo, String
-            keytab, String certificate, String groups, String doesNotExist) throws Exception {
+            keytab, String certificate, String groups, String generatedId, String doesNotExist) throws Exception {
         Boolean booleanExist = false;
+        Boolean idGenerated = false;
         if (doesNotExist != null) {
             booleanExist = true;
         }
+        if (generatedId != null) {
+            idGenerated = true;
+        }
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            createUserResourceKeos(type, userName, tenantOrig, realm, federated_idp, tenantLoginInfo, keytab, certificate, groups, booleanExist);
+            createUserResourceKeos(type, userName, tenantOrig, realm, federated_idp, tenantLoginInfo, keytab, certificate, groups, idGenerated, booleanExist);
         } else {
             createUserResourceDcos(type, userName, tenantOrig, tenantLoginInfo, keytab, certificate, groups, booleanExist);
         }
@@ -1411,7 +1416,7 @@ public class GosecSpec extends BaseGSpec {
 
                 } else {
                     //json for gosec-management-baas endpoint
-                    data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, false, null, null);
+                    data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, false, null, null, null);
                 }
 
                 // Send POST request
@@ -1443,7 +1448,7 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private void createUserResourceKeos(String type, String userName, String tenantOrig, String realm, String federated_idp, String
-            tenantLoginInfo, String keytab, String certificate, String groups, boolean doesNotExist) throws Exception {
+            tenantLoginInfo, String keytab, String certificate, String groups, Boolean idGenerated, boolean doesNotExist) throws Exception {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endPoint = baasPath + "/management/user";
         String endPointResource = "";
@@ -1465,7 +1470,7 @@ public class GosecSpec extends BaseGSpec {
 
         String uid = userName.replaceAll("\\s+", ""); //delete white spaces
 
-        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName, realm, federated_idp);
+        String data = generateBaasUserJson(uid, userName, groups, keytab, certificate, addEnable, type, addUserName, realm, federated_idp, idGenerated);
         if (tenantOrig != null) {
             // Set REST connection
             commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
@@ -1492,7 +1497,7 @@ public class GosecSpec extends BaseGSpec {
                         throw e;
                     }
                     //send request again
-                    createUserResourceKeos(type, userName, tenantOrig, realm, federated_idp, tenantLoginInfo, keytab, certificate, groups, doesNotExist);
+                    createUserResourceKeos(type, userName, tenantOrig, realm, federated_idp, tenantLoginInfo, keytab, certificate, groups, idGenerated, doesNotExist);
                 }
             }
         } catch (Exception e) {
@@ -1776,7 +1781,7 @@ public class GosecSpec extends BaseGSpec {
     }
 
     private String generateBaasUserJson(String uid, String userName, String groups, String keytab, String
-            certificate, Boolean addEnable, String type, Boolean addUserName, String realm, String federated_idp) {
+            certificate, Boolean addEnable, String type, Boolean addUserName, String realm, String federated_idp, Boolean idGenerated) {
         String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
         String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
         JSONObject postJson = new JSONObject();
@@ -1830,8 +1835,8 @@ public class GosecSpec extends BaseGSpec {
         if (realm != null) {
             postJson.put("realm", realm);
         }
-        //changes from baas 2.2.x
-        if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 2) {
+        //changes from baas 2.4.x
+        if (Integer.parseInt(gosecBaasVersionArray[0]) >= 2 && Integer.parseInt(gosecBaasVersionArray[1]) >= 4) {
             postJson.remove("uid");
             String patron = ".*[.].*[-].*";
             Pattern pattern = Pattern.compile(patron);
@@ -1842,6 +1847,8 @@ public class GosecSpec extends BaseGSpec {
                 postJson.put("legacy", false);
             }
             postJson.put("username", uid);
+            //add field generateId
+            postJson.put("generateId", idGenerated);
         }
 
         data = postJson.toString();
