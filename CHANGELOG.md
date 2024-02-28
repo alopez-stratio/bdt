@@ -3,6 +3,7 @@
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
 ## 1.0.0 (upcoming)
+* [GS-9450] Add step to get id from tag
 * [GS-9406] Add variable generatedId for custom users
 * [GS-9397] Save logs from all deployment pods
 * [DGPB-13193] Add support to update image pull policy deployment 

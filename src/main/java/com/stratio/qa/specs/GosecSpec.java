@@ -2936,4 +2936,20 @@ public class GosecSpec extends BaseGSpec {
         Assertions.assertThat(commonspec.getCommandResult()).as("Upload certificates response").contains("204");
     }
 
+    @When("^I get id from tag with name '(.+?)' and save it in environment variable '(.+?)'$")
+    public void getIdTag(String tagName, String envVar) throws Exception {
+        Boolean content = false;
+        String endPointGetTag = "/gosec/baas/management/tags";
+
+        restSpec.sendRequestNoDataTable("GET", endPointGetTag, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            commonspec.runLocalCommand("echo '" + commonspec.getResponse().getResponse() + "' | jq '.[] | select (.key == \"" + tagName + "\").id' | sed s/\\\"//g");
+            commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
+            if (ThreadProperty.get(envVar) == null || ThreadProperty.get(envVar).trim().equals("")) {
+                fail("Error obtaining id from tag " + tagName);
+            }
+        } else {
+            commonspec.getLogger().warn("Tag with id: {} does not exist", tagName);
+        }
+    }
 }
