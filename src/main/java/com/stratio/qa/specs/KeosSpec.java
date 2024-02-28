@@ -106,7 +106,7 @@ public class KeosSpec extends BaseGSpec {
 
         if (ssoCookies.get("stratio-cookie") != null) {
             ThreadProperty.set("stratioCookie", ssoCookies.get("stratio-cookie"));
-            CookiesUtils.addCookiesToCache(ssoHost + "_" + userName + "_" + password + "_" + tenant, cookiesAtributes, ssoCookies.get("stratio-cookie"));
+            CookiesUtils.addCookiesToCache(ssoHost + "_" + userName + "_" + password + "_" + tenant + "_" + (token_type != null ? token_type : "default"), cookiesAtributes, ssoCookies.get("stratio-cookie"));
         }
 
         if (ssoCookies.get("user") != null) {
@@ -144,7 +144,7 @@ public class KeosSpec extends BaseGSpec {
     @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
         long currentTime = System.currentTimeMillis() / 1000;
-        ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost + "_" + userName + "_" + password + "_" + tenant);
+        ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost + "_" + userName + "_" + password + "_" + tenant + "_" + (token_type != null ? token_type : "default"));
         if (cookieCache == null || (cookieCache.getLeft() - currentTime) < 60) {
             this.commonspec.getLogger().debug("Cookie expiration is imminent, I get cookie again");
             setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
