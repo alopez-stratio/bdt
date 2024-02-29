@@ -22,6 +22,8 @@ import com.stratio.qa.cucumber.runtime.model.FeatureBuilder;
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.CucumberRunner;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
+import com.stratio.qa.specs.CommandExecutionSpec;
+import com.stratio.qa.specs.CommonG;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.ITestContext;
@@ -141,6 +143,14 @@ public abstract class BaseGTest {
 
         // Close JDBC connection
         JDBCConnection.closeConnection();
+
+        //Remove local keos-installer docker
+        if (ThreadProperty.get("localDocker") != null) {
+            logger.debug("Cleaning local keos-installer docker container");
+            CommandExecutionSpec commandSpec = new CommandExecutionSpec(new CommonG());
+            commandSpec.executeLocalCommand("docker stop " + ThreadProperty.get("localDocker"), null, null, null);
+            commandSpec.executeLocalCommand("docker rm " + ThreadProperty.get("localDocker"), null, null, null);
+        }
 
         // Restore AWS config
         restoreAWSConfig();

@@ -18,6 +18,7 @@ package com.stratio.qa.specs;
 
 import com.stratio.qa.aspects.RunOnTagAspect;
 import com.stratio.qa.utils.CookiesUtils;
+import cucumber.api.java.en.When;
 import io.netty.handler.codec.http.cookie.Cookie;
 import com.stratio.qa.utils.GosecSSOUtils;
 import com.stratio.qa.utils.ThreadProperty;
@@ -35,6 +36,7 @@ import java.util.List;
 
 import org.testng.Assert;
 
+import java.util.Random;
 import java.util.concurrent.Future;
 
 import org.asynchttpclient.Response;
@@ -46,6 +48,9 @@ import org.asynchttpclient.Response;
  * @see <a href="KeosSpec-annotations.html">Keos Steps</a>
  */
 public class KeosSpec extends BaseGSpec {
+
+    CommandExecutionSpec commandSpec;
+
     /**
      * Generic constructor.
      *
@@ -53,6 +58,7 @@ public class KeosSpec extends BaseGSpec {
      */
     public KeosSpec(CommonG spec) {
         this.commonspec = spec;
+        commandSpec = new CommandExecutionSpec(spec);
     }
 
     /**
@@ -270,5 +276,101 @@ public class KeosSpec extends BaseGSpec {
         HashMap<String, String> headers = new HashMap<String, String>();
         headers.put("X-Metabase-Session", metabase_session);
         commonspec.setHeaders(headers);
+    }
+
+    /**
+     * Execute different playbooks
+     *
+     * @param selector : module's playbook to execute
+     * @param file     : file to save command output in
+     * @throws Exception
+     */
+    @When("^I run '(governance|intelligence|rocket)' playbook in keos-installer( and save output in file '(.+?)')?$")
+    public void executePlaybook(String selector, String file) throws Exception {
+        String command = null;
+        switch (selector) {
+            case "governance":
+                command = " 'keos play /stratio/ansible/playbooks/system-services/governance.yml " + sedRemoveColors() + "'";
+                break;
+            case "intelligence":
+                command = " 'keos play /stratio/ansible/playbooks/system-services/intelligence.yml -e intelligence_namespace=" + ThreadProperty.get("INTELLIGENCE_NAMESPACE") + " -e intelligence_service=" + ThreadProperty.get("INTELLIGENCE_INSTANCE") + " " + sedRemoveColors() + "'";
+                break;
+            case "rocket":
+                command = " 'keos play /stratio/ansible/playbooks/system-services/rocket.yml -e rocket_namespace=" + ThreadProperty.get("ROCKET_NAMESPACE") + " -e rocket_service=" + ThreadProperty.get("ROCKET_INSTANCE") + " " + sedRemoveColors() + "'";
+                break;
+            default:
+                break;
+        }
+        executeCommandInKeosInstaller(command, null, file);
+
+    }
+
+    /**
+     * Execute different keos commands
+     *
+     * @param command : keos command to execute
+     * @param envVar  : variable to save command output in
+     * @param file    : file to save command output in
+     * @throws Exception
+     */
+    @When("^I run keos '(.+?)' command in keos-installer( and save output in variable '(.+?)')?( and save output in file '(.+?)')?$")
+    public void executeKeosCommand(String command, String envVar, String file) throws Exception {
+        String finalCommand = " 'keos " + command + " " + sedRemoveColors() + "'";
+        executeCommandInKeosInstaller(finalCommand, envVar, file);
+    }
+
+    /**
+     * Execute different ansible commands
+     *
+     * @param command : ansible command to execute
+     * @param nodes   : nodes where ansible command will be executed
+     * @param file    : file to save command output in
+     * @throws Exception
+     */
+    @When("^I run '(.+?)' ansible in nodes '(.+?)' in keos-installer( and save output in file '(.+?)')?$")
+    public void executeAnsible(String command, String nodes, String file) throws Exception {
+        String finalCommand = "i 'ansible -m shell -a \"" + command + "\" -b " + nodes + " " + sedRemoveColors() + "'";
+        executeCommandInKeosInstaller(finalCommand, null, file);
+    }
+
+    /**
+     * Add sed to command in order to clean colors in the commands output
+     */
+    private String sedRemoveColors() {
+        return "| sed -r \"s/\\x1B\\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g\"";
+    }
+
+    /**
+     * run keos commands in local docker or bastion docker, depending on whether we are running locally or in jenkins
+     *
+     * @param command : command to execute
+     * @param envVar  : var to save command output in
+     * @param file    : file to save command output in
+     * @throws Exception
+     */
+    private void executeCommandInKeosInstaller(String command, String envVar, String file) throws Exception {
+        if (System.getProperty("KEOS_INSTALLER_DOCKER") != null) {
+            commonspec.getLogger().debug("Jenkins execution detected, opening ssh connection to BASTION");
+            commandSpec.openSSHConnection(System.getProperty("BASTION_IP"), null, System.getProperty("BASTION_USER"), System.getProperty("BASTION_PASS"), null, "tempConnection");
+            String finalCommand = "sudo docker exec -t " + System.getProperty("KEOS_INSTALLER_DOCKER") + " bash -c" + command;
+            commandSpec.executeCommand(finalCommand, null, "0", envVar, null);
+            commonspec.getLogger().debug("Closing ssh connection to BASTION");
+            commandSpec.closeSSHConnection("tempConnection");
+        } else {
+            if (ThreadProperty.get("localDocker") == null) {
+                commandSpec.executeLocalCommand("ls target/test-classes | grep keos-", "0", "clusterWorkspace");
+                String randomName = ThreadProperty.get("clusterWorkspace") + "-" + new Random().nextInt(900000) + 100000;
+                ThreadProperty.set("localDocker", randomName);
+                commandSpec.executeLocalCommand("pwd", null, "pwd", null);
+                commonspec.getLogger().debug("Local execution detected, creating docker container");
+                commandSpec.executeLocalCommand("sudo docker run -dt --name " + ThreadProperty.get("localDocker") + " --net host -e VAULT_MASTER_KEY=" + System.getProperty("KEOS_SECRETS_PASS") + " -v /var/run/docker.sock:/var/run/docker.sock -v " + ThreadProperty.get("pwd") + "/target/test-classes/" + ThreadProperty.get("clusterWorkspace") + ":/workspace:z qa.int.stratio.com/stratio/keos-installer:" + System.getProperty("KEOS_VERSION") + " > /dev/null 2>&1", "0", null, null);
+                commandSpec.assertCommandExistsOnTimeOutLocal(100, 10, "docker logs " + ThreadProperty.get("localDocker"), "Starting interactive session", null);
+            }
+            String finalCommand = "sudo docker exec -t " + ThreadProperty.get("localDocker") + " bash -c" + command;
+            commandSpec.executeLocalCommand(finalCommand, "0", envVar, null);
+        }
+        if (file != null) {
+            this.writeInFile(commonspec.getCommandResult(), file);
+        }
     }
 }
