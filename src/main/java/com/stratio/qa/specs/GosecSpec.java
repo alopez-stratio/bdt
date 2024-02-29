@@ -2924,7 +2924,7 @@ public class GosecSpec extends BaseGSpec {
         String privateFile = "-F \"privateKey=@" + privateKeyFile + ";type=application/x-iwork-keynote-sffkey\"";
         String publicFile = "-F \"publicKey=@" + publicKeyFile + ";type=application/pkix-cert\"";
 
-        String cookie = "-H \"Cookie:_oauth2_proxy=" + ThreadProperty.get("oauth2ProxyCookie") + "\"";
+        String cookie = "-H \"Cookie:stratio-cookie=" + ThreadProperty.get("stratioCookie") + "\"";
         String command = "curl -X POST -i -k " + cookie + " \"" + restURL + "\" " + header1 + " " + header2 + " " + uid + " " + privateFile + " " + publicFile + " > target/test-classes/outputK8sCertificatesUpload.txt";
 
         commonspec.getLogger().debug("Request:" + command);
@@ -2932,7 +2932,7 @@ public class GosecSpec extends BaseGSpec {
         commonspec.runLocalCommand(command, 60);
         Assertions.assertThat(commonspec.getCommandExitStatus()).isEqualTo(0);
 
-        commonspec.runLocalCommand("cat target/test-classes/outputK8sCertificatesUpload.txt | grep \"HTTP/1\"");
+        commonspec.runLocalCommand("cat target/test-classes/outputK8sCertificatesUpload.txt | grep \"HTTP/\"");
         Assertions.assertThat(commonspec.getCommandResult()).as("Upload certificates response").contains("204");
     }
 
