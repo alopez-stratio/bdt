@@ -352,21 +352,22 @@ public class KeosSpec extends BaseGSpec {
         if (System.getProperty("KEOS_INSTALLER_DOCKER") != null) {
             commonspec.getLogger().debug("Jenkins execution detected, opening ssh connection to BASTION");
             commandSpec.openSSHConnection(System.getProperty("BASTION_IP"), null, System.getProperty("BASTION_USER"), System.getProperty("BASTION_PASS"), null, "tempConnection");
-            String finalCommand = "sudo docker exec -t " + System.getProperty("KEOS_INSTALLER_DOCKER") + " bash -c" + command;
+            String finalCommand = "docker exec -t " + System.getProperty("KEOS_INSTALLER_DOCKER") + " bash -c" + command;
             commandSpec.executeCommand(finalCommand, null, "0", envVar, null);
             commonspec.getLogger().debug("Closing ssh connection to BASTION");
             commandSpec.closeSSHConnection("tempConnection");
         } else {
             if (ThreadProperty.get("localDocker") == null) {
                 commandSpec.executeLocalCommand("ls target/test-classes | grep keos-", "0", "clusterWorkspace");
+                commandSpec.executeLocalCommand("cp -R target/test-classes/" + ThreadProperty.get("clusterWorkspace") + " target/test-classes/workspaceKeosInstaller", null, null, null);
                 String randomName = ThreadProperty.get("clusterWorkspace") + "-" + new Random().nextInt(900000) + 100000;
                 ThreadProperty.set("localDocker", randomName);
                 commandSpec.executeLocalCommand("pwd", null, "pwd", null);
                 commonspec.getLogger().debug("Local execution detected, creating docker container");
-                commandSpec.executeLocalCommand("sudo docker run -dt --name " + ThreadProperty.get("localDocker") + " --net host -e VAULT_MASTER_KEY=" + System.getProperty("KEOS_SECRETS_PASS") + " -v /var/run/docker.sock:/var/run/docker.sock -v " + ThreadProperty.get("pwd") + "/target/test-classes/" + ThreadProperty.get("clusterWorkspace") + ":/workspace:z qa.int.stratio.com/stratio/keos-installer:" + System.getProperty("KEOS_VERSION") + " > /dev/null 2>&1", "0", null, null);
+                commandSpec.executeLocalCommand("docker run -dt --name " + ThreadProperty.get("localDocker") + " --net host -e VAULT_MASTER_KEY=" + System.getProperty("KEOS_SECRETS_PASS") + " -v /var/run/docker.sock:/var/run/docker.sock -v " + ThreadProperty.get("pwd") + "/target/test-classes/workspaceKeosInstaller:/workspace:z qa.int.stratio.com/stratio/keos-installer:" + System.getProperty("KEOS_VERSION") + " > /dev/null 2>&1", "0", null, null);
                 commandSpec.assertCommandExistsOnTimeOutLocal(100, 10, "docker logs " + ThreadProperty.get("localDocker"), "Starting interactive session", null);
             }
-            String finalCommand = "sudo docker exec -t " + ThreadProperty.get("localDocker") + " bash -c" + command;
+            String finalCommand = "docker exec -t " + ThreadProperty.get("localDocker") + " bash -c" + command;
             commandSpec.executeLocalCommand(finalCommand, "0", envVar, null);
         }
         if (file != null) {

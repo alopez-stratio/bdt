@@ -150,6 +150,7 @@ public abstract class BaseGTest {
             CommandExecutionSpec commandSpec = new CommandExecutionSpec(new CommonG());
             commandSpec.executeLocalCommand("docker stop " + ThreadProperty.get("localDocker"), null, null, null);
             commandSpec.executeLocalCommand("docker rm " + ThreadProperty.get("localDocker"), null, null, null);
+            commandSpec.executeLocalCommand("sudo rm -R target/test-classes/workspaceKeosInstaller", null, null, null);
         }
 
         // Restore AWS config
