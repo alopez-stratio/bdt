@@ -2002,16 +2002,16 @@ public class GosecSpec extends BaseGSpec {
         new File(System.getProperty("user.dir") + "/target/test-classes/keyBody.json").delete();
     }
 
-    @When("^I create 'asset' '(.+?)' using key '(.+?)' and algorithm '(aes256|chacha256)' in tenant '(.+?)' with tenant user and tenant password '(.+:.+?)'( if it does not exist)?$")
-    public void createAsset(String assetName, String keyName, String algorithm, String tenantOrig, String
+    @When("^I create '(asset|encryption asset with tag name)' '(.+?)' using key '(.+?)' and algorithm '(aes256|chacha256)' in tenant '(.+?)' with tenant user and tenant password '(.+:.+?)'( if it does not exist)?$")
+    public void createAsset(String type, String assetName, String keyName, String algorithm, String tenantOrig, String
             tenantLoginInfo, String doesNotExist) throws Exception {
         String endPointGetKey = "/service/gosec-management-baas/management/encryption/keys";
         String endPointPostAsset = "/service/gosec-management-baas/management/encryption/asset";
         String endPointGetAsset = "/service/gosec-management-baas/management/encryption/assets?from=0&count=10000&orderBy=name&order=asc";
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             endPointGetKey = "/gosec/baas/management/encryption/keys";
-            endPointPostAsset = "/gosec/baas/management/encryption/asset";
-            endPointGetAsset = "/gosec/baas/management/encryption/assets?from=0&count=10000&orderBy=name&order=asc";
+            endPointPostAsset = type.equals("asset") ? "/gosec/baas/management/encryption/asset" : "/gosec/baas/management/encryption/tag";
+            endPointGetAsset = type.equals("asset") ? "/gosec/baas/management/encryption/assets?from=0&count=10000&orderBy=name&order=asc" : "/gosec/baas/management/encryption/tags?from=0&count=10000&orderBy=name&order=asc";
         }
         commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
         // Get Key ID
