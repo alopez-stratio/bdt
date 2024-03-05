@@ -348,6 +348,7 @@ public class GosecSpec extends BaseGSpec {
         switch (resource) {
             case "policy":
             case "collectionPolicy":
+            case "tagPolicy":
                 return "?pid=";
             case "user":
                 return "?uid=";
@@ -365,6 +366,8 @@ public class GosecSpec extends BaseGSpec {
                 return baasPath + "/management/policy";
             case "collectionPolicy":
                 return baasPath + "/management/policy/domain";
+            case "tagPolicy":
+                return baasPath + "/management/policy/tag";
             case "user":
                 return baasPath + "/management/user";
             case "group":
@@ -401,7 +404,7 @@ public class GosecSpec extends BaseGSpec {
      * @param loginInfo       : user and password to log in service (OPTIONAL)
      * @throws Exception
      */
-    @When("^I delete '(policy|user|group|collectionPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
+    @When("^I delete '(policy|user|group|collectionPolicy|tagPolicy)' '(.+?)'( from tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( using API service path '(.+?)')?( with user and password '(.+:.+?)')? if it exists$")
     public void deleteUserIfExists(String resource, String resourceId, String tenantOrig, String tenantLoginInfo, String endPoint, String loginInfo) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
             deleteResourceIfExistsKeos(resource, resourceId, tenantOrig, tenantLoginInfo, endPoint, loginInfo);
@@ -512,8 +515,7 @@ public class GosecSpec extends BaseGSpec {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
         String endPointPolicies = baasPath + "/management/policies";
         String endPointCollectionsPolicies = baasPath + "/management/policies/domains";
-        String managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
-        String[] gosecBaasVersionArray = managementBaasVersion.split("\\.");
+        String endPointTags = baasPath + "/management/policies/tags";
 
         if (tenantOrig != null) {
             // Set REST connection
@@ -529,10 +531,12 @@ public class GosecSpec extends BaseGSpec {
         try {
             assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
 
-            if ((resource.equals("policy")) || (resource.equals("collectionPolicy"))) {
+            if (resource.equals("policy") || resource.equals("collectionPolicy") || resource.equals("tagPolicy")) {
 
                 if (resource.equals("collectionPolicy")) {
                     endPointPolicies = endPointCollectionsPolicies;
+                } else if (resource.equals("tagPolicy")) {
+                    endPointPolicies = endPointTags;
                 }
 
                 restSpec.sendRequestNoDataTable("GET", endPointPolicies, loginInfo, null, null);
