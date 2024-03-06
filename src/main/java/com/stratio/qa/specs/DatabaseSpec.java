@@ -983,8 +983,8 @@ public class DatabaseSpec extends BaseGSpec {
             rs.close();
             myStatement.close();
         } catch (Exception e) {
-            e.printStackTrace();
-            Assertions.assertThat(rs).as("There are no response from SELECT").isNotNull();
+            commonspec.getLogger().error("Exception in query", e);
+            Assertions.assertThat(rs).as("There are no response from SELECT - Error message: " + e.getMessage()).isNotNull();
         }
     }
 
