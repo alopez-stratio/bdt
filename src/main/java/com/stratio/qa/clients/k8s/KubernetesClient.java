@@ -32,6 +32,7 @@ import io.fabric8.kubernetes.api.model.autoscaling.v1.HorizontalPodAutoscalerSpe
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.networking.v1.Ingress;
 import io.fabric8.kubernetes.api.model.rbac.*;
+import io.fabric8.kubernetes.api.model.storage.StorageClass;
 import io.fabric8.kubernetes.client.*;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
@@ -1780,6 +1781,46 @@ public class KubernetesClient {
             result.append(pvc.getMetadata().getName()).append("\n");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * kubectl get sc
+     *
+     * @return StorageClassesList
+     */
+    public String getStorageClasses() {
+        StringBuilder result = new StringBuilder();
+        for (StorageClass sc : getStorageClassesList()) {
+            result.append(sc.getMetadata().getName()).append("\n");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : result.toString();
+    }
+
+    /**
+     * Get default storage class
+     *
+     * @return Default StorageClass
+     */
+    public String getDefaultStorageClass() throws Exception {
+        StorageClass defaultStorageClass = null;
+        int i = 0;
+        List<StorageClass> storageClassesList = getStorageClassesList();
+        while (defaultStorageClass == null && i < storageClassesList.size()) {
+            StorageClass sc = storageClassesList.get(i);
+            if (sc.getMetadata().getAnnotations() != null && sc.getMetadata().getAnnotations().get("storageclass.kubernetes.io/is-default-class") != null && sc.getMetadata().getAnnotations().get("storageclass.kubernetes.io/is-default-class").equalsIgnoreCase("true")) {
+                defaultStorageClass = sc;
+            }
+            i++;
+        }
+        if (defaultStorageClass != null) {
+            return defaultStorageClass.getMetadata().getName();
+        } else {
+            throw new Exception("Default storageClass not found");
+        }
+    }
+
+    public List<StorageClass> getStorageClassesList() {
+        return k8sClient.storage().v1().storageClasses().list().getItems();
     }
 
     public String getPodsFilteredByOwnerReferenceName(String ownerReferenceName, String namespace) {

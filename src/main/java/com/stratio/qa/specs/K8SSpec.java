@@ -70,7 +70,7 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.connect(kubeConfigPath);
     }
 
-    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress|persistentVolumeClaims)( in namespace '(.+?)')?( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
+    @When("^I get (pods|configmaps|serviceaccounts|replicasets|secrets|clusterroles|clusterrolebindings|statefulsets|roles|rolebindings|customresourcedefinitions|deployments|services|ingress|persistentVolumeClaims|storageClasses)( in namespace '(.+?)')?( and save it in environment variable '(.+?)')?( and save it in file '(.*?)')?$")
     public void getList(String type, String namespace, String envVar, String fileName) throws Exception {
         String response = null;
         switch (type) {
@@ -118,6 +118,9 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "persistentVolumeClaims":
                 response = commonspec.kubernetesClient.getPersistentVolumeClaimsList(namespace);
+                break;
+            case "storageClasses":
+                response = commonspec.kubernetesClient.getStorageClasses();
                 break;
             default:
         }
@@ -1074,7 +1077,10 @@ public class K8SSpec extends BaseGSpec {
 
             }
         }
+    }
 
-
+    @When("^I get default storageClass and save it in environment variable '(.+?)'$")
+    public void getDefaultStorageClass(String envVar) throws Exception {
+        ThreadProperty.set(envVar, commonspec.kubernetesClient.getDefaultStorageClass());
     }
 }
