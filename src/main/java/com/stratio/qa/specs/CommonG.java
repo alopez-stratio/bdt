@@ -1187,6 +1187,11 @@ public class CommonG {
                     .build();
         }
 
+        // Clear cookie store from config
+        if (getClient() != null && getClient().getConfig() != null && getClient().getConfig().getCookieStore() != null) {
+            getClient().getConfig().getCookieStore().clear();
+        }
+
         switch (requestType.toUpperCase()) {
             case "GET":
                 request = this.getClient().prepareGet(restURL + endPoint);
