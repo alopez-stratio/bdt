@@ -816,6 +816,7 @@ public class CCTSpec extends BaseGSpec {
             }
             if (!statusService) {
                 if (notExpectedStatusCauseFail != null && ThreadProperty.get("jobStatus") != null && notExpectedStatusCauseFail.equalsIgnoreCase(ThreadProperty.get("jobStatus"))) {
+                    commonspec.getLogger().warn("Job response:\n" + commonspec.getResponse().getResponse());
                     fail("CCT job has " + notExpectedStatusCauseFail + " status");
                 }
                 commonspec.getLogger().warn(expectedStatus + " status not found after " + i + " seconds. Current status: " + ThreadProperty.get("jobStatus"));
@@ -1471,8 +1472,9 @@ public class CCTSpec extends BaseGSpec {
      * @param tenant  : tenant where service is installed
      * @throws Exception
      */
-    @Given("^I uninstall deployment '(.+?)'( from tenant '(.+?)')?( in namespace '(.+?)')? with schema located at file '(.+?)'$")
-    public void uninstallServiceKeos(String service, String tenant, String namespace, String jsonFile) throws Exception {
+    @Given("^I uninstall deployment '(.+?)'( from tenant '(.+?)')?( in namespace '(.+?)')? with schema located at file '(.+?)'( forcing destroy if uninstall fails)?$")
+    public void uninstallServiceKeos(String service, String tenant, String namespace, String jsonFile, String forceDestroy) throws Exception {
+        ThreadProperty.remove("jobId");
         JSONObject schemaJson = new JSONObject(this.commonspec.retrieveData(jsonFile, "json"));
         schemaJson.put("applicationId", service + "." + namespace);
 
@@ -1500,10 +1502,26 @@ public class CCTSpec extends BaseGSpec {
         commonspec.setResponse(requestType, response.get());
 
         if (commonspec.getResponse().getStatusCode() != 202 && commonspec.getResponse().getStatusCode() != 200) {
-            logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
-            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            String errorMsg = "Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse();
+            if (forceDestroy != null) {
+                logger.warn(errorMsg + "\n" + "Trying to destroy application with destroy endpoint....");
+                String destroyEndpoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/destroy";
+                String body = "{\"applicationId\":\"" + service + "." + namespace + "\"}";
+                commonspec.getLogger().info("Endpoint to destroy service: {} - {}", "POST", destroyEndpoint);
+                response = commonspec.generateRequest("POST", true, null, null, destroyEndpoint, body, "json");
+                commonspec.setResponse("POST", response.get());
+                if (commonspec.getResponse().getStatusCode() != 200) {
+                    errorMsg = "Request to endpoint: " + destroyEndpoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse();
+                    logger.error(errorMsg);
+                    throw new Exception(errorMsg);
+                }
+            } else {
+                logger.error(errorMsg);
+                throw new Exception(errorMsg);
+            }
+        } else {
+            miscSpec.saveElementEnvironment(null, "$.id", "jobId");
         }
-        miscSpec.saveElementEnvironment(null, "$.id", "jobId");
     }
 
     /**
