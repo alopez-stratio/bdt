@@ -16,6 +16,7 @@
 
 package com.stratio.qa.utils;
 
+import com.stratio.qa.specs.CommonG;
 import io.netty.handler.codec.http.cookie.Cookie;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.json.JSONObject;
@@ -24,9 +25,16 @@ import java.util.*;
 
 public class CookiesUtils {
 
+
     private static List<Cookie> cookies = new ArrayList<>();
 
     private static Map<String, ImmutablePair<Long, List<Cookie>>> cookiesCache = new HashMap<>();
+
+    private static final int CACHE_DEFAULT_EXPIRATION_TIME = 60 * 60; // 60 min
+
+    private static final int CACHE_REQUIRED_EXPIRATION_LEFT = 10 * 60; // 10 min
+
+    private static final CommonG commonSpec = new CommonG();
 
     public static List<Cookie> getCookies() {
         return cookies;
@@ -36,19 +44,60 @@ public class CookiesUtils {
         cookies = newCookies;
     }
 
-    public static void addCookiesToCache(String key, List<Cookie> cookiesList, String stratioCookie) {
-        try {
-            String[] chunks = stratioCookie.split("\\.");
-            Base64.Decoder decoder = Base64.getUrlDecoder();
-            JSONObject payload = new JSONObject(new String(decoder.decode(chunks[1])));
-            Long exp = payload.getLong("exp");
+    /**
+     * Stores a cookie in the cookies cache, using ssoHost, userName, tenant and token type as key and the value of cookiesList
+     * It will be given a expiration date parsed from the base64token, or 1 hour by default if null
+     */
+    public static void addCookiesToCache(String ssoHost, String userName, String tenant, String token_type, List<Cookie> cookiesList, String base64token) {
+        addCookiesToCache(genKey(ssoHost, userName, tenant, token_type), cookiesList, base64token);
+    }
+
+    /**
+     * Retrieves the previously stored cookie from the cache, using ssoHost, userName, tenant and token type as key
+     * The return value will include the expiration date (in epoch millis) and the stored cookie value
+     */
+    public static ImmutablePair<Long, List<Cookie>> getCookiesFromCache(String ssoHost, String userName, String tenant, String token_type) {
+        return getCookiesFromCache(genKey(ssoHost, userName, tenant, token_type));
+    }
+
+    /**
+     * Returns true if a cookie is found in cache and if its not near expiration, false otherwise
+     */
+    public static boolean hasCookiesInCache(String ssoHost, String userName, String tenant, String token_type) {
+        ImmutablePair<Long, List<Cookie>> cookieCache = cookiesCache.get(genKey(ssoHost, userName, tenant, token_type));
+        return cookieCache != null && (cookieCache.getLeft() - System.currentTimeMillis() / 1000) >= CACHE_REQUIRED_EXPIRATION_LEFT;
+    }
+
+    private static void addCookiesToCache(String key, List<Cookie> cookiesList, String base64token) {
+        if (cookiesList.stream().allMatch(cookie -> cookie.value().isEmpty())) {
+            commonSpec.getLogger().warn("The cookie to store is empty and it will not be saved");
+        } else {
+            long exp;
+            try {
+                // Get expiration date from BASE64 token
+                String[] chunks = base64token.split("\\.");
+                Base64.Decoder decoder = Base64.getUrlDecoder();
+                JSONObject payload = new JSONObject(new String(decoder.decode(chunks[1])));
+                exp = payload.getLong("exp");
+            } catch (Exception e) {
+                // Set expiration to 1 hour if unknown
+                exp = (System.currentTimeMillis() / 1000) + CACHE_DEFAULT_EXPIRATION_TIME;
+            }
+            commonSpec.getLogger().debug(String.format("NEW cookie stored with key: %s; expiration: %d; value: %s", key, exp, cookiesList));
             cookiesCache.put(key, new ImmutablePair<>(exp, cookiesList));
-        } catch (Exception e) {
-            // Ignore
         }
     }
 
-    public static ImmutablePair<Long, List<Cookie>> getCookiesFromCache(String key) {
+    private static ImmutablePair<Long, List<Cookie>> getCookiesFromCache(String key) {
+        commonSpec.getLogger().debug(String.format("READ cookie from cache with key: %s; value: %s", key, cookiesCache.get(key)));
         return cookiesCache.get(key);
+    }
+
+    private static String genKey(String ssoHost, String userName, String tenant, String token_type) {
+        return String.format("%s_%s_%s_%s",
+                ssoHost,
+                userName,
+                tenant,
+                Objects.requireNonNullElse(token_type, "default"));
     }
 }

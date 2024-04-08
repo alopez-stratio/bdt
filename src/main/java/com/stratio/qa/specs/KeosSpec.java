@@ -112,7 +112,6 @@ public class KeosSpec extends BaseGSpec {
 
         if (ssoCookies.get("stratio-cookie") != null) {
             ThreadProperty.set("stratioCookie", ssoCookies.get("stratio-cookie"));
-            CookiesUtils.addCookiesToCache(ssoHost + "_" + userName + "_" + password + "_" + tenant + "_" + (token_type != null ? token_type : "default"), cookiesAtributes, ssoCookies.get("stratio-cookie"));
         }
 
         if (ssoCookies.get("user") != null) {
@@ -145,17 +144,19 @@ public class KeosSpec extends BaseGSpec {
         for (Cookie cookie : cookiesAtributes) {
             this.commonspec.getLogger().debug("\t" + cookie.name() + ":" + cookie.value());
         }
+
+        // Store retrieved cookie in cache
+        CookiesUtils.addCookiesToCache(ssoHost, userName, tenant, token_type, cookiesAtributes, ssoCookies.get("stratio-cookie"));
     }
 
     @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
-        long currentTime = System.currentTimeMillis() / 1000;
-        ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost + "_" + userName + "_" + password + "_" + tenant + "_" + (token_type != null ? token_type : "default"));
-        if (cookieCache == null || (cookieCache.getLeft() - currentTime) < 60) {
+        if (CookiesUtils.hasCookiesInCache(ssoHost, userName, tenant, token_type)) {
             this.commonspec.getLogger().debug("Cookie expiration is imminent, I get cookie again");
             setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
         } else {
             this.commonspec.getLogger().debug("Set cookies from cache");
+            ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost, userName, tenant, token_type);
             commonspec.setCookies(cookieCache.getRight());
         }
     }
