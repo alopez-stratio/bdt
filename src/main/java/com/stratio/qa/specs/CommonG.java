@@ -1135,6 +1135,38 @@ public class CommonG {
     }
 
     /**
+     * Aux method to set headers in HTTP request
+     *
+     * @param request Request
+     * @param type json / string / textplain / gov / scim
+     * @param govTenant Optional
+     * @param govRolesID Optional
+     * @param govUserID Optional
+     * @return Request with headers
+     */
+    private BoundRequestBuilder setHeaders(BoundRequestBuilder request, String type, String govTenant, String govRolesID, String govUserID) {
+        if ("json".equals(type)) {
+            return request.setHeader("Content-Type", "application/json; charset=UTF-8");
+        } else if ("string".equals(type)) {
+            this.getLogger().debug("Sending request as: {}", type);
+            return request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+        } else if ("textplain".equals(type)) {
+            return request.setHeader("Content-Type", "text/plain; charset=UTF-8");
+        } else if ("gov".equals(type)) {
+            request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
+            request = request.setHeader("Accept", "application/json");
+            request = request.setHeader("X-TenantID", govTenant);
+            request = request.setHeader("X-RolesID", govRolesID);
+            request = request.setHeader("X-UserID", govUserID);
+        } else if ("scim".equals(type)) {
+            request = request.setHeader("Content-Type", "application/scim+json");
+            request = request.setHeader("Accept", "application/scim+json");
+
+        }
+        return request;
+    }
+
+    /**
      * Generates the request based on the type of request, the end point, the data and type passed
      *
      * @param requestType type of request to be sent
@@ -1143,7 +1175,7 @@ public class CommonG {
      * @param password    password to be used in request
      * @param endPoint    end point to sent the request to
      * @param data        to be sent for PUT/POST requests
-     * @param type        type of data to be sent (json|string|gov|scim|servicegov)
+     * @param type        type of data to be sent (json|string|gov|scim|servicegov|textplain)
      * @throws Exception exception
      */
     public Future<Response> generateRequest(String requestType, boolean secure, String user, String password, String endPoint, String data, String type) throws Exception {
@@ -1195,22 +1227,7 @@ public class CommonG {
         switch (requestType.toUpperCase()) {
             case "GET":
                 request = this.getClient().prepareGet(restURL + endPoint);
-
-                if ("json".equals(type)) {
-                    request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
-                } else if ("string".equals(type)) {
-                    this.getLogger().debug("Sending request as: {}", type);
-                    request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                } else if ("gov".equals(type)) {
-                    request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
-                    request = request.setHeader("Accept", "application/json");
-                    request = request.setHeader("X-TenantID", govTenant);
-                    request = request.setHeader("X-RolesID", govRolesID);
-                    request = request.setHeader("X-UserID", govUserID);
-                } else if ("scim".equals(type)) {
-                    request = request.setHeader("Content-Type", "application/scim+json");
-                    request = request.setHeader("Accept", "application/scim+json");
-                }
+                request = setHeaders(request, type, govTenant, govRolesID, govUserID);
 
                 if (this.getResponse() != null) {
                     this.getLogger().debug("Reusing coookies: {}", this.getResponse().getCookies());
@@ -1259,21 +1276,7 @@ public class CommonG {
                     }
                 } else {
                     request = this.getClient().prepareDelete(restURL + endPoint).setBody(data);
-                    if ("json".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
-                    } else if ("string".equals(type)) {
-                        this.getLogger().debug("Sending request as: {}", type);
-                        request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                    } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
-                        request = request.setHeader("Accept", "application/json");
-                        request = request.setHeader("X-TenantID", govTenant);
-                        request = request.setHeader("X-RolesID", govRolesID);
-                        request = request.setHeader("X-UserID", govUserID);
-                    } else if ("scim".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/scim+json");
-                        request = request.setHeader("Accept", "application/scim+json");
-                    }
+                    request = setHeaders(request, type, govTenant, govRolesID, govUserID);
                 }
                 if (this.getSeleniumCookies().size() > 0) {
                     for (org.openqa.selenium.Cookie cookie : this.getSeleniumCookies()) {
@@ -1319,21 +1322,7 @@ public class CommonG {
                     throw missingFields;
                 } else {
                     request = this.getClient().preparePost(restURL + endPoint).setBody(data);
-                    if ("json".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
-                    } else if ("string".equals(type)) {
-                        this.getLogger().debug("Sending request as: {}", type);
-                        request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                    } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
-                        request = request.setHeader("Accept", "application/json");
-                        request = request.setHeader("X-TenantID", govTenant);
-                        request = request.setHeader("X-RolesID", govRolesID);
-                        request = request.setHeader("X-UserID", govUserID);
-                    } else if ("scim".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/scim+json");
-                        request = request.setHeader("Accept", "application/scim+json");
-                    }
+                    request = setHeaders(request, type, govTenant, govRolesID, govUserID);
 
                     if (this.getResponse() != null) {
                         request = request.setCookies(this.getResponse().getCookies());
@@ -1376,20 +1365,7 @@ public class CommonG {
                     throw missingFields;
                 } else {
                     request = this.getClient().preparePut(restURL + endPoint).setBody(data);
-                    if ("json".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
-                    } else if ("string".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                    } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
-                        request = request.setHeader("Accept", "application/json");
-                        request = request.setHeader("X-TenantID", govTenant);
-                        request = request.setHeader("X-RolesID", govRolesID);
-                        request = request.setHeader("X-UserID", govUserID);
-                    } else if ("scim".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/scim+json");
-                        request = request.setHeader("Accept", "application/scim+json");
-                    }
+                    request = setHeaders(request, type, govTenant, govRolesID, govUserID);
 
                     if (this.getResponse() != null) {
                         request = request.setCookies(this.getResponse().getCookies());
@@ -1431,20 +1407,7 @@ public class CommonG {
                     throw missingFields;
                 } else {
                     request = this.getClient().preparePatch(restURL + endPoint).setBody(data);
-                    if ("json".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
-                    } else if ("string".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                    } else if ("gov".equals(type)) {
-                        request = request.setHeader("Content-Type", System.getProperty("GOV_HEADER_CONTENT_TYPE", "application/json; charset=UTF-8"));
-                        request = request.setHeader("Accept", "application/json");
-                        request = request.setHeader("X-TenantID", govTenant);
-                        request = request.setHeader("X-RolesID", govRolesID);
-                        request = request.setHeader("X-UserID", govUserID);
-                    } else if ("scim".equals(type)) {
-                        request = request.setHeader("Content-Type", "application/scim+json");
-                        request = request.setHeader("Accept", "application/scim+json");
-                    }
+                    request = setHeaders(request, type, govTenant, govRolesID, govUserID);
 
                     if (this.getResponse() != null) {
                         request = request.setCookies(this.getResponse().getCookies());

@@ -119,7 +119,7 @@ public class RestSpec extends BaseGSpec {
      *                      being the result of the modification: {"key1": "value1", "key2": {"key3": "new value3"}}
      * @throws Exception
      */
-    @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I send a '(.+?)' request to '(.+?)' so that the response( does not)? contains '(.+?)' based on '([^:]+?)'( as '(json|string|gov|servicegov)')? with:$")
+    @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I send a '(.+?)' request to '(.+?)' so that the response( does not)? contains '(.+?)' based on '([^:]+?)'( as '(json|string|gov|servicegov|textplain)')? with:$")
     public void sendRequestDataTableTimeout(Integer timeout, Integer wait, String requestType, String endPoint, String contains, String responseVal, String baseData, String type, DataTable modifications) throws Exception {
         // Retrieve data
         String retrievedData = commonspec.retrieveData(baseData, type);
@@ -212,7 +212,7 @@ public class RestSpec extends BaseGSpec {
      *                      being the result of the modification: {"key1": "value1", "key2": {"key3": "new value3"}}
      * @throws Exception
      */
-    @When("^I send a '(.+?)' request to '(.+?)'( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov|scim|servicegov)')? with:$")
+    @When("^I send a '(.+?)' request to '(.+?)'( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov|scim|servicegov|textplain)')? with:$")
     public void sendRequest(String requestType, String endPoint, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
         // Retrieve data
         String retrievedData = commonspec.retrieveData(baseData, type);
@@ -249,7 +249,7 @@ public class RestSpec extends BaseGSpec {
      * @param type
      * @throws Exception
      */
-    @When("^I send a '(.+?)' request to '(.+?)'( with user and password '(.+:.+?)')?( based on '([^:]+?)')?( as '(json|string|gov|scim|servicegov)')?$")
+    @When("^I send a '(.+?)' request to '(.+?)'( with user and password '(.+:.+?)')?( based on '([^:]+?)')?( as '(json|string|gov|scim|servicegov|textplain)')?$")
     public void sendRequestNoDataTable(String requestType, String endPoint, String loginInfo, String baseData, String type) throws Exception {
         Future<Response> response;
         String user = null;
@@ -285,7 +285,7 @@ public class RestSpec extends BaseGSpec {
      * @param responseVal
      * @throws Exception
      */
-    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I send a '(.+?)' request to '(.+?)'( as '(json|string|gov|scim|servicegov)')? so that the response( does not)? contains '(.+?)'$")
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I send a '(.+?)' request to '(.+?)'( as '(json|string|gov|scim|servicegov|textplain)')? so that the response( does not)? contains '(.+?)'$")
     public void sendRequestTimeout(Integer timeout, Integer wait, String requestType, String endPoint, String type, String contains, String responseVal) throws Exception {
         AssertionError ex = null;
         Future<Response> response;
@@ -363,7 +363,7 @@ public class RestSpec extends BaseGSpec {
         }
     }
 
-    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I send a '(.+?)' request to '(.+?)'( as '(json|string|gov|scim|servicegov)')? so that the field '(.+?)' is( not)? equals to( this regex)? '(.+?)'$")
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I send a '(.+?)' request to '(.+?)'( as '(json|string|gov|scim|servicegov|textplain)')? so that the field '(.+?)' is( not)? equals to( this regex)? '(.+?)'$")
     public void sendRequestTimeoutExactValue(Integer timeout, Integer wait, String requestType, String endPoint, String type, String expression, String contains, String regex, String result) throws Exception {
         AssertionError ex = null;
         Future<Response> response;
