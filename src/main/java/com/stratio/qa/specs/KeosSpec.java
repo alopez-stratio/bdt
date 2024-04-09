@@ -152,12 +152,14 @@ public class KeosSpec extends BaseGSpec {
     @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
         if (CookiesUtils.hasCookiesInCache(ssoHost, userName, tenant, token_type)) {
-            this.commonspec.getLogger().debug("Cookie expiration is imminent, I get cookie again");
-            setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
-        } else {
+            // Token present in cache
             this.commonspec.getLogger().debug("Set cookies from cache");
             ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost, userName, tenant, token_type);
             commonspec.setCookies(cookieCache.getRight());
+        } else {
+            // Token not present or expired
+            this.commonspec.getLogger().debug("Cookie expiration is imminent, I get cookie again");
+            setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
         }
     }
 
