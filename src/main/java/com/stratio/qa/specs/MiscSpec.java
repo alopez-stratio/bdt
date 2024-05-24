@@ -247,7 +247,7 @@ public class MiscSpec extends BaseGSpec {
 
     /**
      * Check if expression defined by JSONPath match in JSON stored in an environment variable.
-     * The allowed operations are: [equal, not equal, contains, does not contain, matches, size, not empty, PathNotFound]
+     * The allowed operations are: [equal, not equal, contains, does not contain, not empty, matches, size, higher than, lower than, is null, PathNotFound]
      * Usage:
      * Then 'var_name' matches the following cases:
      * | $.columns    | size         | 1    |
@@ -267,17 +267,36 @@ public class MiscSpec extends BaseGSpec {
             String condition = row.get(1);
             String expected_value = row.get(2);
 
+            // PathNotFound
             if (condition.equals("PathNotFound")) {
                 if (commonspec.hasJSONPath(jsonString, json_path)) {
                     errorList.add(String.format("%s - [JSONPath is expected to not be found but it exists] Value found: <%s>",
                             json_path, commonspec.getJSONPathString(jsonString, json_path, null)));
                 }
+
+            // is null
+            } else if (condition.equals("is null")) {
+                try {
+                    String value = commonspec.getJSONPathString(jsonString, json_path, null);
+                    if (value != null) {
+                        errorList.add(String.format("%s - [JSONPath is expected to be null but is not] Value found: <%s>",
+                                json_path, value));
+                    }
+                } catch (PathNotFoundException | AssertionError e) {
+                    errorList.add(String.format("%s - %s", json_path, e.getMessage()));
+                } catch (NullPointerException e) {
+                    // pass (value was null as expected)
+                }
+
+            // equal, not equal, contains, does not contain, not empty, matches, size, higher than, lower than
             } else {
                 try {
                     String value = commonspec.getJSONPathString(jsonString, json_path, null);
                     commonspec.evaluateJSONElementOperation(value, condition, expected_value);
                 } catch (PathNotFoundException | AssertionError e) {
                     errorList.add(String.format("%s - %s", json_path, e.getMessage()));
+                } catch (NullPointerException ex) {
+                    errorList.add(String.format("%s - %s", json_path, "The JSONPath extracted value was null"));
                 }
             }
         }

@@ -2160,7 +2160,7 @@ public class CommonG {
                     }
                     break;
                 case "not empty":
-                    assertThat(value).as("Evaluate JSONPath is not empty").isNotEmpty();
+                    assertThat(value).as("Evaluate JSONPath is empty, but it's expected not to be empty").isNotEmpty();
                     break;
                 case "matches":
                     assertThat(value).as("Value does not match regex.").matches(result);
