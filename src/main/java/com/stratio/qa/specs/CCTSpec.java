@@ -1472,8 +1472,8 @@ public class CCTSpec extends BaseGSpec {
      * @param tenant  : tenant where service is installed
      * @throws Exception
      */
-    @Given("^I uninstall deployment '(.+?)'( from tenant '(.+?)')?( in namespace '(.+?)')? with schema located at file '(.+?)'( forcing destroy if uninstall fails)?$")
-    public void uninstallServiceKeos(String service, String tenant, String namespace, String jsonFile, String forceDestroy) throws Exception {
+    @Given("^I( force)? uninstall deployment '(.+?)'( from tenant '(.+?)')?( in namespace '(.+?)')? with schema located at file '(.+?)'( forcing destroy if uninstall fails)?$")
+    public void uninstallServiceKeos(String forceUninstall, String service, String tenant, String namespace, String jsonFile, String forceDestroy) throws Exception {
         ThreadProperty.remove("jobId");
         JSONObject schemaJson = new JSONObject(this.commonspec.retrieveData(jsonFile, "json"));
         schemaJson.put("applicationId", service + "." + namespace);
@@ -1488,15 +1488,28 @@ public class CCTSpec extends BaseGSpec {
         commonspec.setCCTConnection(null, null);
         getCCTOrchestratorVersion();
         RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
+
         String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v2/uninstall/" + service + "." + namespace;
         String requestType = "PUT";
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(cct-orchestrator_version<3.0.0)"))) {
             endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/uninstall";
             requestType = "POST";
         }
-        if (tenant != null) {
-            endPoint += "?tenant=" + tenant;
+        if (tenant != null || forceUninstall != null) {
+            endPoint += "?";
         }
+
+        if (tenant != null) {
+            endPoint += "tenant=" + tenant;
+        }
+
+        if (forceUninstall != null) {
+            if (tenant != null) {
+                endPoint += "&";
+            }
+            endPoint += "force=true";
+        }
+
         commonspec.getLogger().info("Endpoint to uninstall service: {} - {}", requestType, endPoint);
         Future<Response> response = commonspec.generateRequest(requestType, true, null, null, endPoint, schemaJson.toString(), "json");
         commonspec.setResponse(requestType, response.get());
@@ -1520,7 +1533,7 @@ public class CCTSpec extends BaseGSpec {
                 throw new Exception(errorMsg);
             }
         } else {
-            miscSpec.saveElementEnvironment(null, "$.id", "jobId");
+            miscSpec.saveElementEnvironmentFile(null, "$.id", "jobId", null);
         }
     }
 

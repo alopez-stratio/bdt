@@ -3,6 +3,7 @@
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
 ## 1.0.0 (upcoming)
+* [DGPB-13543] Add option to force service uninstall
 * [GS-9454] Use stratio-cookie instead oauth2-proxy-cookie to upload user secrets
 * [GS-9450] Add step to get id from tag
 * [GS-9406] Add variable generatedId for custom users
