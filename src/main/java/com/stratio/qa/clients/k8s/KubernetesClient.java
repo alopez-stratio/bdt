@@ -1022,13 +1022,23 @@ public class KubernetesClient {
     }
 
     /**
-     * kubectl delete service myservice
+     * kubectl delete PVC mypvc
      *
      * @param label     label filter witch has persistent volume claims to delete
      * @param namespace Namespace
      */
     public void deletePersistentVolumeClaimsWithLabel(String label, String namespace) {
         k8sClient.persistentVolumeClaims().inNamespace(namespace).withLabel(label).delete();
+    }
+
+    /**
+     * kubectl delete PVC mypvc
+     *
+     * @param name      persistent volume claims to delete
+     * @param namespace Namespace
+     */
+    public void deletePersistentVolumeClaims(String name, String namespace) {
+        k8sClient.persistentVolumeClaims().inNamespace(namespace).withName(name).delete();
     }
 
     /**

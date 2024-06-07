@@ -560,7 +560,7 @@ public class K8SSpec extends BaseGSpec {
         assertThat(log).contains(expectedLog);
     }
 
-    @When("^I delete (pod|deployment|service|statefulset|job|ingress|configmap|secret|resourcequota|serviceaccount|role|rolebinding|crd) with name '(.+?)'( in namespace '(.+?)')?$")
+    @When("^I delete (pod|deployment|service|statefulset|job|ingress|configmap|secret|resourcequota|serviceaccount|role|rolebinding|crd|pvc) with name '(.+?)'( in namespace '(.+?)')?$")
     public void deleteResource(String type, String name, String namespace) throws Exception {
         if (!type.equals("crd") && namespace == null) {
             throw new Exception("Namespace must be defined for delete " + type);
@@ -604,6 +604,9 @@ public class K8SSpec extends BaseGSpec {
                 break;
             case "crd":
                 commonspec.kubernetesClient.deleteCRD(name);
+                break;
+            case "pvc":
+                commonspec.kubernetesClient.deletePersistentVolumeClaims(name, namespace);
                 break;
             default:
         }
