@@ -2896,6 +2896,9 @@ public class CCTSpec extends BaseGSpec {
         Future<Response> response = commonspec.generateRequest("POST", true, null, null, endPoint, jsonTenant.toString(), "json");
         commonspec.setResponse("POST", response.get());
         Assertions.assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(200);
+        commonspec.getLogger().info("Checking if tenant {} is available in cct-paas-services...", tenantName);
+        String endpointCheckTenant =  ThreadProperty.get("KEOS_CCT_PAAS_INGRESS_PATH") + "/v1/tenants";
+        restSpec.sendRequestTimeout(10, 1, "GET", endpointCheckTenant, "json", null, tenantName);
     }
 
     @Given("^I create namespace with name '(.+?)' in tenant '(.+?)' through CCT( if it does not already exist)?$")
