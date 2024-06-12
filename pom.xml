@@ -86,7 +86,7 @@
         <selenium-java.version>3.9.1</selenium-java.version>
         <jsoup.version>1.15.3</jsoup.version>
         <json.version>20180130</json.version>
-        <crossdata-drivers.version>2.28.1-b609b46</crossdata-drivers.version>
+        <crossdata-drivers.version>2.30.0-3ae077d</crossdata-drivers.version>
         <kafka-scala.version>2.11</kafka-scala.version>
         <kafka.version>2.3.1</kafka.version>
         <kubernetes-client.version>6.3.1</kubernetes-client.version>
