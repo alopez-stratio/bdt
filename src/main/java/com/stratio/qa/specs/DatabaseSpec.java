@@ -39,6 +39,8 @@ import org.testng.Assert;
 import org.testng.asserts.Assertion;
 
 import javax.net.ssl.SSLException;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
 import java.sql.*;
@@ -893,6 +895,73 @@ public class DatabaseSpec extends BaseGSpec {
                     Assertions.assertThat(e.getMessage()).as("Query error message").contains(exceptionMessageExpected);
                 }
             }
+        }
+    }
+
+    /*
+     * @param query
+     * executes query in database
+     */
+    @When("^I execute file sql '(.+?)' through JDBC connection(, returning an exception)?(, returning a warning)?( with message \"(.+?)\")?$")
+    public void executeJdbcQueryFile(String file, String exceptionReturned, String warningReturned, String exceptionMessageExpected) throws Exception {
+        Connection myConnection = this.commonspec.getConnection();
+        if (myConnection == null) {
+            throw new Exception("JDBC connection is not opened");
+        }
+        try (FileReader reader = new FileReader(file);
+             // Wrap the FileReader in a BufferedReader for
+             // efficient reading.
+             BufferedReader bufferedReader
+                     = new BufferedReader(reader);
+             // Create a statement object to execute SQL
+             // commands.
+             Statement statement
+                     = myConnection.createStatement();) {
+
+            StringBuilder builder = new StringBuilder();
+
+            String line;
+            int lineNumber = 0;
+            int count = 0;
+
+            // Read lines from the SQL file until the end of the
+            // file is reached.
+            while ((line = bufferedReader.readLine()) != null) {
+                lineNumber += 1;
+                line = line.trim();
+
+                // Skip empty lines and single-line comments.
+                if (line.isEmpty() || line.startsWith("--")) {
+                    continue;
+                }
+                builder.append(" ");
+                builder.append(" " + line);
+                // If the line ends with a semicolon, it
+                // indicates the end of an SQL command.
+                if (line.endsWith(";")) {
+                    try {
+                        // Execute the SQL command
+                        statement.execute(builder.toString());
+                        // Print a success message along with
+                        // the first 15 characters of the
+                        // executed command.
+                        builder.setLength(0);
+                    } catch (SQLException e) {
+                        // If an SQLException occurs during
+                        // execution, print an error message and
+                        // stop further execution.
+                        System.err.println(
+                                "At line " + lineNumber + " : "
+                                        + e.getMessage() + "\n");
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            assertThat(1).as(e.getClass().getName() + ": " + e.getMessage()).isNotEqualTo(0);
+
         }
     }
 
