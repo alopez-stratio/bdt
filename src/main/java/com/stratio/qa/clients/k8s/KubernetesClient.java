@@ -31,6 +31,7 @@ import io.fabric8.kubernetes.api.model.autoscaling.v1.HorizontalPodAutoscaler;
 import io.fabric8.kubernetes.api.model.autoscaling.v1.HorizontalPodAutoscalerSpec;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.networking.v1.Ingress;
+import io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicy;
 import io.fabric8.kubernetes.api.model.rbac.*;
 import io.fabric8.kubernetes.api.model.storage.StorageClass;
 import io.fabric8.kubernetes.client.*;
@@ -2722,6 +2723,38 @@ public class KubernetesClient {
      */
     public void restartStatefulset(String statefulset, String namespace) {
         k8sClient.apps().statefulSets().inNamespace(namespace).withName(statefulset).rolling().restart();
+    }
+
+    /**
+     * Get NetworkPolicy
+     *
+     * @param npName    NetworkPolicy name
+     * @param namespace Namespace
+     * @return NetworkPolicy
+     */
+    public NetworkPolicy getNetworkPolicy(String npName, String namespace) {
+        return k8sClient.network().networkPolicies().inNamespace(namespace).withName(npName).get();
+    }
+
+    /**
+     * Describe NetworkPolicy in yaml format
+     *
+     * @param npName    NetworkPolicy name
+     * @param namespace Namespace
+     * @return String with NetworkPolicy in yaml format
+     */
+    public String describeNetworkPolicyYaml(String npName, String namespace) {
+        return Serialization.asYaml(getNetworkPolicy(npName, namespace));
+    }
+
+    /**
+     * kubectl delete NetworkPolicy mynetworkpolicy
+     *
+     * @param name      NetworkPolicy to delete
+     * @param namespace Namespace
+     */
+    public void deleteNetworkPolicy(String name, String namespace) {
+        k8sClient.network().networkPolicies().inNamespace(namespace).withName(name).delete();
     }
 
     public void getKeosReport() {
