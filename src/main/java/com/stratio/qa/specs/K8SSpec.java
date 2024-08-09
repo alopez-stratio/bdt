@@ -975,6 +975,26 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("I check that secret exists in path '(.+?)' using Vault API")
+    public void hasSecretVault(String path) throws Exception {
+        Exception exception = null;
+        setLocalPortForward(8200, 8200, "service", "vault", "keos-core");
+        try {
+            String hasSecretCommand = "curl -k --header \"X-Vault-Token:" + ThreadProperty.get("VAULT_TOKEN") + "\" --request GET --output /dev/null --write-out \"%{http_code}\" https://127.0.0.1:8200/v1";
+            commonspec.getLogger().debug("Curl to GET secret: " + hasSecretCommand + path);
+            commonspec.runLocalCommand(hasSecretCommand + path);
+
+            Assert.assertEquals(commonspec.getCommandResult(), "200", "Secret not found in path " + path);
+        } catch (Exception e) {
+            exception = e;
+        } finally {
+            closePortForward();
+            if (exception != null) {
+                throw exception;
+            }
+        }
+    }
+
     /**
      * kubectl cp /tmp/foo <some-namespace>/<some-pod>:/tmp/bar
      */
