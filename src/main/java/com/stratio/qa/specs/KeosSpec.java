@@ -30,13 +30,10 @@ import com.stratio.qa.assertions.Assertions;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 import org.testng.Assert;
 
-import java.util.Random;
 import java.util.concurrent.Future;
 
 import org.asynchttpclient.Response;
@@ -75,10 +72,49 @@ public class KeosSpec extends BaseGSpec {
      */
     @Given("^I set sso( governance| discovery| intelligence| cosmos)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookieKeos(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
+        // Login with SSO to get new cookies
         GosecSSOUtils ssoUtils = new GosecSSOUtils(ssoHost, userName, password, tenant, token_type, ldap);
         ssoUtils.setVerifyHost(hostVerifier == null);
         HashMap<String, String> ssoCookies = ssoUtils.ssoTokenGenerator(pathWithoutLogin == null);
 
+        // Retrieve the cookies from the response, according to the token type
+        List<Cookie> cookiesAttributes = commonspec.addSsoToken(ssoCookies, getTokenList(token_type));
+
+        // Log the cookies to be set
+        commonspec.getLogger().debug("Cookies to set:");
+        cookiesAttributes.forEach(cookie -> commonspec.getLogger().debug("\t" + cookie.name() + ":" + cookie.value()));
+
+        // Set the cookies to use in the following requests and add them to thread properties
+        commonspec.setCookies(cookiesAttributes);
+        addCookiesToThreadProperties(token_type);
+
+        // Store retrieved cookies in cache
+        CookiesUtils.addCookiesToCache(ssoHost, userName, tenant, token_type, cookiesAttributes, ssoCookies.get("stratio-cookie"));
+    }
+
+    @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
+    public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
+        if (CookiesUtils.hasCookiesInCache(ssoHost, userName, tenant, token_type)) {
+            // The token is present in cache, retrieve them from cache
+            this.commonspec.getLogger().debug("The Cookie is found in cache, and it will be reused");
+            ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost, userName, tenant, token_type);
+
+            // Set the cookies to use in the following requests and add them to thread properties
+            commonspec.setCookies(cookieCache.getRight());
+            addCookiesToThreadProperties(token_type);
+        } else {
+            // The token is not present in cache, log in again
+            this.commonspec.getLogger().debug("The Cookie is not found in cache or is expired, a new one will be generated");
+            setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
+        }
+    }
+
+    /**
+     * Returns a list of token names to ask the SSO to retrieve, based on the provided token type.
+     *
+     * @param token_type the type of the token (e.g., governance, discovery, intelligence, etc.)
+     */
+    private String[] getTokenList(String token_type) {
         String[] tokenList = {"user", "_oauth2_proxy", "stratio-cookie"};
         switch (String.valueOf(token_type).trim()) {
             case "governance":
@@ -98,68 +134,44 @@ public class KeosSpec extends BaseGSpec {
             default:
                 break;
         }
+        return tokenList;
+    }
 
-        List<Cookie> cookiesAtributes = commonspec.addSsoToken(ssoCookies, tokenList);
-        commonspec.setCookies(cookiesAtributes);
-
-        if (ssoCookies.get("stratio-governance-auth") != null) {
-            ThreadProperty.set("keosGovernanceAuthCookie", ssoCookies.get("stratio-governance-auth"));
-        }
-
-        if (ssoCookies.get("_oauth2_proxy") != null) {
-            ThreadProperty.set("oauth2ProxyCookie", ssoCookies.get("_oauth2_proxy"));
-        }
-
-        if (ssoCookies.get("stratio-cookie") != null) {
-            ThreadProperty.set("stratioCookie", ssoCookies.get("stratio-cookie"));
-        }
-
-        if (ssoCookies.get("user") != null) {
-            ThreadProperty.set("user", ssoCookies.get("user"));
-        }
-
-        if ("discovery".equals(String.valueOf(token_type).trim())) {
-            Assert.assertNotNull(ssoCookies.get(ThreadProperty.get("discovery_sso_cookie_name")),
-                    "Discovery cookie was not found on SSO response");
-            ThreadProperty.set(ThreadProperty.get("discovery_sso_cookie_name"),
-                    ssoCookies.get(ThreadProperty.get("discovery_sso_cookie_name")));
-        }
-
-        if ("intelligence".equals(String.valueOf(token_type).trim())) {
-            for (String cookie : tokenList) {
-                Assert.assertNotNull(ssoCookies.get(cookie), "SSO cookie " + cookie + " is not defined after login");
-                ThreadProperty.set(cookie, ssoCookies.get(cookie));
+    /**
+     * Adds cookies to thread properties based on the token type and token list.
+     * Run commonspec.setCookies() before calling this method.
+     *
+     * @param token_type the type of the token (e.g., governance, discovery, intelligence, etc.)
+     */
+    public void addCookiesToThreadProperties(String token_type) {
+        // Cookie name in SSO response --> name in thread property
+        List<Map.Entry<String, String>> cookiesToAddToThreadProperty = List.of(
+                Map.entry("stratio-cookie",          "stratioCookie"),
+                Map.entry("_oauth2_proxy",           "oauth2ProxyCookie"),
+                Map.entry("stratio-governance-auth", "keosGovernanceAuthCookie"),
+                Map.entry("user",                    "user"),
+                Map.entry("dcos-acs-auth-cookie",    "cosmosAuthCookie"),
+                Map.entry("dcos-acs-info-cookie",    "cosmosInfoAuthCookie")
+        );
+        for (Map.Entry<String, String> entry : cookiesToAddToThreadProperty) {
+            if (CookiesUtils.hasCookieWithName(entry.getKey())) {
+                ThreadProperty.set(entry.getValue(), CookiesUtils.getCookieValueByName(entry.getKey()));
             }
         }
 
-        if (ssoCookies.get("dcos-acs-auth-cookie") != null) {
-            ThreadProperty.set("cosmosAuthCookie", ssoCookies.get("dcos-acs-auth-cookie"));
+        if ("discovery".equals(String.valueOf(token_type).trim())) {
+            Assert.assertTrue(CookiesUtils.hasCookieWithName(ThreadProperty.get("discovery_sso_cookie_name")),
+                    "Discovery cookie was not found on SSO response");
+            ThreadProperty.set(ThreadProperty.get("discovery_sso_cookie_name"),
+                    CookiesUtils.getCookieValueByName(ThreadProperty.get("discovery_sso_cookie_name")));
         }
 
-        if (ssoCookies.get("dcos-acs-info-cookie") != null) {
-            ThreadProperty.set("cosmosInfoAuthCookie", ssoCookies.get("dcos-acs-info-cookie"));
-        }
-
-        this.commonspec.getLogger().debug("Cookies to set:");
-        for (Cookie cookie : cookiesAtributes) {
-            this.commonspec.getLogger().debug("\t" + cookie.name() + ":" + cookie.value());
-        }
-
-        // Store retrieved cookie in cache
-        CookiesUtils.addCookiesToCache(ssoHost, userName, tenant, token_type, cookiesAtributes, ssoCookies.get("stratio-cookie"));
-    }
-
-    @Given("^I get from cache, if exists, sso( governance| discovery| intelligence)? keos token using host '(.+?)' with user '(.+?)', password '(.+?)' and tenant '(.+?)'( and LDAP '(.+?)')?( without host name verification)?( without login path)?$")
-    public void setGoSecSSOCookieKeosCache(String token_type, String ssoHost, String userName, String password, String tenant, String ldap, String hostVerifier, String pathWithoutLogin) throws Exception {
-        if (CookiesUtils.hasCookiesInCache(ssoHost, userName, tenant, token_type)) {
-            // Token present in cache
-            this.commonspec.getLogger().debug("Set cookies from cache");
-            ImmutablePair<Long, List<Cookie>> cookieCache = CookiesUtils.getCookiesFromCache(ssoHost, userName, tenant, token_type);
-            commonspec.setCookies(cookieCache.getRight());
-        } else {
-            // Token not present or expired
-            this.commonspec.getLogger().debug("Cookie expiration is imminent, I get cookie again");
-            setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
+        String[] tokenList = getTokenList(token_type);
+        if ("intelligence".equals(String.valueOf(token_type).trim())) {
+            for (String cookie : tokenList) {
+                Assert.assertTrue(CookiesUtils.hasCookieWithName(cookie), "SSO cookie " + cookie + " is not defined after login");
+                ThreadProperty.set(cookie, CookiesUtils.getCookieValueByName(cookie));
+            }
         }
     }
 

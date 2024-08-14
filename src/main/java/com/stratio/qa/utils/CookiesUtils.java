@@ -100,4 +100,27 @@ public class CookiesUtils {
                 tenant,
                 Objects.requireNonNullElse(token_type, "default"));
     }
+
+    /**
+     * Retrieves the value of a cookie by its name.
+     *
+     * @param cookieName the name of the cookie to retrieve
+     */
+    public static String getCookieValueByName(String cookieName) {
+        for (Cookie cookie : cookies) {
+            if (cookie.name().equals(cookieName)) {
+                return cookie.value();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Checks if a cookie with the specified name exists.
+     *
+     * @param cookieName the name of the cookie to check
+     */
+    public static boolean hasCookieWithName(String cookieName) {
+        return getCookieValueByName(cookieName) != null;
+    }
 }
