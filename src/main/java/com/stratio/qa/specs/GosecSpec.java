@@ -957,6 +957,73 @@ public class GosecSpec extends BaseGSpec {
     }
 
     /**
+     * Include user inside group
+     *
+     * @param userId         : id of the user to be included in group
+     * @param groupId       : id of the group where to include user
+     * @param tenantOrig      : tenant where group lives (OPTIONAL)
+     * @param tenantLoginInfo : user and password to log into tenant (OPTIONAL)
+     * @throws Exception
+     */
+    @When("^I include user '(.+?)' in group '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?$")
+    public void includeUserInGroup(String userId, String groupId, String tenantOrig, String tenantLoginInfo) throws Exception {
+        String endPointGetUser = "/gosec/baas/management/user?uid=" + userId;
+        String endPointGetGroup = "/gosec/baas/management/group?gid=" + groupId;
+        Boolean content = false;
+
+        if (tenantOrig != null) {
+            // Set REST connection
+            commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
+        }
+
+        assertThat(commonspec.getRestHost().isEmpty() || commonspec.getRestPort().isEmpty());
+
+        restSpec.sendRequestNoDataTable("GET", endPointGetUser, null, null, null);
+        if (commonspec.getResponse().getStatusCode() == 200) {
+            restSpec.sendRequestNoDataTable("GET", endPointGetGroup, null, null, null);
+            if (commonspec.getResponse().getStatusCode() == 200) {
+                JSONObject jsonGroupInfo = new JSONObject(commonspec.getResponse().getResponse());
+                // Get users from group
+                JSONArray jsonUsers = (JSONArray) jsonGroupInfo.get("users");
+                // Create json for put
+                JSONObject putObject = new JSONObject(commonspec.getResponse().getResponse());
+                putObject.remove("users");
+
+                for (int i = 0; i < jsonUsers.length(); i++) {
+                    String jsonIds = ((JSONObject) jsonUsers.get(i)).getString("uid");
+
+                    if (jsonIds.equals(userId)) {
+                        commonspec.getLogger().warn("{} is already included in the group {}", userId, groupId);
+                        content = true;
+                        break;
+                    }
+                }
+
+                if (!content) {
+                    // Add new user in array of uids
+                    String userobj = "{\"uid\":\"" + userId + "\"}";
+                    jsonUsers.put(jsonUsers.length(), new JSONObject(userobj));
+                    // Add users array to new json for PUT request
+                    putObject.put("users", jsonUsers);
+
+                    commonspec.getLogger().warn("Json for PUT request---> {}", putObject);
+                    Future<Response> response = commonspec.generateRequest("PUT", false, null, null, endPointGetGroup, putObject.toString(), "json", "");
+                    commonspec.setResponse("PUT", response.get());
+                    if (commonspec.getResponse().getStatusCode() != 204) {
+                        throw new Exception("Error adding User: " + userId + " in Group " + groupId + " - Status code: " + commonspec.getResponse().getStatusCode());
+                    }
+                }
+
+            } else {
+                throw new Exception("Error obtaining Group: " + groupId + "- Status code: " + commonspec.getResponse().getStatusCode());
+            }
+
+        } else {
+            throw new Exception("Error obtaining User: " + userId + "- Status code: " + commonspec.getResponse().getStatusCode());
+        }
+    }
+
+    /**
      * Include group inside profile
      *
      * @param groupId         : id of the group to be included in profile
