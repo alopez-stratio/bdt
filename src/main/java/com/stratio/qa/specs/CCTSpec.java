@@ -2944,6 +2944,7 @@ public class CCTSpec extends BaseGSpec {
         if (tenant != null) {
             commonspec.setCCTConnection(tenant, tenantLoginInfo);
         }
+        restSpec.setupRestClient("securely", ThreadProperty.get("KEOS_FQDN"), ":443");
         String endpoint = String.format("%s/v1/dependencies/?q=%s",
                 ThreadProperty.get("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH"),
                 query);

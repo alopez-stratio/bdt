@@ -359,6 +359,16 @@ public class CommandExecutionSpec extends BaseGSpec {
     }
 
     /**
+     * Check that the command output matches the expected pattern
+     *
+     * @param pattern regex to check in the output command, ex.: '.* result is: \d+'
+     **/
+    @Then("^the command output matches regex '(.+?)'$")
+    public void checkOutputMatch(String pattern) throws Exception {
+        assertThat(commonspec.getCommandResult()).as("Matches " + pattern + ".").matches(pattern);
+    }
+
+    /**
      * Check the command output is empty
      *
      **/
