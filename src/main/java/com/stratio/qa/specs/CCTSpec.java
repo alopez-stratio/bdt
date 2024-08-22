@@ -2929,4 +2929,31 @@ public class CCTSpec extends BaseGSpec {
         ThreadProperty.set("cct-orchestrator_version", cctOrchestratorVersion);
         commonspec.getLogger().debug("CCT Orchestrator Version = {}", cctOrchestratorVersion);
     }
+
+    /**
+     * Retrieves the dependency URL for a specified service.
+     *
+     * @param service           The name of the service for which to get the dependency URL. ex.: psql.s000001-datastores
+     * @param query             The query string to use for retrieving the dependency URL.   ex.: service: ((?i)(Postgres) OR (?i)(PgBouncer))'
+     * @param tenant            The tenant name, optional
+     * @param tenantLoginInfo   The tenant user and password in the format 'user:password', optional
+     * @param envVar            The environment variable name to save the dependency URL, optional
+     */
+    @Given("^I get the dependency url for the service '(.+?)' with query '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?( and save it as '(.+?)')?$")
+    public void getServiceDependency(String service, String query, String tenant, String tenantLoginInfo, String envVar) throws Exception {
+        if (tenant != null) {
+            commonspec.setCCTConnection(tenant, tenantLoginInfo);
+        }
+        String endpoint = String.format("%s/v1/dependencies/?q=%s",
+                ThreadProperty.get("KEOS_CCT_APPLICATIONS_QUERY_SERVICE_INGRESS_PATH"),
+                query);
+
+        Future<Response> response = commonspec.generateRequest("GET", true, null, null, endpoint, null, "json");
+        commonspec.setResponse("GET", response.get());
+
+        Assert.assertEquals(commonspec.getResponse().getStatusCode(), 200, "Error getting dependency url in CCT");
+        JSONObject dependencies = new JSONObject(commonspec.getResponse().getResponse());
+        Assert.assertTrue(dependencies.has(service), "Service " + service + " not found in dependencies list; Dependencies: " + dependencies);
+        ThreadProperty.set(Objects.requireNonNullElse(envVar, "dependency_url"), dependencies.getString(service));
+    }
 }
