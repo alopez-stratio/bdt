@@ -2166,10 +2166,16 @@ public class CommonG {
                     assertThat(value).as("Value does not match regex.").matches(result);
                     break;
                 case "lower than":
-                    assertThat(value).as("Evaluate JSONPath is lower than expected value").isLessThan(result);
+                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is lower than expected value").isLessThan(Integer.parseInt(result));
                     break;
                 case "higher than":
-                    assertThat(value).as("Evaluate JSONPath is higher than expected value").isGreaterThan(result);
+                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is higher than expected value").isGreaterThan(Integer.parseInt(result));
+                    break;
+                case "lower than or equal to":
+                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is lower or equal than expected value").isLessThanOrEqualTo(Integer.parseInt(result));
+                    break;
+                case "higher than or equal to":
+                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is higher or equal than expected value").isGreaterThanOrEqualTo(Integer.parseInt(result));
                     break;
                 default:
                     Assertions.fail("Not implemented condition (" + condition + ")");
