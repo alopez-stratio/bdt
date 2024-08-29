@@ -624,7 +624,7 @@ public class DcosSpec extends BaseGSpec {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
         if (tag.equals("hostname")) {
             if (role.equals("scheduler")) {
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .host | sed 's/\"//g'", "0", "elementsConstraint");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .host | sed 's/\"//g'", "0", "elementsConstraint", -1);
             } else {
                 selectElements(role, service, "agent_hostname");
             }
@@ -632,7 +632,7 @@ public class DcosSpec extends BaseGSpec {
             checkConstraintType(role, instance, tag, constraint, value, hostnames);
         } else {
             if (role.equals("scheduler")) {
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .slaveId | sed 's/\"//g'", "0", "elementsConstraint");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("marathon_answer") + "' | jq .slaveId | sed 's/\"//g'", "0", "elementsConstraint", -1);
             } else {
                 selectElements(role, service, "slaveid");
             }
@@ -641,7 +641,7 @@ public class DcosSpec extends BaseGSpec {
             for (int i = 0; i < slavesid.length; i++) {
                 restspec.sendRequestTimeout(100, 5, "GET", "/mesos/slaves?slave_id=" + slavesid[i], null, null, "slaves");
                 miscspec.saveElementEnvironment(null, "$.slaves[0].attributes", "mesos_answer");
-                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag");
+                commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("mesos_answer") + "' | jq '." + tag + "' | sed 's/^.\\|.$//g'", "0", "valortag", -1);
                 valor[i] = ThreadProperty.get("valortag");
             }
             checkConstraintType(role, instance, tag, constraint, value, valor);
@@ -716,7 +716,7 @@ public class DcosSpec extends BaseGSpec {
      */
     public void selectElements(String role, String service, String element, String elementValue, String envValue) throws Exception {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
-        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[] | .[] | .steps[] | .[] | select(.role==\"" + role + "\") | select(.status==\"RUNNING\") | select(." + element + "==\"" + elementValue + "\").name' | sed 's/\"//g'", "0", envValue);
+        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[] | .[] | .steps[] | .[] | select(.role==\"" + role + "\") | select(.status==\"RUNNING\") | select(." + element + "==\"" + elementValue + "\").name' | sed 's/\"//g'", "0", envValue, -1);
     }
 
     /**
@@ -727,7 +727,7 @@ public class DcosSpec extends BaseGSpec {
      */
     public void selectElements(String role, String service, String element) throws Exception {
         CommandExecutionSpec commandexecutionspec = new CommandExecutionSpec(commonspec);
-        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[] | .[] | .steps[] | .[] | select(.role==\"" + role + "\") | select(.status==\"RUNNING\")." + element + "' | sed 's/\"//g'", "0", "elementsConstraint");
+        commandexecutionspec.executeLocalCommand("echo '" + ThreadProperty.get("exhibitor_answer") + "' | jq '.phases[] | .[] | .steps[] | .[] | select(.role==\"" + role + "\") | select(.status==\"RUNNING\")." + element + "' | sed 's/\"//g'", "0", "elementsConstraint", -1);
     }
 
     /**
@@ -1203,11 +1203,11 @@ public class DcosSpec extends BaseGSpec {
         // Untar workspace
         CommandExecutionSpec commandExecutionSpec = new CommandExecutionSpec(commonspec);
         String commandUntar = "tar -C ./target/test-classes/ -xvf " + workspaceName + ".tgz";
-        commandExecutionSpec.executeLocalCommand(commandUntar, null, null);
+        commandExecutionSpec.executeLocalCommand(commandUntar, null, null, -1);
 
         // Clean
         String commandRmTgz = "rm " + workspaceName + ".tgz";
-        commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null);
+        commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null, -1);
 
         // Obtain and export values
         String daedalusJson = commonspec.retrieveData(workspaceName + "/daedalus.json", "json");

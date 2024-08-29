@@ -117,6 +117,43 @@ public class KubernetesClient {
             return;
         }
 
+        // Download workspace and read keos.yaml
+        String keosJson = downloadKeosWorkspaceAndGetKeosConfig(clusterName, commonspec);
+
+        // Set custom aws config
+        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks") && Objects.nonNull(System.getProperty("AWS_ACCESS_KEY")) && Objects.nonNull(System.getProperty("AWS_SECRET_ACCESS_KEY")) && Objects.nonNull(System.getProperty("AWS_REGION"))) {
+            setCustomAwsConfig();
+        }
+
+        // Connect to Kubernetes
+        getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
+
+        // Load variables from keos.yaml
+        loadVariablesFromKeosYaml(commonspec, keosJson);
+
+        // Vault values
+        getK8sVaultConfig(commonspec);
+
+        // Get worker and set ingress hosts variables
+        getK8sWorkerAndIngressHosts();
+
+        // Save IP in /etc/hosts
+        updateEtcHosts(commonspec);
+
+        // Set variables from command-center-config configmap
+        getK8sCCTConfig(commonspec);
+
+        // Set gosec and cct paths
+        getIngressPath();
+
+        // Default values for some variables
+        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "1234");
+
+        //Set Gosec label in depployment
+        setGosecVariables("gosec-management-baas", "keos-core");
+    }
+
+    private String downloadKeosWorkspaceAndGetKeosConfig (String clusterName, CommonG commonspec) throws Exception {
         String keosJson = "";
         if (System.getProperty("CLUSTER_KUBE_CONFIG_PATH") != null) {
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", System.getProperty("CLUSTER_KUBE_CONFIG_PATH"));
@@ -153,11 +190,11 @@ public class KubernetesClient {
             // Untar workspace
             CommandExecutionSpec commandExecutionSpec = new CommandExecutionSpec(commonspec);
             String commandUntar = "tar -C target/test-classes/ -xvf " + workspaceName + ".tgz";
-            commandExecutionSpec.executeLocalCommand(commandUntar, null, null);
+            commandExecutionSpec.executeLocalCommand(commandUntar, null, null, -1);
 
             // Clean
             String commandRmTgz = "rm " + workspaceName + ".tgz";
-            commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null);
+            commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null, -1);
 
             // Obtain and export values
             loadVariablesFromClusterVersions(commonspec, workspaceName);
@@ -172,85 +209,45 @@ public class KubernetesClient {
             ThreadProperty.set("CLUSTER_SSH_PEM_PATH", "./target/test-classes/" + workspaceName + "/key");
             ThreadProperty.set("CLUSTER_KUBE_CONFIG_PATH", "./target/test-classes/" + workspaceName + "/.kube/config");
         }
+        return keosJson;
+    }
 
-        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks") && Objects.nonNull(System.getProperty("AWS_ACCESS_KEY")) && Objects.nonNull(System.getProperty("AWS_SECRET_ACCESS_KEY")) && Objects.nonNull(System.getProperty("AWS_REGION"))) {
-
-            File awsPath = new File(System.getProperty("user.home") + "/.aws/");
-            if (awsPath.mkdir()) {
-                logger.debug("Directory Created");
-            } else {
-                logger.debug("Directory is not created");
-            }
-
-            File credentialsFile = new File(awsPath.getAbsolutePath() + "/credentials");
-            File configFile = new File(awsPath.getAbsolutePath() + "/config");
-
-            // Check if file exists and backup it
-            if (credentialsFile.exists()) {
-                Files.copy(credentialsFile.toPath(), new File(awsPath.getAbsolutePath() + "/credentials.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-            if (configFile.exists()) {
-                Files.copy(configFile.toPath(), new File(awsPath.getAbsolutePath() + "/config.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            String title = "[default]";
-            String aws_access_key_id = "aws_access_key_id = " + System.getProperty("AWS_ACCESS_KEY");
-            String aws_secret_access_key = "aws_secret_access_key = " + System.getProperty("AWS_SECRET_ACCESS_KEY");
-            String region = "region = " + System.getProperty("AWS_REGION");
-
-            FileWriter fileWriter = new FileWriter(credentialsFile);
-            PrintWriter printWriter = new PrintWriter(fileWriter);
-            printWriter.println(title);
-            printWriter.println(aws_access_key_id);
-            printWriter.println(aws_secret_access_key);
-            printWriter.close();
-
-            FileWriter fileWriterConfig = new FileWriter(configFile);
-            PrintWriter printWriterConfig = new PrintWriter(fileWriterConfig);
-            printWriterConfig.println(title);
-            printWriterConfig.println(region);
-            printWriterConfig.close();
-
+    private void setCustomAwsConfig() throws IOException {
+        File awsPath = new File(System.getProperty("user.home") + "/.aws/");
+        if (awsPath.mkdir()) {
+            logger.debug("Directory Created");
+        } else {
+            logger.debug("Directory is not created");
         }
 
-        // Connect to Kubernetes
-        getInstance().connect(ThreadProperty.get("CLUSTER_KUBE_CONFIG_PATH"));
+        File credentialsFile = new File(awsPath.getAbsolutePath() + "/credentials");
+        File configFile = new File(awsPath.getAbsolutePath() + "/config");
 
-        // Load variables from keos.yaml
-        boolean setKubernetesHost = loadVariablesFromKeosYaml(commonspec, keosJson);
-
-        // Vault values
-        getK8sVaultConfig(commonspec);
-
-        // Get worker and set ingress hosts variables
-        getK8sWorkerAndIngressHosts();
-
-        // Save IP in /etc/hosts
-        if (setKubernetesHost) {
-            if (System.getProperty("CLUSTER_TYPE", "vmware").equals("eks")) {
-                commonspec.getLogger().info("Skipping /etc/hosts modification for eks cluster");
-                //add proxy and ip
-                if (Objects.nonNull(System.getProperty("AWS_IP"))) {
-                    commonspec.getETCHOSTSManagementUtils().addK8sHost(System.getProperty("AWS_IP"), ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
-                    commonspec.getETCHOSTSManagementUtils().addK8sHost(System.getProperty("AWS_IP"), ThreadProperty.get("KEOS_SIS_HOST"));
-                }
-            } else {
-                commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST_IP"), ThreadProperty.get("KEOS_OAUTH2_PROXY_HOST"));
-                commonspec.getETCHOSTSManagementUtils().addK8sHost(ThreadProperty.get("KEOS_SIS_HOST_IP"), ThreadProperty.get("KEOS_SIS_HOST"));
-            }
+        // Check if file exists and backup it
+        if (credentialsFile.exists()) {
+            Files.copy(credentialsFile.toPath(), new File(awsPath.getAbsolutePath() + "/credentials.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+        if (configFile.exists()) {
+            Files.copy(configFile.toPath(), new File(awsPath.getAbsolutePath() + "/config.bdt.backup").toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
 
-        // Set variables from command-center-config configmap
-        getK8sCCTConfig(commonspec);
+        String title = "[default]";
+        String aws_access_key_id = "aws_access_key_id = " + System.getProperty("AWS_ACCESS_KEY");
+        String aws_secret_access_key = "aws_secret_access_key = " + System.getProperty("AWS_SECRET_ACCESS_KEY");
+        String region = "region = " + System.getProperty("AWS_REGION");
 
-        // Set gosec and cct paths
-        getIngressPath();
+        FileWriter fileWriter = new FileWriter(credentialsFile);
+        PrintWriter printWriter = new PrintWriter(fileWriter);
+        printWriter.println(title);
+        printWriter.println(aws_access_key_id);
+        printWriter.println(aws_secret_access_key);
+        printWriter.close();
 
-        // Default values for some variables
-        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "1234");
-
-        //Set Gosec label in depployment
-        setGosecVariables("gosec-management-baas", "keos-core");
+        FileWriter fileWriterConfig = new FileWriter(configFile);
+        PrintWriter printWriterConfig = new PrintWriter(fileWriterConfig);
+        printWriterConfig.println(title);
+        printWriterConfig.println(region);
+        printWriterConfig.close();
     }
 
     private void loadVariablesFromClusterVersions(CommonG commonspec, String workspaceName) throws Exception {
@@ -272,9 +269,7 @@ public class KubernetesClient {
         }
     }
 
-    private boolean loadVariablesFromKeosYaml(CommonG commonspec, String keosJson) throws Exception {
-        boolean setKubernetesHost = false;
-
+    private void loadVariablesFromKeosYaml(CommonG commonspec, String keosJson) throws Exception {
         try {
             ThreadProperty.set("CLUSTER_SSH_USER", commonspec.getJSONPathString(keosJson, "$.infra.ssh_user", null).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", ""));
         } catch (PathNotFoundException e) {
@@ -358,12 +353,6 @@ public class KubernetesClient {
             ThreadProperty.set("ADMIN_URL", ThreadProperty.get("ADMIN_VHOST") + (ThreadProperty.get("ADMIN_BASEPATH").equals("/") ? "" : ThreadProperty.get("ADMIN_BASEPATH")));
             ThreadProperty.set("SIS_URL", ThreadProperty.get("SIS_VHOST") + ThreadProperty.get("SIS_BASEPATH"));
         }
-        try {
-            commonspec.getJSONPathString(keosJson, "$.keos.calico.service_loadbalancer_pools", null);
-        } catch (Exception e) {
-            setKubernetesHost = true;
-        }
-        return setKubernetesHost;
     }
 
     private void getK8sVaultConfig(CommonG commonspec) throws Exception {
@@ -419,6 +408,19 @@ public class KubernetesClient {
                     ThreadProperty.set(varName + "_IP", ingress.getStatus().getLoadBalancer().getIngress().get(0).getIp());
                 }
             }
+        }
+    }
+
+    private void updateEtcHosts(CommonG commonspec) throws Exception {
+        String customEtcHosts = System.getProperty("CUSTOM_ETCHOSTS");
+        if (customEtcHosts != null) {
+            String[] hosts = customEtcHosts.split(";");
+            for (String host : hosts) {
+                commonspec.getLogger().info("Adding k8s host: {} {}", host.split("=")[1], host.split("=")[0]);
+                commonspec.getETCHOSTSManagementUtils().addK8sHost(host.split("=")[1], host.split("=")[0]);
+            }
+        } else {
+            commonspec.getLogger().debug("Skipping /etc/hosts modification");
         }
     }
 

@@ -373,7 +373,7 @@ public class KeosSpec extends BaseGSpec {
             commandSpec.closeSSHConnection("tempConnection");
         } else {
             if (ThreadProperty.get("localDocker") == null) {
-                commandSpec.executeLocalCommand("ls target/test-classes | grep keos-", "0", "clusterWorkspace");
+                commandSpec.executeLocalCommand("ls target/test-classes | grep keos-", "0", "clusterWorkspace", -1);
                 commandSpec.executeLocalCommand("cp -R target/test-classes/" + ThreadProperty.get("clusterWorkspace") + " target/test-classes/workspaceKeosInstaller", null, null, null);
                 String randomName = ThreadProperty.get("clusterWorkspace") + "-" + new Random().nextInt(900000) + 100000;
                 ThreadProperty.set("localDocker", randomName);
