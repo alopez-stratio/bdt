@@ -95,6 +95,10 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <aws.java.sdk.version>2.20.26</aws.java.sdk.version>
         <gcs.java.sdk.version>2.38.0</gcs.java.sdk.version>
+        <azurestoragefiledatalake.java.sdk.version>12.20.1</azurestoragefiledatalake.java.sdk.version>
+        <azureblob.java.sdk.version>12.27.1</azureblob.java.sdk.version>
+        <azureidentity.java.sdk.version>1.13.2</azureidentity.java.sdk.version>
+        <azurestoragecommon.java.sdk.version>12.26.1</azurestoragecommon.java.sdk.version>
     </properties>
     <build>
         <plugins>
@@ -207,6 +211,11 @@
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-picocontainer</artifactId>
             <version>${cucumber-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.112.Final</version>
         </dependency>
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
@@ -600,7 +609,26 @@
             <artifactId>google-cloud-storage</artifactId>
             <version>${gcs.java.sdk.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-common</artifactId>
+            <version>${azurestoragecommon.java.sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-file-datalake</artifactId>
+            <version>${azurestoragefiledatalake.java.sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-blob</artifactId>
+            <version>${azureblob.java.sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-identity</artifactId>
+            <version>${azureidentity.java.sdk.version}</version>
+        </dependency>
     </dependencies>
 
     <repositories>
