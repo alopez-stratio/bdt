@@ -162,6 +162,29 @@ public class MiscSpec extends BaseGSpec {
     }
 
     /**
+     * Prints the value of a specified variable (Thread or System) to console and into the scenario.
+     * Ex.: Given I print the variable 'KEOS_VERSION' value
+     *
+     * @param key the name of the variable whose value is to be printed
+     */
+    @Given("^I print the variable '(.+?)' value$")
+    public void printVarValue(String key) {
+        logIntoScenario(String.format("%s -> %s", key,
+                System.getProperty(key, Objects.requireNonNullElse(ThreadProperty.get(key), "NOT_SET"))));
+    }
+
+    /**
+     * Prints the contents of a specified file to console and into the scenario.
+     * Ex.: Given I print the file 'keosReport.txt' contents
+     *
+     * @param file the name of the file whose contents are to be printed
+     */
+    @Given("^I print the file '(.+?)' contents$")
+    public void printFileContents(String file) {
+        logIntoScenario(String.format("%s -> \n%s", file, commonspec.retrieveData(file, "txt")));
+    }
+
+    /**
      * Wait seconds.
      *
      * @param seconds
@@ -736,6 +759,7 @@ public class MiscSpec extends BaseGSpec {
      * @param msg to print
      */
     public void logIntoScenario(String msg) {
+        commonspec.getLogger().info(msg);
         if (scenario != null) {
             scenario.write(msg);
         }
