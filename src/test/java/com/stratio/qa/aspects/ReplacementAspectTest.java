@@ -99,8 +99,105 @@ public class ReplacementAspectTest {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         ReplacementAspect repAspect = new ReplacementAspect();
         ProceedingJoinPoint pjp = null;
+        ThreadProperty.set("test", "aA");
+        ThreadProperty.set("test.dot", "bB");
+        ThreadProperty.set("test.dot.dot", "cC");
+        ThreadProperty.set("test.dot.final.", "dD");
+        ThreadProperty.set("test-hyphen", "eE");
+        ThreadProperty.set("test_lower_hyphen", "fF");
+        ThreadProperty.set("test/slash", "gG");
+        ThreadProperty.set("test space", "hH");
+        ThreadProperty.set("testUPPER", "iI");
+
+
+        assertThat(repAspect.replacedElement("!{test}", pjp)).isEqualTo("aA");
+        assertThat(repAspect.replacedElement("!{test.dot}", pjp)).isEqualTo("bB");
+        assertThat(repAspect.replacedElement("!{test.dot.dot}", pjp)).isEqualTo("cC");
+        assertThat(repAspect.replacedElement("!{test.dot.final.}", pjp)).isEqualTo("dD");
+        assertThat(repAspect.replacedElement("!{test-hyphen}", pjp)).isEqualTo("eE");
+        assertThat(repAspect.replacedElement("!{test_lower_hyphen}", pjp)).isEqualTo("fF");
+        assertThat(repAspect.replacedElement("!{test/slash}", pjp)).isEqualTo("gG");
+        assertThat(repAspect.replacedElement("!{test space}", pjp)).isEqualTo("hH");
+        assertThat(repAspect.replacedElement("!{testUPPER}", pjp)).isEqualTo("iI");
+    }
+
+    @Test
+    public void replaceReflectionPlaceholderCaseNoValueTest() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        ReplacementAspect repAspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = null;
 
         assertThatExceptionOfType(Exception.class).isThrownBy(() -> repAspect.replaceReflectionPlaceholders("!{NO_VAL}", pjp));
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> repAspect.replaceReflectionPlaceholders("!{NO_VAL.toUpper}", pjp));
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> repAspect.replaceReflectionPlaceholders("!{NO_VAL.toLower}", pjp));
+    }
+
+    @Test
+    public void replaceReflectionPlaceholderCaseSensitiveTest() throws NonReplaceableException {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        ReplacementAspect repAspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = null;
+        ThreadProperty.set("test", "aA");
+        ThreadProperty.set("Test", "bB");
+        ThreadProperty.set("TEST", "cC");
+
+        assertThat(repAspect.replacedElement("!{test}", pjp)).isEqualTo("aA");
+        assertThat(repAspect.replacedElement("!{Test}", pjp)).isEqualTo("bB");
+        assertThat(repAspect.replacedElement("!{TEST}", pjp)).isEqualTo("cC");
+    }
+
+    @Test
+    public void replaceReflectionPlaceholderCaseToUpperModifierTest() throws NonReplaceableException {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        ReplacementAspect repAspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = null;
+        ThreadProperty.set("test", "aA");
+        ThreadProperty.set("test.dot", "bB");
+        ThreadProperty.set("test.dot.dot", "cC");
+        ThreadProperty.set("test.dot.final.", "dD");
+        ThreadProperty.set("test-hyphen", "eE");
+        ThreadProperty.set("test_lower_hyphen", "fF");
+        ThreadProperty.set("test/slash", "gG");
+        ThreadProperty.set("test space", "hH");
+        ThreadProperty.set("testUPPER", "iI");
+
+
+        assertThat(repAspect.replacedElement("!{test.toUpper}", pjp)).isEqualTo("AA");
+        assertThat(repAspect.replacedElement("!{test.dot.toUpper}", pjp)).isEqualTo("BB");
+        assertThat(repAspect.replacedElement("!{test.dot.dot.toUpper}", pjp)).isEqualTo("CC");
+        assertThat(repAspect.replacedElement("!{test.dot.final..toUpper}", pjp)).isEqualTo("DD");
+        assertThat(repAspect.replacedElement("!{test-hyphen.toUpper}", pjp)).isEqualTo("EE");
+        assertThat(repAspect.replacedElement("!{test_lower_hyphen.toUpper}", pjp)).isEqualTo("FF");
+        assertThat(repAspect.replacedElement("!{test/slash.toUpper}", pjp)).isEqualTo("GG");
+        assertThat(repAspect.replacedElement("!{test space.toUpper}", pjp)).isEqualTo("HH");
+        assertThat(repAspect.replacedElement("!{testUPPER.toUpper}", pjp)).isEqualTo("II");
+    }
+    
+    @Test
+    public void replaceReflectionPlaceholderCaseToLowerModifierTest() throws NonReplaceableException {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        ReplacementAspect repAspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = null;
+        ThreadProperty.set("test", "aA");
+        ThreadProperty.set("test.dot", "bB");
+        ThreadProperty.set("test.dot.dot", "cC");
+        ThreadProperty.set("test.dot.final.", "dD");
+        ThreadProperty.set("test-hyphen", "eE");
+        ThreadProperty.set("test_lower_hyphen", "fF");
+        ThreadProperty.set("test/slash", "gG");
+        ThreadProperty.set("test space", "hH");
+        ThreadProperty.set("testUPPER", "iI");
+
+
+        assertThat(repAspect.replacedElement("!{test.toLower}", pjp)).isEqualTo("aa");
+        assertThat(repAspect.replacedElement("!{test.dot.toLower}", pjp)).isEqualTo("bb");
+        assertThat(repAspect.replacedElement("!{test.dot.dot.toLower}", pjp)).isEqualTo("cc");
+        assertThat(repAspect.replacedElement("!{test.dot.final..toLower}", pjp)).isEqualTo("dd");
+        assertThat(repAspect.replacedElement("!{test-hyphen.toLower}", pjp)).isEqualTo("ee");
+        assertThat(repAspect.replacedElement("!{test_lower_hyphen.toLower}", pjp)).isEqualTo("ff");
+        assertThat(repAspect.replacedElement("!{test/slash.toLower}", pjp)).isEqualTo("gg");
+        assertThat(repAspect.replacedElement("!{test space.toLower}", pjp)).isEqualTo("hh");
+        assertThat(repAspect.replacedElement("!{testUPPER.toLower}", pjp)).isEqualTo("ii");
     }
 
     @Test

@@ -354,32 +354,29 @@ public class ReplacementAspect {
     protected String replaceReflectionPlaceholders(String element, JoinPoint pjp) throws NonReplaceableException {
         String newVal = element;
         while (newVal.contains("!{")) {
-            String placeholder = newVal.substring(newVal.indexOf("!{"),
-                    newVal.indexOf("}", newVal.indexOf("!{")) + 1);
+            String placeholder = newVal.substring(newVal.indexOf("!{"), newVal.indexOf("}", newVal.indexOf("!{")) + 1);
+            String attribute = placeholder.substring(2, placeholder.length() - 1);
+            String modifier = attribute.contains(".") ? attribute.substring(attribute.lastIndexOf(".") + 1) : "";
 
-            String modifier = null;
             String prop;
-            String attribute;
-            if (placeholder.contains(".")) {
-                attribute = placeholder.substring(2, placeholder.indexOf("."));
-                prop = ThreadProperty.get(attribute);
-                modifier = placeholder.substring(placeholder.indexOf(".") + 1, placeholder.length() - 1);
-
-                if ("toLower".equals(modifier)) {
-                    prop = prop.toLowerCase();
-                } else if ("toUpper".equals(modifier)) {
-                    prop = prop.toUpperCase();
-                }
-            } else {
-                attribute = placeholder.substring(2, placeholder.length() - 1);
-                prop = ThreadProperty.get(attribute);
+            switch (modifier) {
+                case "toLower":
+                    attribute = attribute.substring(0, attribute.length() - modifier.length() - 1);
+                    prop = ThreadProperty.get(attribute).toLowerCase();
+                    break;
+                case "toUpper":
+                    attribute = attribute.substring(0, attribute.length() - modifier.length() - 1);
+                    prop = ThreadProperty.get(attribute).toUpperCase();
+                    break;
+                default:
+                    prop = ThreadProperty.get(attribute);
             }
 
             if (prop == null && (pjp.getThis() instanceof CucumberReporter.TestMethod)) {
                 return element;
             } else if (prop == null) {
                 logger.error("{} -> {} local var has not been saved correctly previously.", element, attribute);
-                throw new NonReplaceableException("Unreplaceable placeholder: " + placeholder);
+                throw new NonReplaceableException("Un-replaceable placeholder: " + placeholder);
             } else {
                 newVal = newVal.replace(placeholder, prop);
             }
