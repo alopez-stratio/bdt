@@ -307,9 +307,15 @@ public class HookGSpec extends BaseGSpec {
     }
 
     @Before(order = ORDER_10, value = "@rest or @dcos or @keos")
-    public void restClientSetup() throws Exception {
+    public void restClientSetup() {
         commonspec.getLogger().debug("Starting a REST client");
-        commonspec.setClient(asyncHttpClient(config().setUseInsecureTrustManager(true).setKeepAlive(false).build()));
+        commonspec.setClient(asyncHttpClient(config()
+                .setUseInsecureTrustManager(true)   // default is false
+                .setKeepAlive(false)                // default is true
+                .setConnectTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECT_TIMEOUT", "5000")))    // default is 5000ms
+                .setRequestTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_REQUEST_TIMEOUT", "60000")))   // default is 60000ms
+                .setReadTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_READ_TIMEOUT", "120000")))        // default is 60000ms
+                .build()));
         commonspec.initClients();
     }
 
