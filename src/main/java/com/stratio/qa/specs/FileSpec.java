@@ -276,5 +276,24 @@ public class FileSpec extends BaseGSpec {
         commonspec.getLogger().debug("./target/test-classes" + fileName + " created with content: \n\n" + fileContents + "\n");
     }
 
+    /**
+     * Append a new line(s) to a CSV file at target/test-classes/<fileName> from a DataTable.
+     *
+     * @param fileName  name of the CSV file to append to
+     * @param delimiter delimiter to use in the CSV file (ex.: ',', ';', '\t')
+     * @param dataTable DataTable containing the data to append (each row will be a new line)
+     */
+    @When("^I add rows to the CSV file '(.+?)' with delimiter '(.+?)' and data:$")
+    public void appendToCSV(String fileName, String delimiter, DataTable dataTable) throws Exception {
+        StringBuilder csvLine = new StringBuilder();
+        List<List<String>> rows = dataTable.asLists(String.class);
+
+        for (List<String> row : rows) {
+            csvLine.append(String.join(delimiter, row)).append("\n");
+        }
+
+        appendToFile(csvLine.toString().trim(), fileName, true);
+    }
+
 }
 

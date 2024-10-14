@@ -73,4 +73,36 @@ public class BaseGSpec {
 
         Assertions.assertThat(new File(absolutePathFile).isFile());
     }
+
+    /**
+     * Appends the given contents to a file, placing the file on path /target/test-classes.
+     * If the file does not exist, it will be created.
+     * @param fileContents contents to append to the file
+     * @param fileName name of the file to append to
+     * @param throwExceptionOnWriteError whether to raise an exception if the file cannot be written or not
+     * @throws Exception
+     */
+    public void appendToFile(String fileContents, String fileName, boolean throwExceptionOnWriteError) throws Exception {
+        // Create file (temporary) and set path to be accessible within test
+        File tempDirectory = new File(System.getProperty("user.dir") + "/target/test-classes/");
+        String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
+        commonspec.getLogger().debug("Appending to file {} in 'target/test-classes'", absolutePathFile);
+        // Append to the file if it exists, otherwise create it
+        Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile, true), StandardCharsets.UTF_8));
+        try {
+            if (new File(absolutePathFile).length() > 0) {
+                out.write(System.lineSeparator());
+            }
+            out.write(fileContents);
+        } catch (Exception e) {
+            commonspec.getLogger().error("Custom file {} hasn't been appended:\n{}", absolutePathFile, e.toString());
+            if (throwExceptionOnWriteError) {
+                throw new RuntimeException("Custom file {} hasn't been appended");
+            }
+        } finally {
+            out.close();
+        }
+
+        Assertions.assertThat(new File(absolutePathFile).isFile());
+    }
 }
