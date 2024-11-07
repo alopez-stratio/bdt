@@ -26,15 +26,14 @@ import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -633,6 +632,41 @@ public class RestSpec extends BaseGSpec {
         } catch (Exception e) {
             fail("Header {} was not found on {} response", header, envVar);
         }
+    }
+
+    /**
+     * Parses the SSE (Server-Sent Events) response and saves the events in a specified variable.
+     *
+     * @param envVar Variable name where to store the parsed events
+     */
+    @Given("^I parse the SSE response events and save them in environment variable '(.*)'$")
+    public void parseSSEEvents(String envVar) {
+        List<Map<String, Object>> events = new ArrayList<>();
+        Scanner scanner = new Scanner(this.commonspec.getResponse().getResponse());
+        String eventType = null;
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            if (line.startsWith("event:")) {
+                eventType = line.split(": ")[1];
+            } else if (line.startsWith("data:") && eventType != null) {
+                String eventData = line.split(": ", 2)[1];
+                Map<String, Object> event = new HashMap<>();
+                event.put("event_type", eventType);
+                event.put("event_value", new JSONObject(eventData).toMap());
+                events.add(event);
+                eventType = null;
+            } else if (eventType != null) { // Empty event
+                Map<String, Object> event = new HashMap<>();
+                event.put("event_type", eventType);
+                event.put("event_value", "_EMPTY_EVENT_");
+                events.add(event);
+                eventType = null;
+            }
+        }
+        scanner.close();
+        Map<String, List<Map<String, Object>>> eventsJson = new HashMap<>();
+        eventsJson.put("events", events);
+        ThreadProperty.set(envVar, new JSONObject(eventsJson).toString());
     }
 
     @Given("^I clear the cookies$")
