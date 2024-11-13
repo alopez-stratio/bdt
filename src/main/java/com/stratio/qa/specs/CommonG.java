@@ -2672,7 +2672,7 @@ public class CommonG {
         executeCommand(command, sshConnectionId, exitStatus, envVar, -1);
     }
 
-    public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit) throws Exception {
+    public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit, String timeout) throws Exception {
         String jdbcConnection = "jdbc:crossdata://Server=" + host + ":" + port + ";UID=" + user + ";PAGINATION=" + pagination;
 
         if (security) {
@@ -2700,6 +2700,10 @@ public class CommonG {
             jdbcConnection = jdbcConnection + ";LIMIT=" + limit;
         } else {
             jdbcConnection = jdbcConnection + ";LIMIT=-1";
+        }
+
+        if (timeout != null) {
+            jdbcConnection = jdbcConnection + ";TIMEOUT=" + timeout;
         }
 
         this.getLogger().debug("Crossdata JDBC Connection: {}", jdbcConnection);
