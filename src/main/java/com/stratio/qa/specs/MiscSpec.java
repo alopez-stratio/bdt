@@ -764,4 +764,32 @@ public class MiscSpec extends BaseGSpec {
             scenario.write(msg);
         }
     }
+
+    /**
+     * Check environment variable values
+     * The allowed operations are: [is, matches, is higher than, is higher than or equal to, is lower than, is lower than or equal to, contains, does not contain, is different from]
+     * Usage:
+     * Then I check the following environment variable values:
+     * | VAR1 | is               | 10     |
+     * | VAR2 | is higher than   | 15     |
+     * | VAR3 | does not contain | prueba |
+     *
+     * @param table  data table
+     */
+    @Then("^I check the following environment variable values:$")
+    public void checkMultipleEnvironmentVariableValues(DataTable table) {
+        ArrayList<String> errorList = new ArrayList<>();
+        for (List<String> row : table.cells()) {
+            String envVar = ThreadProperty.get(row.get(0));
+            String condition = row.get(1);
+            String expected_value = row.get(2);
+
+            try {
+                checkValue(envVar, condition, expected_value);
+            } catch (Exception | Error e) {
+                errorList.add(String.format("%s - %s", envVar, e.getMessage()));
+            }
+        }
+        Assert.assertEquals(errorList.size(), 0, "\n" + String.join("\n", errorList) + "\n");
+    }
 }

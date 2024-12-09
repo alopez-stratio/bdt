@@ -804,4 +804,41 @@ public class MiscTest {
         ThreadProperty.remove("gosec-management_version");
     }
 
+    @Test
+    public void testCheckMultipleEnvironmentVariableValuesBasic() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        ThreadProperty.set("VAR1", "10");
+        ThreadProperty.set("VAR2", "16");
+        ThreadProperty.set("VAR3", "pr1ueba");
+
+        List<String> row1 = Arrays.asList("VAR1", "is", "10");
+        List<String> row2 = Arrays.asList("VAR2", "is higher than", "15");
+        List<String> row3 = Arrays.asList("VAR3", "does not contain", "prueba");
+
+        List<List<String>> rawData = Arrays.asList(row1, row2, row3);
+        DataTable table = DataTable.create(rawData);
+        misc.checkMultipleEnvironmentVariableValues(table);
+    }
+
+    @Test
+    public void testCheckMultipleEnvironmentVariableValuesBasicError() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        ThreadProperty.set("VAR1", "10");
+        ThreadProperty.set("VAR2", "15");
+        ThreadProperty.set("VAR3", "pr1ueba");
+
+        List<String> row1 = Arrays.asList("VAR1", "is", "10");
+        List<String> row2 = Arrays.asList("VAR2", "is higher than", "15");
+        List<String> row3 = Arrays.asList("VAR3", "does not contain", "prueba");
+
+        List<List<String>> rawData = Arrays.asList(row1, row2, row3);
+        DataTable table = DataTable.create(rawData);
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> misc.checkMultipleEnvironmentVariableValues(table));
+    }
 }

@@ -52,3 +52,12 @@ Feature: Simple check values test
   Scenario: Contains with especial characters
     When I run 'echo "Cómo"' locally
     Then the command output contains 'Cómo'
+
+  Scenario: Check multiple environment variables
+    Given I save '10' in variable 'VAR1'
+    Given I save '16' in variable 'VAR2'
+    Given I save 'pr1ueba' in variable 'VAR3'
+    Then I check the following environment variable values:
+      | VAR1 | is               | 10     |
+      | VAR2 | is higher than   | 15     |
+      | VAR3 | does not contain | prueba |
