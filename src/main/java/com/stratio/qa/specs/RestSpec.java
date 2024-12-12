@@ -16,7 +16,7 @@
 
 package com.stratio.qa.specs;
 
-import io.netty.handler.codec.http.HttpHeaders;
+import com.stratio.qa.utils.HttpResponse;
 import org.apache.commons.io.FileUtils;
 import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.Assertions;
@@ -469,40 +469,44 @@ public class RestSpec extends BaseGSpec {
         }
     }
 
+    /**
+     * Checks if the service response's status code is the expected one, and optionally checks the response length and content
+     *
+     * @param expectedStatus  expected status code
+     * @param sExpectedLength expected JsonArray response length
+     * @param expectedText    expected text to be present in response
+     */
     @Then("^the service response status must be '(\\d+)'( and its response length must be '(\\d+)')?( and its response must contain the text '(.*?)')?$")
     public void assertResponseStatusLength(Integer expectedStatus, String sExpectedLength, String expectedText) {
-        Integer expectedLength = sExpectedLength != null ? Integer.parseInt(sExpectedLength) : null;
-        if (expectedLength != null || expectedText != null) {
-            if (expectedLength != null) {
-                try {
-                    assertThat(Optional.of(commonspec.getResponse())).hasValueSatisfying(r -> {
-                        assertThat(r.getStatusCode()).isEqualTo(expectedStatus);
-                        assertThat((new JSONArray(r.getResponse())).length()).isEqualTo(expectedLength);
-                    });
-                } catch (AssertionError e) {
-                    commonspec.getLogger().warn("Response: {}", commonspec.getResponse().getResponse());
-                    throw e;
-                }
-            }
-            if (expectedText != null) {
-                Pattern pattern = CommonG.matchesOrContains(expectedText);
-                try {
-                    assertThat(Optional.of(commonspec.getResponse())).hasValueSatisfying(r -> {
-                        assertThat(r.getStatusCode()).isEqualTo(expectedStatus);
-                        assertThat(r.getResponse()).containsPattern(pattern);
-                    });
-                } catch (AssertionError e) {
-                    commonspec.getLogger().warn("Response: {}", commonspec.getResponse().getResponse());
-                    throw e;
-                }
-            }
-        } else {
-            try {
-                assertThat(commonspec.getResponse().getStatusCode()).isEqualTo(expectedStatus);
-            } catch (AssertionError e) {
-                commonspec.getLogger().warn("Response: {}", commonspec.getResponse().getResponse());
-                throw e;
-            }
+        HttpResponse response = commonspec.getResponse();
+
+        // Assert status code
+        assertThat(response.getStatusCode())
+                .withFailMessage("\nStatus code is expected to be '%d' but was '%d'.\nResponse: %s",
+                        expectedStatus,
+                        response.getStatusCode(),
+                        response.getResponse())
+                .isEqualTo(expectedStatus);
+
+        // Assert Json Array response length
+        if (sExpectedLength != null) {
+            Integer expectedLength = Integer.parseInt(sExpectedLength);
+            assertThat(new JSONArray(response.getResponse()).length())
+                    .withFailMessage("\nResponse length is expected to be '%d' but was '%d'.\nResponse: '%s'",
+                            expectedLength,
+                            new JSONArray(response.getResponse()).length(),
+                            response.getResponse())
+                    .isEqualTo(expectedLength);
+        }
+
+        // Assert response contains text
+        if (expectedText != null) {
+            Pattern pattern = CommonG.matchesOrContains(expectedText);
+            assertThat(response.getResponse())
+                    .withFailMessage("\nResponse is expected to contain the text '%s' but it does not.\nResponse: '%s'",
+                            pattern,
+                            response.getResponse())
+                    .containsPattern(pattern);
         }
     }
 
@@ -513,15 +517,16 @@ public class RestSpec extends BaseGSpec {
      */
     @Then("^the service response status must be one of '(.*)'$")
     public void assertResponseStatus(String expectedStatus) {
+        HttpResponse response = commonspec.getResponse();
         List<Integer> expectedStatusList = Arrays.stream(expectedStatus.replace(" ", "").split(","))
                 .map(Integer::parseInt).collect(Collectors.toList());
 
-        try {
-            assertThat(commonspec.getResponse().getStatusCode()).isIn(expectedStatusList);
-        } catch (AssertionError e) {
-            commonspec.getLogger().warn("Response: {}", commonspec.getResponse().getResponse());
-            throw e;
-        }
+        assertThat(response.getStatusCode())
+                .withFailMessage("Status code is expected to be one of '%s' but was '%d'.\nResponse: %s",
+                        expectedStatusList,
+                        response.getStatusCode(),
+                        response.getResponse())
+                .isIn(expectedStatusList);
     }
 
     @Then("^I save service response( in environment variable '(.*?)')?( in file '(.*?)')?( using encoding '(.*?)')?$")
