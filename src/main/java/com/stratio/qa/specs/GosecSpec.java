@@ -814,7 +814,7 @@ public class GosecSpec extends BaseGSpec {
     /**
      * Obtain json from policy
      *
-     * @param tag             : whether it is a tag policy or not (OPTIONAL)
+     * @param type            : policy type: tag, collection or regular policy (OPTIONAL)
      * @param policyName      : policy name to obtain json from
      * @param tenantOrig      : tenant where policy lives (OPTIONAL)
      * @param tenantLoginInfo : user and password to log into tenant (OPTIONAL)
@@ -822,12 +822,12 @@ public class GosecSpec extends BaseGSpec {
      * @param fileName        : file name where to store result (OPTIONAL)
      * @throws Exception
      */
-    @When("^I get json from( tag)? policy with name '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')? and save it( in environment variable '(.*?)')?( in file '(.*?)')?$")
-    public void getPolicyJson(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
+    @When("^I get json from( tag| collection)? policy with name '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')? and save it( in environment variable '(.*?)')?( in file '(.*?)')?$")
+    public void getPolicyJson(String type, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            getPolicyJsonKeos(tag, policyName, tenantOrig, tenantLoginInfo, envVar, fileName);
+            getPolicyJsonKeos(type, policyName, tenantOrig, tenantLoginInfo, envVar, fileName);
         } else {
-            getPolicyJsonDcos(tag, policyName, tenantOrig, tenantLoginInfo, envVar, fileName);
+            getPolicyJsonDcos(type, policyName, tenantOrig, tenantLoginInfo, envVar, fileName);
         }
     }
 
@@ -895,14 +895,24 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    private void getPolicyJsonKeos(String tag, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
+    private void getPolicyJsonKeos(String type, String policyName, String tenantOrig, String tenantLoginInfo, String envVar, String fileName) throws Exception {
         String baasPath = ThreadProperty.get("KEOS_GOSEC_BAAS_INGRESS_PATH");
-        String endPoint = baasPath + "/management/policy";
-        String endPointPolicies = baasPath + "/management/policies";
+        String endPoint = baasPath;
+        String endPointPolicies = baasPath;
 
-        if (tag != null) {
-            endPoint = baasPath + "management/policy/tags";
-            endPointPolicies = baasPath + "/management/policies/tags";
+        switch (type == null ? "" : type.trim()) {
+            case "tag":
+                endPoint += "/management/policy/tags";
+                endPointPolicies += "/management/policies/tags";
+                break;
+            case "collection":
+                endPoint += "/management/policy/domain";
+                endPointPolicies += "/management/policies/domains";
+                break;
+            default:
+                endPoint += "/management/policy";
+                endPointPolicies += "/management/policies";
+                break;
         }
 
         if (tenantOrig != null) {
