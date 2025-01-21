@@ -20,7 +20,6 @@ import com.csvreader.CsvReader;
 import com.stratio.qa.utils.ThreadProperty;
 import cucumber.api.java.en.When;
 import io.cucumber.datatable.DataTable;
-import org.assertj.core.api.Assertions;
 
 import java.io.*;
 import java.util.*;
@@ -257,9 +256,7 @@ public class FileSpec extends BaseGSpec {
 
     /**
      * Step to write a text to a file, using the doc string as the file contents
-     *
      * File will be placed on path /target/test-classes
-     *
      * Usage:
      * Given I create text file 'test_file.txt' using the following text:
      *     """
@@ -274,6 +271,23 @@ public class FileSpec extends BaseGSpec {
         // Store the file
         writeInFile(fileContents, fileName, true);
         commonspec.getLogger().debug("./target/test-classes" + fileName + " created with content: \n\n" + fileContents + "\n");
+    }
+
+    /**
+     * Save the content of a variable to a file.
+     * File will be placed on path /target/test-classes
+     *
+     * @param varName  the environment variable whose content is to be saved
+     * @param fileName the file where the content will be saved
+     */
+    @When("^I save the content of variable '(.+?)' to file '(.+?)'$")
+    public void saveVariableToFile(String varName, String fileName) throws Exception {
+        String content = System.getProperty(varName, ThreadProperty.get(varName));
+        if (content == null) {
+            throw new IllegalArgumentException("Environment variable " + varName + " is not set.");
+        }
+        writeInFile(content, fileName, true);
+        commonspec.getLogger().debug("./target/test-classes" + fileName + " created with content: \n\n" + content + "\n");
     }
 
     /**
