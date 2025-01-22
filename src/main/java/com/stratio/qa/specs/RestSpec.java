@@ -657,7 +657,11 @@ public class RestSpec extends BaseGSpec {
                 String eventData = line.split(": ", 2)[1];
                 Map<String, Object> event = new HashMap<>();
                 event.put("event_type", eventType);
-                event.put("event_value", new JSONObject(eventData).toMap());
+                try {
+                    event.put("event_value", new JSONObject(eventData).toMap());
+                } catch (Exception e) {
+                    event.put("event_value", eventData.replaceAll("^\"|\"$", ""));
+                }
                 events.add(event);
                 eventType = null;
             } else if (eventType != null) { // Empty event
