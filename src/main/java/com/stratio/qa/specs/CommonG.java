@@ -59,6 +59,7 @@ import org.hjson.JsonObject;
 import org.hjson.JsonType;
 import org.hjson.JsonValue;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.ldaptive.SearchResult;
 import org.openqa.selenium.*;
@@ -2176,6 +2177,32 @@ public class CommonG {
                     break;
                 case "higher than or equal to":
                     assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is higher or equal than expected value").isGreaterThanOrEqualTo(Integer.parseInt(result));
+                    break;
+                case "equals in any order": // Check that a JSON array contains the same elements as the expected JSON array
+                    JsonValue jsonArray = JsonValue.readHjson(value);
+                    List<String> expectedList = null;
+                    if (jsonArray.isArray()) {
+                        // Parse actual list
+                        List<String> actualList = new ArrayList<>();
+                        jsonArray.asArray().forEach(item -> actualList.add(item.asString()));
+
+                        // Parse expected list
+                        try {
+                            JSONArray jsonArrayResult = new JSONArray(result);
+                            expectedList = new ArrayList<>();
+                            for (int i = 0; i < jsonArrayResult.length(); i++) {
+                                expectedList.add(jsonArrayResult.getString(i));
+                            }
+                        } catch (JSONException e) {
+                            Assertions.fail("Expected value is not a valid JSON array");
+                        }
+
+                        // Check if both lists have the same elements (in any order)
+                        assertThat(actualList).as("Array elements do not match")
+                                .containsExactlyInAnyOrderElementsOf(expectedList);
+                    } else {
+                        Assertions.fail("'equals in any order' condition can only be used with arrays");
+                    }
                     break;
                 default:
                     Assertions.fail("Not implemented condition (" + condition + ")");
