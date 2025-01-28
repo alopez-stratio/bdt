@@ -14,6 +14,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 public class GCSSpec extends BaseGSpec {
 
@@ -68,17 +70,50 @@ public class GCSSpec extends BaseGSpec {
     /*
      * List GCS blobs and save it in environment variable
      * @param gcsBucket : GCS Bucket
+     * @param path : blob prefix
      * @param envVar : variable name for save list GCS blobs
      * @throws Exception
      */
-    @When("^I list GCS blobs from bucket '(.+?)' and save it in environment variable '(.+?)'$")
-    public void listGCSBlobs(String gcsBucket, String envVar) throws Exception {
+    @When("^I list GCS blobs from bucket '(.+?)'( with prefix '(.+?)')? and save it in environment variable '(.+?)'$")
+    public void listGCSBlobs(String gcsBucket, String blobPrefix, String envVar) throws Exception {
         Storage storage = getStorage();
         List<String> listBlob = new ArrayList<>();
         Bucket bucket = storage.get(gcsBucket);
-        for (Blob blob : bucket.list().iterateAll()) {
-            listBlob.add(blob.getName());
+
+        if (blobPrefix == null) {
+            for (Blob blob : bucket.list().iterateAll()) {
+                listBlob.add(blob.getName());
+            }
+        } else {
+            Set<String> uniqueItems = new HashSet<>(); // Usamos un Set para evitar duplicados
+            // Lista los blobs con el prefijo especificado
+            for (Blob blob : bucket.list(Storage.BlobListOption.prefix(blobPrefix)).iterateAll()) {
+                String blobName = blob.getName();
+
+                // Excluir el propio prefijo (si existe como un blob)
+                if (blobName.equals(blobPrefix)) {
+                    continue;
+                }
+
+                // Obtiene el nombre relativo al prefijo
+                String relativePath = blobName.substring(blobPrefix.length());
+
+                // Identifica el siguiente nivel (archivo o subdirectorio inmediato)
+                int slashIndex = relativePath.indexOf("/");
+
+                if (slashIndex == -1) {
+                    // Es un archivo directo
+                    uniqueItems.add(relativePath);
+                } else {
+                    // Es un subdirectorio inmediato (solo agregarlo una vez)
+                    uniqueItems.add(relativePath.substring(0, slashIndex + 1)); // Agrega solo el nombre del directorio
+                }
+            }
+            for (String item : uniqueItems) {
+                listBlob.add(item);
+            }
         }
+
         ThreadProperty.set(envVar, String.join("\n", listBlob));
         commonspec.getLogger().debug("GCS Blobs:\n {}", String.join("\n", listBlob));
         storage.close();
