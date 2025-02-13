@@ -291,8 +291,8 @@ public class K8SSpec extends BaseGSpec {
         Boolean readyStatusExpected = expectedState != null ? expectedState.equals("ready") : null;
         int i = 0;
         while (!found && i <= timeout) {
-            Pod pod = commonspec.kubernetesClient.getPod(podName, namespace);
             try {
+                Pod pod = commonspec.kubernetesClient.getPod(podName, namespace);
                 Assert.assertEquals(pod.getStatus().getPhase().toLowerCase(), expectedStatus, "Expected status");
                 if (readyStatusExpected != null) {
                     Assert.assertEquals(pod.getStatus().getContainerStatuses().get(pod.getStatus().getContainerStatuses().size() - 1).getReady().booleanValue(), readyStatusExpected.booleanValue(), "Pod ready?");
@@ -352,8 +352,8 @@ public class K8SSpec extends BaseGSpec {
         boolean found = false;
         int i = 0;
         while (!found && i <= timeout) {
-            Deployment deployment = commonspec.kubernetesClient.getDeployment(deploymentName, namespace);
             try {
+                Deployment deployment = commonspec.kubernetesClient.getDeployment(deploymentName, namespace);
                 Assert.assertEquals(deployment.getStatus().getReadyReplicas() != null ? deployment.getStatus().getReadyReplicas().intValue() : 0, readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
@@ -375,9 +375,8 @@ public class K8SSpec extends BaseGSpec {
         boolean found = false;
         int i = 0;
         while (!found && i <= timeout) {
-
-            StatefulSet statefulSet = commonspec.kubernetesClient.getStateFulSet(statefulsetName, namespace);
             try {
+                StatefulSet statefulSet = commonspec.kubernetesClient.getStateFulSet(statefulsetName, namespace);
                 Assert.assertEquals(statefulSet.getStatus().getReadyReplicas().intValue(), readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
