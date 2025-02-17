@@ -841,4 +841,97 @@ public class MiscTest {
         DataTable table = DataTable.create(rawData);
         assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> misc.checkMultipleEnvironmentVariableValues(table));
     }
+
+    @Test
+    public void testSetVariableIfDefinedElseDefault_ValueDefinedInThreadProperty() {
+        ThreadProperty.set("VAR", "value");
+        ThreadProperty.set("VAR_DEFAULT", "default");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("value");
+    }
+
+    @Test
+    public void testSetVariableIfDefinedElseDefault_ValueDefinedInSystemProperty() {
+        ThreadProperty.remove("VAR");
+        System.setProperty("VAR", "value");
+        ThreadProperty.set("VAR_DEFAULT", "default");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("value");
+    }
+
+    @Test
+    public void testSetVariableIfDefinedElseDefault_ValueDefinedInThreadPropertyFirst() {
+        ThreadProperty.set("VAR", "value1");
+        System.setProperty("VAR", "value2");
+        ThreadProperty.set("VAR_DEFAULT", "default");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("value1");
+    }
+    
+    @Test
+    public void testSetVariableIfDefinedElseDefault_DefaultValueInThreadProperty() {
+        ThreadProperty.remove("VAR");
+        System.clearProperty("VAR");
+        ThreadProperty.set("VAR_DEFAULT", "default");
+        System.clearProperty("VAR_DEFAULT");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("default");
+    }
+
+    @Test
+    public void testSetVariableIfDefinedElseDefault_DefaultValueInSystemProperty() {
+        ThreadProperty.remove("VAR");
+        System.clearProperty("VAR");
+        ThreadProperty.remove("VAR_DEFAULT");
+        System.setProperty("VAR_DEFAULT", "default");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("default");
+    }
+    @Test
+    public void testSetVariableIfDefinedElseDefault_DefaultValueInSystemPropertyFirst() {
+        ThreadProperty.remove("VAR");
+        System.clearProperty("VAR");
+        ThreadProperty.set("VAR_DEFAULT", "default1");
+        System.setProperty("VAR_DEFAULT", "default2");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("default1");
+    }
+
+    @Test
+    public void testSetVariableIfDefinedElseDefault_NoValueDefined() {
+        ThreadProperty.remove("VAR");
+        System.clearProperty("VAR");
+        ThreadProperty.remove("VAR_DEFAULT");
+        System.clearProperty("VAR_DEFAULT");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
+
+        assertThat(ThreadProperty.get("KEY")).isEqualTo("VAR_DEFAULT");
+    }
 }

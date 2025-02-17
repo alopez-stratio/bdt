@@ -162,6 +162,25 @@ public class MiscSpec extends BaseGSpec {
     }
 
     /**
+     * Sets a variable to the value of the first variable if defined, otherwise sets it to a default value.
+     * Usage:
+     * Given I set variable 'KEY' to 'VAR' if defined, or 'VAR_DEFAULT' as default
+     *
+     * @param key        the key to set
+     * @param value      the value to set if defined
+     * @param defaultVal the default value to set if not defined
+     */
+    @Given("^I set variable '(.+?)' to the value of '(.+?)' if defined, or '(.+?)' as default$")
+    public void setVariableIfDefinedElseDefault(String key, String value, String defaultVal) {
+        String finalValue = Optional.ofNullable(ThreadProperty.get(value))
+                .orElseGet(() -> Optional.ofNullable(System.getProperty(value))
+                        .orElseGet(() -> Optional.ofNullable(ThreadProperty.get(defaultVal))
+                                .orElse(System.getProperty(defaultVal, defaultVal))));
+        ThreadProperty.set(key, finalValue);
+        logIntoScenario(String.format("%s -> %s", key, finalValue));
+    }
+
+    /**
      * Prints the value of a specified variable (Thread or System) to console and into the scenario.
      * Ex.: Given I print the variable 'KEOS_VERSION' value
      *
