@@ -678,14 +678,53 @@ public class RestSpec extends BaseGSpec {
         ThreadProperty.set(envVar, new JSONObject(eventsJson).toString());
     }
 
+    /**
+     * Clear all stored cookies.
+     */
     @Given("^I clear the cookies$")
     public void clearStoredCookies() {
         commonspec.clearCookies();
     }
 
+    /**
+     * Clear all stored headers.
+     */
     @Given("^I clear the headers$")
     public void clearStoredHeaders() {
         commonspec.clearHeaders();
     }
 
+    /**
+     * Add a new cookie with a specified name and value.
+     * NOTE: If the cookie key already exists, the value will be appended to the existing value, not replaced.
+     *
+     * @param name  the name of the cookie to be added
+     * @param value the value of the cookie to be added
+     */
+    @Given("^I add a new cookie with name '(.*)' and value '(.*)'$")
+    public void addNewCookie(String name, String value) {
+        commonspec.addCookie(name, value);
+    }
+
+    /**
+     * Replaces a cookie with a specified name and value.
+     *
+     * @param name  the name of the cookie to be replaced
+     * @param value the value of the cookie to be set
+     */
+    @Given("^I replace the cookie with name '(.*)' to value '(.*)'$")
+    public void replaceCookie(String name, String value) {
+        commonspec.deleteCookie(name);
+        commonspec.addCookie(name, value);
+    }
+
+    /**
+     * Delete a cookie with a specified name.
+     *
+     * @param name the name of the cookie to be deleted
+     */
+    @Given("^I delete the cookie with name '(.*)'$")
+    public void deleteCookie(String name) {
+        commonspec.deleteCookie(name);
+    }
 }

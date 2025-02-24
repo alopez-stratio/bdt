@@ -2009,6 +2009,19 @@ public class CommonG {
         CookiesUtils.setCookies(new ArrayList<>());
     }
 
+    public void addCookie(String name, String value) {
+        List<Cookie> currentCookies = CookiesUtils.getCookies();
+        Cookie newCookie = new DefaultCookie(name, value);
+        currentCookies.add(newCookie);
+        this.setCookies(currentCookies);
+    }
+
+    public void deleteCookie(String name) {
+        List<Cookie> currentCookies = CookiesUtils.getCookies();
+        currentCookies.removeIf(cookie -> cookie.name().equals(name));
+        this.setCookies(currentCookies);
+    }
+
     /**
      * Parse jsonpath expression from a given string.
      * <p>
