@@ -593,6 +593,24 @@ public class KubernetesClient {
     }
 
     /**
+     * Return value of environment variable in deployment
+     *
+     * @param var            Environment variable name
+     * @param deploymentName Deployment name
+     * @param namespace      Namespace
+     * @return String Value of environment variable
+     */
+    public String getDeploymentEnvVar(String var, String deploymentName, String namespace) throws Exception {
+        EnvVar envVar;
+        try {
+            envVar = (EnvVar) Arrays.stream(k8sClient.apps().deployments().inNamespace(namespace).withName(deploymentName).get().getSpec().getTemplate().getSpec().getContainers().get(0).getEnv().toArray()).filter(e -> e.toString().contains(var)).findFirst().get();
+        } catch (Exception e) {
+            throw new Exception("Environment variable " + var + " not found in deployment " + deploymentName);
+        }
+        return envVar.getValue();
+    }
+
+    /**
      * Return pvc object
      *
      * @param pvcName   Pvc name
