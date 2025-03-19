@@ -27,6 +27,7 @@ import org.hjson.JsonArray;
 import org.hjson.JsonObject;
 import org.hjson.JsonValue;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -377,20 +378,59 @@ public class GosecSpec extends BaseGSpec {
         }
     }
 
-    private String getPolicyIdFromResponse(String response, String policyName, boolean isManagementBaas) throws Exception {
+    /**
+     * Extracts policy ID from a JSON response based on policy name.
+     *
+     * @param response          The JSON response string
+     * @param policyName        The name of the policy to search for
+     * @param isManagementBaas  Flag indicating if this is a management BaaS response
+     * @return The policy ID (pid or id) if found, empty string otherwise
+     */
+    private String getPolicyIdFromResponse(String response, String policyName, boolean isManagementBaas) {
+        JSONObject jsonResponse = new JSONObject(response);
+
         if (isManagementBaas) {
-            commonspec.runLocalCommand("echo '" + response + "' | jq '.list[] | select (.name == \"" + policyName + "\").pid' | sed s/\\\"//g");
-            return commonspec.getCommandResult().trim();
+            // For Management BaaS: Search in the list array for pid
+            if (jsonResponse.has("list")) {
+                JSONArray list = jsonResponse.getJSONArray("list");
+                for (int i = 0; i < list.length(); i++) {
+                    JSONObject element = list.getJSONObject(i);
+                    if (policyName.equals(element.optString("name"))) {
+                        return element.optString("pid");
+                    }
+                }
+            }
         } else {
-            commonspec.runLocalCommand("echo '" + response + "' | jq '.list[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-            String policyId = commonspec.getCommandResult().trim();
-            if (!policyId.equals("")) {
-                return policyId;
-            } else {
-                commonspec.runLocalCommand("echo '" + response + "' | jq '.[] | select (.name == \"" + policyName + "\").id' | sed s/\\\"//g");
-                return commonspec.getCommandResult().trim();
+            // For non-Management BaaS: First search in the list array for id
+            if (jsonResponse.has("list")) {
+                JSONArray list = jsonResponse.getJSONArray("list");
+                for (int i = 0; i < list.length(); i++) {
+                    JSONObject element = list.getJSONObject(i);
+                    if (policyName.equals(element.optString("name"))) {
+                        String id = element.optString("id");
+                        if (!id.isEmpty()) {
+                            return id;
+                        }
+                    }
+                }
+            }
+
+            // If not found in list array, try parsing response as a direct array
+            try {
+                JSONArray rootArray = new JSONArray(response);
+                for (int i = 0; i < rootArray.length(); i++) {
+                    JSONObject element = rootArray.getJSONObject(i);
+                    if (policyName.equals(element.optString("name"))) {
+                        return element.optString("id");
+                    }
+                }
+            } catch (JSONException e) {
+                // non an array either
             }
         }
+
+        logger.warn("No policy was found with name {}", policyName);
+        return "";
     }
 
     /**
