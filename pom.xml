@@ -87,8 +87,8 @@
         <jsoup.version>1.15.3</jsoup.version>
         <json.version>20180130</json.version>
         <crossdata-drivers.version>2.30.1-f6bb97b</crossdata-drivers.version>
-        <kafka-scala.version>2.11</kafka-scala.version>
-        <kafka.version>2.3.1</kafka.version>
+        <kafka-scala.version>2.12</kafka-scala.version>
+        <kafka.version>3.6.1</kafka.version>
         <kubernetes-client.version>6.3.1</kubernetes-client.version>
         <ok-http-client.version>3.12.12</ok-http-client.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

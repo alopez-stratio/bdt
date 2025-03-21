@@ -139,6 +139,38 @@ public class KafkaSecUtils {
         logger.debug("Kafka connection created.");
     }
 
+    public void createConnectionWithPEM(String brokersUrl, String keyPath, String caPath) throws InterruptedException {
+        if (adminClient != null) {
+            closeConnection();
+        }
+
+        kafkaConnectionProperties.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, brokersUrl);
+        kafkaProducerProperties.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, brokersUrl);
+        kafkaConsumerProperties.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, brokersUrl);
+
+        logger.debug("Creating secured Kafka connection: " + brokersUrl);
+        kafkaConnectionProperties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL");
+        kafkaConnectionProperties.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PEM");
+        kafkaConnectionProperties.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PEM");
+        kafkaConnectionProperties.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keyPath);
+        kafkaConnectionProperties.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, caPath);
+
+        kafkaProducerProperties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL");
+        kafkaProducerProperties.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PEM");
+        kafkaProducerProperties.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PEM");
+        kafkaProducerProperties.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keyPath);
+        kafkaProducerProperties.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, caPath);
+
+        kafkaConsumerProperties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL");
+        kafkaConsumerProperties.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PEM");
+        kafkaConsumerProperties.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PEM");
+        kafkaConsumerProperties.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keyPath);
+        kafkaConsumerProperties.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, caPath);
+
+        adminClient = KafkaAdminClient.create(kafkaConnectionProperties);
+        logger.debug("Kafka connection with PEM created.");
+    }
+
     public void checkKafkaReady(int timeout, int wait) throws Exception {
         boolean ready = false;
 
