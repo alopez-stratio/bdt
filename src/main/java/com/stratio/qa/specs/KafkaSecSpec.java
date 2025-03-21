@@ -296,6 +296,20 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Delete topic in Kafka cluster
+     *
+     * @param topic         topic to delete
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @When("^I delete topic '(.+?)' in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void deleteTopic(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().deleteTopic(topic, brokersUrl, keyPath, caPath);
+    }
+
+    /**
      * Create topic with/without partitions
      *
      * @param topic         topic to be created
@@ -307,9 +321,24 @@ public class KafkaSecSpec extends BaseGSpec {
      * @param trustpass     password for secured connection
      * @throws Exception
      */
-    @When("^I create topic '(.+?)'( with '(.+?)' partitions)? in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
-    public void createTopic(String topic, String partitions, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
+    @When("^I create topic '(.+?)'( with '(.+?)' partitions)? in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'( using PEM with keyPath '(.+?)' and caPath '(.+?)')?$")
+    public void createTopic(String topic, String partitions, String brokersUrl, String keystore, String keypass, String truststore, String trustpass, String keyPath, String caPath) throws Exception {
         commonspec.getKafkaSecUtils().createTopic(topic, partitions, brokersUrl, keystore, keypass, truststore, trustpass);
+    }
+
+    /**
+     * Create topic with/without partitions
+     *
+     * @param topic         topic to be created
+     * @param partitions    number of partitions to be created (optional)
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @When("^I create topic '(.+?)'( with '(.+?)' partitions)? in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void createTopic(String topic, String partitions, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().createTopic(topic, partitions, brokersUrl, keyPath, caPath);
     }
 
     /**
@@ -328,6 +357,22 @@ public class KafkaSecSpec extends BaseGSpec {
     @When("^I send message '(.+?)' to topic '(.+?)'( in partition '(.+?)')? in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
     public void produceMessage(String message, String topic, String partition, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().sendMessage(topic, partition, message, brokersUrl, keystore, keypass, truststore, trustpass);
+    }
+
+    /**
+     * Send a message to a topic
+     *
+     * @param message       message to be sent
+     * @param topic         topic to send message to
+     * @param partition     partition where to store message (optional)
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @When("^I send message '(.+?)' to topic '(.+?)'( in partition '(.+?)')? in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void produceMessage(String message, String topic, String partition, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().sendMessage(topic, partition, message, brokersUrl, keyPath, caPath);
     }
 
     /**
@@ -363,6 +408,20 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Check topic exists in Kafka cluster
+     *
+     * @param topic topic to be checked
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^topic '(.+?)' exists in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void checkTopicExists(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().checkTopicExists(topic, brokersUrl, keyPath, caPath);
+    }
+
+    /**
      * Check topic does not exist in Kafka cluster
      *
      * @param topic topic to be checked
@@ -376,6 +435,20 @@ public class KafkaSecSpec extends BaseGSpec {
     @Then("^topic '(.+?)' does not exist in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
     public void checkTopicDoesNotExist(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().checkTopicDoesNotExist(topic, brokersUrl, keystore, keypass, truststore, trustpass);
+    }
+
+    /**
+     * Check topic does not exist in Kafka cluster
+     *
+     * @param topic topic to be checked
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^topic '(.+?)' does not exist in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void checkTopicDoesNotExist(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().checkTopicDoesNotExist(topic, brokersUrl, keyPath, caPath);
     }
 
     /**
@@ -428,6 +501,22 @@ public class KafkaSecSpec extends BaseGSpec {
     @Then("^topic '(.+?)' contains '(.+?)' messages( in partition '(.+?)')? in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
     public void containsNMessagesInTopic(String topic, String numMessages, String partition, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().containsNMessagesInTopic(topic, numMessages, partition, brokersUrl, keystore, keypass, truststore, trustpass, null);
+    }
+
+    /**
+     * Check topic contains a specific number of messages
+     *
+     * @param topic         topic where to look for messages
+     * @param numMessages   number of expected messages
+     * @param partition     partition where to look for messages (optional)
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^topic '(.+?)' contains '(.+?)' messages( in partition '(.+?)')? in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void containsNMessagesInTopic(String topic, String numMessages, String partition, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().containsNMessagesInTopic(topic, numMessages, partition, brokersUrl, keyPath, caPath, null);
     }
 
     /**

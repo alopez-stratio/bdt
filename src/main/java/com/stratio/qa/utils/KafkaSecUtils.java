@@ -246,10 +246,28 @@ public class KafkaSecUtils {
         closeConnection();
     }
 
+    public void deleteTopic(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // create connection
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
+        // delete topic
+        deleteTopic(topic);
+        // close connection
+        closeConnection();
+    }
+
     public void checkTopicExists(String topic) throws Exception {
         Set<String> topicsList = adminClient.listTopics().names().get(KAFKA_DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
         Assertions.assertThat(topicsList.contains(topic)).as("Topic " + topic + " does not exist.").isTrue();
+    }
+
+    public void checkTopicExists(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // create connection
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
+        // check topic exists
+        checkTopicExists(topic);
+        // close connection
+        closeConnection();
     }
 
     public void checkTopicExists(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
@@ -270,6 +288,15 @@ public class KafkaSecUtils {
     public void checkTopicDoesNotExist(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         // create connection
         createConnection(brokersUrl, keystore, keypass, truststore, trustpass);
+        // check topic does not exist
+        checkTopicDoesNotExist(topic);
+        // close connection
+        closeConnection();
+    }
+
+    public void checkTopicDoesNotExist(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // create connection
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
         // check topic does not exist
         checkTopicDoesNotExist(topic);
         // close connection
@@ -301,6 +328,15 @@ public class KafkaSecUtils {
             adminClient.createPartitions(partitions).all().get(KAFKA_DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             logger.debug("Partitions created.");
         }
+    }
+
+    public void createTopic(String topic, String numPartitions, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // Create connection with new connection details
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
+        // create topic
+        createTopic(topic, numPartitions);
+        // close connection
+        closeConnection();
     }
 
     public void createTopic(String topic, String numPartitions, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
@@ -377,6 +413,15 @@ public class KafkaSecUtils {
     public void sendMessage(String topic, String partition, String message, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         // Create connection with new connection details
         createConnection(brokersUrl, keystore, keypass, truststore, trustpass);
+        // send message
+        sendMessage(topic, partition, message);
+        // close connection
+        closeConnection();
+    }
+
+    public void sendMessage(String topic, String partition, String message, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // Create connection with new connection details
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
         // send message
         sendMessage(topic, partition, message);
         // close connection
@@ -568,6 +613,15 @@ public class KafkaSecUtils {
     public void containsNMessagesInTopic(String topic, String numMessages, String partitionId, String brokersUrl, String keystore, String keypass, String truststore, String trustpass, DataTable values) throws Exception {
         // create connection
         createConnection(brokersUrl, keystore, keypass, truststore, trustpass);
+        // check topic contains specified messages
+        containsNMessagesInTopic(topic, numMessages, partitionId, values);
+        // close connection
+        closeConnection();
+    }
+
+    public void containsNMessagesInTopic(String topic, String numMessages, String partitionId, String brokersUrl, String keyPath, String caPath, DataTable values) throws Exception {
+        // create connection
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
         // check topic contains specified messages
         containsNMessagesInTopic(topic, numMessages, partitionId, values);
         // close connection
