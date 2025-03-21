@@ -142,6 +142,12 @@ public class K8SSpec extends BaseGSpec {
         assertThat(commonspec.kubernetesClient.checkEventNamespace(not, namespace, type, name, reason, message)).as("There aren't event that contains the message " + message + " in namespace " + namespace).isTrue();
     }
 
+    @When("^I get value of environment variable '(.+?)' from deployment with name '(.+?)' in namespace '(.+?)' and save it in environment variable '(.*?)'$")
+    public void getDeploymentEnvVar(String var, String name, String namespace, String envVar) throws Exception {
+        String envVarValue = commonspec.kubernetesClient.getDeploymentEnvVar(var, name, namespace);
+        ThreadProperty.set(envVar, envVarValue);
+    }
+
     @When("^I describe (pod|service|deployment|configmap|replicaset|serviceaccount|secret|clusterrole|clusterrolebinding|statefulset|role|rolebinding|ingress|persistentVolumeClaims|job|resourcequota|networkpolicy) with name '(.+?)'( in namespace '(.+?)')?( in '(yaml|json)' format)?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void describeResource(String type, String name, String namespace, String format, String envVar, String fileName) throws Exception {
         String describeResponse;

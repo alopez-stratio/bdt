@@ -256,6 +256,18 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Open secured connection to Kafka cluster
+     *
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath   CA path for secured connection
+     */
+    @Given("^I open connection to kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void openSecuredKafkaConnectionWithPEM(String brokersUrl, String keyPath, String caPath) throws InterruptedException {
+        this.commonspec.getKafkaSecUtils().createConnectionWithPEM(brokersUrl, keyPath, caPath);
+    }
+
+    /**
      * Check kafka is ready to accept requests in a specific time
      *
      * @param timeout

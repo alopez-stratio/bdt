@@ -844,6 +844,8 @@ public class MiscTest {
 
     @Test
     public void testSetVariableIfDefinedElseDefault_ValueDefinedInThreadProperty() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
         ThreadProperty.set("VAR", "value");
         ThreadProperty.set("VAR_DEFAULT", "default");
         CommonG commong = new CommonG();
@@ -856,6 +858,8 @@ public class MiscTest {
 
     @Test
     public void testSetVariableIfDefinedElseDefault_ValueDefinedInSystemProperty() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
         ThreadProperty.remove("VAR");
         System.setProperty("VAR", "value");
         ThreadProperty.set("VAR_DEFAULT", "default");
@@ -869,6 +873,8 @@ public class MiscTest {
 
     @Test
     public void testSetVariableIfDefinedElseDefault_ValueDefinedInThreadPropertyFirst() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
         ThreadProperty.set("VAR", "value1");
         System.setProperty("VAR", "value2");
         ThreadProperty.set("VAR_DEFAULT", "default");
@@ -879,9 +885,11 @@ public class MiscTest {
 
         assertThat(ThreadProperty.get("KEY")).isEqualTo("value1");
     }
-    
+
     @Test
     public void testSetVariableIfDefinedElseDefault_DefaultValueInThreadProperty() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
         ThreadProperty.remove("VAR");
         System.clearProperty("VAR");
         ThreadProperty.set("VAR_DEFAULT", "default");
@@ -907,8 +915,11 @@ public class MiscTest {
 
         assertThat(ThreadProperty.get("KEY")).isEqualTo("default");
     }
+
     @Test
     public void testSetVariableIfDefinedElseDefault_DefaultValueInSystemPropertyFirst() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
         ThreadProperty.remove("VAR");
         System.clearProperty("VAR");
         ThreadProperty.set("VAR_DEFAULT", "default1");
@@ -923,6 +934,8 @@ public class MiscTest {
 
     @Test
     public void testSetVariableIfDefinedElseDefault_NoValueDefined() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
         ThreadProperty.remove("VAR");
         System.clearProperty("VAR");
         ThreadProperty.remove("VAR_DEFAULT");
@@ -933,5 +946,71 @@ public class MiscTest {
         misc.setVariableIfDefinedElseDefault("KEY", "VAR", "VAR_DEFAULT");
 
         assertThat(ThreadProperty.get("KEY")).isEqualTo("VAR_DEFAULT");
+    }
+
+    @Test
+    public void testCheckJsonSchemaStep() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        ThreadProperty.remove("VAR");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        String schemaPath = "schemas/json_schema.json";
+        String jsonString = "{\"userId\":1,\"id\":1,\"title\":\"delectus aut autem\",\"completed\":false}";
+        ThreadProperty.set("VAR", jsonString);
+
+        misc.checkJsonSchemaStep("VAR", schemaPath);
+    }
+
+    @Test
+    public void testCheckInvalidJsonSchemaStep() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        ThreadProperty.remove("VAR");
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        String schemaPath = "schemas/json_schema.json";
+        String jsonString = "{\"userId\":1,\"id\":\"bad string\",\"title\":false,\"completed\":false}";
+        ThreadProperty.set("VAR", jsonString);
+
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(
+                        () -> misc.checkJsonSchemaStep("VAR", schemaPath)
+                ).withMessageContaining("JSON is not valid against the schema")
+                .withMessageContaining("#/id: expected type: Number, found: String")
+                .withMessageContaining("#/title: expected type: String, found: Boolean")
+                .withMessageNotContaining("#/userId")
+                .withMessageNotContaining("#/completed");
+    }
+
+    @Test
+    public void testCheckJsonFileSchemaStep() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+        String jsonPath = "schemas/json_valid.json";
+        String schemaPath = "schemas/json_schema.json";
+
+        misc.checkJsonFileSchemaStep(jsonPath, schemaPath);
+    }
+
+    @Test
+    public void testCheckInvalidJsonFileSchemaStep() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+        String jsonPath = "schemas/json_not_valid.json";
+        String schemaPath = "schemas/json_schema.json";
+
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(
+                        () -> misc.checkJsonFileSchemaStep(jsonPath, schemaPath)
+                ).withMessageContaining("JSON is not valid against the schema")
+                .withMessageContaining("#/completed: expected type: Boolean, found: String")
+                .withMessageContaining("#/userId: expected type: Number, found: String")
+                .withMessageNotContaining("#/id")
+                .withMessageNotContaining("#/title");;
     }
 }

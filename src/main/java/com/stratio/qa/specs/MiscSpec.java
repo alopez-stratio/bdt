@@ -32,8 +32,13 @@ import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.assertj.core.api.Assertions;
+import org.everit.json.schema.Schema;
+import org.everit.json.schema.ValidationException;
+import org.everit.json.schema.loader.SchemaLoader;
 import org.hjson.JsonArray;
 import org.hjson.JsonValue;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.testng.Assert;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -421,6 +426,67 @@ public class MiscSpec extends BaseGSpec {
                 break;
             default:
                 throw new Exception("Not a valid comparison. Valid ones are: ['is empty', 'is not empty']");
+        }
+    }
+
+    /**
+     * Validates that the JSON stored in a variable matches against a JSON schema.
+     *
+     * @param envVar      the environment variable name that holds the JSON string
+     * @param schema_path the path to the JSON schema file
+     */
+    @Then("^I check that the json in '(.+?)' matches the json schema '(.+?)'$")
+    public void checkJsonSchemaStep(String envVar, String schema_path) {
+        String jsonString = ThreadProperty.get(envVar);
+        checkJsonSchema(jsonString, schema_path);
+    }
+
+    /**
+     * Validates that the JSON response matches against a JSON schema.
+     *
+     * @param schema_path the path to the JSON schema file
+     */
+    @Then("^I check that the response matches the json schema '(.+?)'$")
+    public void checkResponseJsonSchemaStep(String schema_path) {
+        String jsonString = commonspec.getResponse().getResponse();
+        System.out.println(jsonString);
+        checkJsonSchema(jsonString, schema_path);
+    }
+
+    /**
+     * Validates that the JSON stored in a file matches against a JSON schema.
+     *
+     * @param json_path   the path to the JSON file
+     * @param schema_path the path to the JSON schema file
+     */
+    @Then("^I check that the json from file '(.+?)' matches the json schema '(.+?)'$")
+    public void checkJsonFileSchemaStep(String json_path, String schema_path) {
+        String jsonString = commonspec.retrieveData(json_path, "json");
+        checkJsonSchema(jsonString, schema_path);
+    }
+
+    /**
+     * Validates that the JSON string matches against a JSON schema.
+     * The JSON schema can be generated with any web tool like: https://transform.tools/json-to-json-schema
+     *
+     * @param json        the JSON string
+     * @param schema_path the path to the JSON schema file
+     */
+    private void checkJsonSchema(String json, String schema_path) {
+        String schemaString = commonspec.retrieveData(schema_path, "json");
+
+        try {
+            JSONObject jsonSchema = new JSONObject(new JSONTokener(schemaString));
+            JSONObject jsonSubject = new JSONObject(new JSONTokener(json));
+
+            Schema schema = SchemaLoader.load(jsonSchema);
+            schema.validate(jsonSubject);
+
+            commonspec.getLogger().info("JSON is valid against the schema.");
+
+        } catch (ValidationException e) {
+            Assert.fail("JSON is not valid against the schema. Validation errors:\n\n" +
+                    String.join("\n", e.getAllMessages()) + "\n");
         }
     }
 
