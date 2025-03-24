@@ -470,6 +470,22 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Check whether a topic contains message in a particular partition or not
+     *
+     * @param topic         topic where to look for message
+     * @param message       message to look for
+     * @param partition     partition where to look for message (optional)
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^topic '(.+?)' contains message '(.+?)'( in partition '(.+?)')? in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void containsMessage(String topic, String message, String partition, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().containsMessage(topic, partition, message, brokersUrl, keyPath, caPath);
+    }
+
+    /**
      * Check whether a topic contains the transactional message generated or not
      *
      * @param topic         topic where to look for message
@@ -483,6 +499,20 @@ public class KafkaSecSpec extends BaseGSpec {
     @Then("^topic '(.+?)' contains transactional messages in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
     public void containsTransactionalMessage(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().containsTransactionalMessages(topic, brokersUrl, keystore, keypass, truststore, trustpass);
+    }
+
+    /**
+     * Check whether a topic contains the transactional message generated or not
+     *
+     * @param topic         topic where to look for message
+     * @param brokersUrl    brokers URL to connect to cluster
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^topic '(.+?)' contains transactional messages in kafka with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void containsTransactionalMessage(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().containsTransactionalMessages(topic, brokersUrl, keyPath, caPath);
     }
 
     /**
@@ -571,9 +601,28 @@ public class KafkaSecSpec extends BaseGSpec {
         commonspec.getKafkaSecUtils().cannotCreateTopic(topic, null, brokersUrl, keystore, keypass, truststore, trustpass);
     }
 
+    /**
+     * Check that I do not have authorization to create topic in kafka cluster
+     *
+     * @param topic         topic to be created
+     * @param brokersUrl    Kafka cluster URL
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^I cannot create topic '(.+?)' with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void cannotCreateTopic(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().cannotCreateTopic(topic, null, brokersUrl, keyPath, caPath);
+    }
+
     @Then("^I cannot delete topic '(.+?)' with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
     public void cannotDeleteTopic(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().cannotDeleteTopic(topic, brokersUrl, keystore, keypass, truststore, trustpass);
+    }
+
+    @Then("^I cannot delete topic '(.+?)' with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void cannotDeleteTopic(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().cannotDeleteTopic(topic, brokersUrl, keyPath, caPath);
     }
 
     /**
@@ -593,6 +642,20 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Check that I do not have authorization to send messages to topic
+     * @param message       message to be sent
+     * @param topic         topic where to send message
+     * @param brokersUrl    Kafka cluster URL
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^I cannot send message '(.+?)' to topic '(.+?)' with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void cannotSendMessage(String message, String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().cannotSendMessage(topic, null, message, brokersUrl, keyPath, caPath);
+    }
+
+    /**
      * Check that I do not have authorization to send transactional messages to topic
      *
      * @param topic         topic where to send message
@@ -609,6 +672,20 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Check that I do not have authorization to send transactional messages to topic
+     *
+     * @param topic         topic where to send message
+     * @param brokersUrl    Kafka cluster URL
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^I cannot send transactional messages to topic '(.+?)' with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void cannotSendTransactionalMessages(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().cannotSendTransactionalMessages(topic, brokersUrl, keyPath, caPath);
+    }
+
+    /**
      * Check that I do not have authorization to consume messages from topic
      *
      * @param topic         topic where to send message
@@ -622,6 +699,20 @@ public class KafkaSecSpec extends BaseGSpec {
     @Then("^I cannot consume messages from topic '(.+?)' with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
     public void cannotConsumeMessages(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().cannotConsumeMessages(topic, brokersUrl, keystore, keypass, truststore, trustpass);
+    }
+
+    /**
+     * Check that I do not have authorization to consume messages from topic
+     *
+     * @param topic         topic where to send message
+     * @param brokersUrl    Kafka cluster URL
+     * @param keyPath       key path for secured connection
+     * @param caPath        CA path for secured connection
+     * @throws Exception
+     */
+    @Then("^I cannot consume messages from topic '(.+?)' with url '(.+?)' using PEM with keyPath '(.+?)' and caPath '(.+?)'$")
+    public void cannotConsumeMessages(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        commonspec.getKafkaSecUtils().cannotConsumeMessages(topic, brokersUrl, keyPath, caPath);
     }
 
     /**
