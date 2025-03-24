@@ -365,11 +365,46 @@ public class KafkaSecUtils {
         Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to create that Topic").isTrue();
     }
 
+    public void cannotCreateTopic(String topic, String numPartitions, String brokersUrl, String keyPath, String caPath) throws Exception {
+        boolean isLaunchedNoAuthException = false;
+
+        try {
+            createTopic(topic, numPartitions, brokersUrl, keyPath, caPath);
+
+            logger.error("NoAuth Exception not launched. Check that ACLs are set to create that Topic");
+        } catch (Exception createException) {
+            if (createException.getCause() instanceof org.apache.kafka.common.errors.TopicAuthorizationException) {
+                logger.info("NoAuth creating {} topic", topic);
+                isLaunchedNoAuthException = true;
+            }
+        }
+
+        Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to create that Topic").isTrue();
+    }
+
     public void cannotDeleteTopic(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         boolean isLaunchedNoAuthException = false;
 
         try {
             deleteTopic(topic, brokersUrl, keystore, keypass, truststore, trustpass);
+
+            logger.error("NoAuth Exception not launched. Check that ACLs are set to create that Topic");
+        } catch (Exception createException) {
+            if (createException.getCause() instanceof org.apache.kafka.common.errors.TopicAuthorizationException) {
+                logger.info("NoAuth deleting {} topic", topic);
+                isLaunchedNoAuthException = true;
+            }
+        }
+
+        Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to delete that Topic").isTrue();
+
+    }
+
+    public void cannotDeleteTopic(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        boolean isLaunchedNoAuthException = false;
+
+        try {
+            deleteTopic(topic, brokersUrl, keyPath, caPath);
 
             logger.error("NoAuth Exception not launched. Check that ACLs are set to create that Topic");
         } catch (Exception createException) {
@@ -445,6 +480,23 @@ public class KafkaSecUtils {
         Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to produce messages to Topic").isTrue();
     }
 
+    public void cannotSendMessage(String topic, String partition, String message, String brokersUrl, String keyPath, String caPath) throws Exception {
+        boolean isLaunchedNoAuthException = false;
+
+        try {
+            sendMessage(topic, partition, message, brokersUrl, keyPath, caPath);
+
+            logger.error("NoAuth Exception not launched. Check that ACLs are set to produce messages to Topic");
+        } catch (Exception sendException) {
+            if (sendException.getCause() instanceof org.apache.kafka.common.errors.TopicAuthorizationException) {
+                logger.info("NoAuth sending message to {} topic", topic);
+                isLaunchedNoAuthException = true;
+            }
+        }
+
+        Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to produce messages to Topic").isTrue();
+    }
+
     public void sendTransactionalMessages(String topic) throws Exception {
         kafkaProducerProperties.put("transactional.id", "transactionIdAT");
 
@@ -474,6 +526,15 @@ public class KafkaSecUtils {
         closeConnection();
     }
 
+    public void sendTransactionalMessages(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // Create connection with new connection details
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
+        // send transactional messages
+        sendTransactionalMessages(topic);
+        // close connection
+        closeConnection();
+    }
+
     public void cannotSendTransactionalMessages(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         boolean isLaunchedNoAuthException = false;
 
@@ -490,11 +551,43 @@ public class KafkaSecUtils {
         Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to produce transactional messages to Topic").isTrue();
     }
 
+    public void cannotSendTransactionalMessages(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        boolean isLaunchedNoAuthException = false;
+
+        try {
+            sendTransactionalMessages(topic, brokersUrl, keyPath, caPath);
+            logger.error("NoAuth Exception not launched. Check that ACLs are set to produce transactional messages to Topic");
+        } catch (Exception sendTransactionalException) {
+            if (sendTransactionalException instanceof org.apache.kafka.common.errors.TransactionalIdAuthorizationException) {
+                logger.info("NoAuth sending transactional message to {} topic", topic);
+                isLaunchedNoAuthException = true;
+            }
+        }
+
+        Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to produce transactional messages to Topic").isTrue();
+    }
+
     public void cannotConsumeMessages(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         boolean isLaunchedNoAuthException = false;
 
         try {
             containsMessage(topic, null, "message", brokersUrl, keystore, keypass, truststore, trustpass);
+            logger.error("NoAuth Exception not launched. Check that ACLs are set to consume messages to Topic");
+        } catch (Exception consumeException) {
+            if (consumeException.getMessage().contains("Not authorized")) {
+                logger.info("NoAuth consuming message from {} topic", topic);
+                isLaunchedNoAuthException = true;
+            }
+        }
+
+        Assertions.assertThat(isLaunchedNoAuthException).as("NoAuth Exception not launched. Check that ACLs are set to consume messages in Topic").isTrue();
+    }
+
+    public void cannotConsumeMessages(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        boolean isLaunchedNoAuthException = false;
+
+        try {
+            containsMessage(topic, null, "message", brokersUrl, keyPath, caPath);
             logger.error("NoAuth Exception not launched. Check that ACLs are set to consume messages to Topic");
         } catch (Exception consumeException) {
             if (consumeException.getMessage().contains("Not authorized")) {
@@ -542,6 +635,15 @@ public class KafkaSecUtils {
         closeConnection();
     }
 
+    public void containsMessage(String topic, String partitionId, String message, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // open connection
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
+        // check topic contains message
+        containsMessage(topic, partitionId, message);
+        // close connection
+        closeConnection();
+    }
+
     public void containsTransactionalMessages(String topic) throws Exception {
         String message = "testsAT_transactional_message_";
         kafkaConsumerProperties.put("group.id", "functionalAT");
@@ -570,6 +672,15 @@ public class KafkaSecUtils {
     public void containsTransactionalMessages(String topic, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         // create connection
         createConnection(brokersUrl, keystore, keypass, truststore, trustpass);
+        // check topic contains transactional messages
+        containsTransactionalMessages(topic);
+        // close connection
+        closeConnection();
+    }
+
+    public void containsTransactionalMessages(String topic, String brokersUrl, String keyPath, String caPath) throws Exception {
+        // create connection
+        createConnectionWithPEM(brokersUrl, keyPath, caPath);
         // check topic contains transactional messages
         containsTransactionalMessages(topic);
         // close connection
