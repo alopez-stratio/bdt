@@ -449,7 +449,6 @@ public class MiscSpec extends BaseGSpec {
     @Then("^I check that the response matches the json schema '(.+?)'$")
     public void checkResponseJsonSchemaStep(String schema_path) {
         String jsonString = commonspec.getResponse().getResponse();
-        System.out.println(jsonString);
         checkJsonSchema(jsonString, schema_path);
     }
 
