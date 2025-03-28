@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
@@ -182,19 +183,19 @@ public class KubernetesClient {
             String daedalusSystem = "keos-workspaces.int.stratio.com";
             String workspaceName = "keos-workspace-" + clusterName;
             String workspaceURL = "http://" + daedalusSystem + "/" + workspaceName + ".tgz";
+            Path targetDir = Paths.get("target/test-classes/");
+            Path tgzFile = targetDir.resolve(workspaceName + ".tgz");
 
+            // Remove file if exists
+            if (Files.exists(tgzFile)) {
+                Files.delete(tgzFile);
+            }
             // Download workspace
-            String commandWget = "wget -T 20 -t 1 " + workspaceURL;
-            commonspec.runLocalCommand(commandWget);
-
-            // Untar workspace
-            CommandExecutionSpec commandExecutionSpec = new CommandExecutionSpec(commonspec);
-            String commandUntar = "tar -C target/test-classes/ -xvf " + workspaceName + ".tgz";
-            commandExecutionSpec.executeLocalCommand(commandUntar, null, null, -1);
-
-            // Clean
-            String commandRmTgz = "rm " + workspaceName + ".tgz";
-            commandExecutionSpec.executeLocalCommand(commandRmTgz, null, null, -1);
+            commonspec.downloadFileWithTimeout(workspaceURL, tgzFile.toAbsolutePath().toString(), 20); // With timeout of 20 seconds
+            // Extract file
+            commonspec.extractTgz(tgzFile, targetDir);
+            // Remove file
+            Files.delete(tgzFile);
 
             // Obtain and export values
             loadVariablesFromClusterVersions(commonspec, workspaceName);
