@@ -321,8 +321,8 @@ public class KafkaSecSpec extends BaseGSpec {
      * @param trustpass     password for secured connection
      * @throws Exception
      */
-    @When("^I create topic '(.+?)'( with '(.+?)' partitions)? in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'( using PEM with keyPath '(.+?)' and caPath '(.+?)')?$")
-    public void createTopic(String topic, String partitions, String brokersUrl, String keystore, String keypass, String truststore, String trustpass, String keyPath, String caPath) throws Exception {
+    @When("^I create topic '(.+?)'( with '(.+?)' partitions)? in kafka with url '(.+?)' with keyStorePath '(.+?)' and keyStorePassword '(.+?)' and trustStorePath '(.+?)' and trustStorePassword '(.+?)'$")
+    public void createTopic(String topic, String partitions, String brokersUrl, String keystore, String keypass, String truststore, String trustpass) throws Exception {
         commonspec.getKafkaSecUtils().createTopic(topic, partitions, brokersUrl, keystore, keypass, truststore, trustpass);
     }
 

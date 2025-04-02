@@ -49,6 +49,8 @@ import io.cucumber.datatable.DataTable;
 import cucumber.api.Scenario;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.tools.tar.TarEntry;
+import org.apache.tools.tar.TarInputStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
 import org.asynchttpclient.AsyncHttpClient;
@@ -78,7 +80,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -95,6 +101,7 @@ import static org.testng.Assert.fail;
 
 import java.text.ParseException;
 import java.util.Date;
+import java.util.zip.GZIPInputStream;
 
 import org.everit.json.schema.loader.SchemaLoader;
 import org.testng.Assert;
@@ -2967,5 +2974,43 @@ public class CommonG {
             }
         }
         return false;
+    }
+
+    public void downloadFileWithTimeout(String url, String destinationPath, int timeout) throws Exception {
+        Response response = getClient().prepareGet(url)
+                .execute()
+                .toCompletableFuture()
+                .get(timeout, TimeUnit.SECONDS);
+
+        if (response.getStatusCode() == 200) {
+            try (InputStream inputStream = response.getResponseBodyAsStream();
+                 ReadableByteChannel readableByteChannel = Channels.newChannel(inputStream);
+                 FileOutputStream fileOutputStream = new FileOutputStream(destinationPath)) {
+                fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            }
+        } else {
+            throw new Exception("Failed to download file: " + response.getStatusCode());
+        }
+    }
+
+    public void extractTgz(Path tgzFile, Path targetDir) throws IOException {
+        try (FileInputStream fis = new FileInputStream(tgzFile.toFile());
+             BufferedInputStream bis = new BufferedInputStream(fis);
+             GZIPInputStream gis = new GZIPInputStream(bis);
+             TarInputStream tis = new TarInputStream(gis)) {
+
+            TarEntry entry;
+            while ((entry = tis.getNextEntry()) != null) {
+                Path entryPath = targetDir.resolve(entry.getName());
+                if (entry.isDirectory()) {
+                    Files.createDirectories(entryPath);
+                } else {
+                    Files.createDirectories(entryPath.getParent());
+                    try (OutputStream os = Files.newOutputStream(entryPath)) {
+                        tis.copyEntryContents(os);
+                    }
+                }
+            }
+        }
     }
 }
