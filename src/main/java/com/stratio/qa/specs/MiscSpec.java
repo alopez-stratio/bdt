@@ -44,10 +44,7 @@ import org.testng.Assert;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
-import java.security.Key;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
+import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.text.DateFormat;
@@ -206,6 +203,15 @@ public class MiscSpec extends BaseGSpec {
     @Given("^I print the file '(.+?)' contents$")
     public void printFileContents(String file) {
         logIntoScenario(String.format("%s -> \n%s", file, commonspec.retrieveData(file, "txt")));
+    }
+
+    /**
+     * Prints the service response to console and into the scenario.
+     */
+    @Given("^I print the service's response$")
+    public void printServiceResponse() {
+        logIntoScenario(String.format("Response HTTP Status -> %s", commonspec.getResponse().getStatusCode()));
+        logIntoScenario(String.format("Response Contents -> \n%s", commonspec.getResponse().getResponse()));
     }
 
     /**
@@ -876,4 +882,48 @@ public class MiscSpec extends BaseGSpec {
         }
         Assert.assertEquals(errorList.size(), 0, "\n" + String.join("\n", errorList) + "\n");
     }
+
+    /**
+     * Generates a random alphanumeric string with the specified length and character set.
+     *
+     * @param lengthStr  Length of the random string to generate (defaults to 10)
+     * @param charset    Character set to use: "alpha" for letters only, "numeric" for numbers only,
+     *                   "alphanumeric" (default) for letters and numbers, "hex" for hexadecimal
+     * @param varName    Name of the environment variable to store the result (defaults to 'random')
+     */
+    @Given("^I generate a random string( with length '(\\d+)')?( using charset '(alpha|numeric|alphanumeric|hex)')?( and store it in variable '(.*?)')?$")
+    public void generateRandomAlphanumericString(String lengthStr, String charset, String varName) {
+        int length = (lengthStr != null) ? Integer.parseInt(lengthStr) : 10;
+        String selectedCharset = (charset != null) ? charset : "alphanumeric";
+        String variableName = (varName != null) ? varName : "random";
+
+        String characters;
+        switch (selectedCharset) {
+            case "alpha":
+                characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+                break;
+            case "numeric":
+                characters = "0123456789";
+                break;
+            case "hex":
+                characters = "0123456789abcdef";
+                break;
+            case "alphanumeric":
+            default:
+                characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                break;
+        }
+
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(length);
+
+        for (int i = 0; i < length; i++) {
+            int randomIndex = random.nextInt(characters.length());
+            sb.append(characters.charAt(randomIndex));
+        }
+
+        ThreadProperty.set(variableName, sb.toString());
+        logIntoScenario(String.format("%s -> %s", variableName, sb));
+    }
+
 }

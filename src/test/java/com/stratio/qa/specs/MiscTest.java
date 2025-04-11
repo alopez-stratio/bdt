@@ -1013,4 +1013,70 @@ public class MiscTest {
                 .withMessageNotContaining("#/id")
                 .withMessageNotContaining("#/title");;
     }
+
+    @Test
+    public void generateRandomAlphanumericStringWithDefaultValues() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        MiscSpec miscSpec = new MiscSpec(new CommonG());
+        ThreadProperty.remove("random");
+        miscSpec.generateRandomAlphanumericString(null, null, null);
+        String result = ThreadProperty.get("random");
+        assertThat(result).isNotNull();
+        assertThat(result.length()).isEqualTo(10);
+        assertThat(result).matches("^[a-zA-Z0-9]+$");
+    }
+
+    @Test
+    public void generateRandomAlphanumericStringWithAlphaCharset() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        MiscSpec miscSpec = new MiscSpec(new CommonG());
+        ThreadProperty.remove("random");
+        miscSpec.generateRandomAlphanumericString("12", "alpha", null);
+        String result = ThreadProperty.get("random");
+        assertThat(result).isNotNull();
+        assertThat(result.length()).isEqualTo(12);
+        assertThat(result).matches("^[a-zA-Z]+$");
+    }
+
+    @Test
+    public void generateRandomAlphanumericStringWithNumericCharset() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        MiscSpec miscSpec = new MiscSpec(new CommonG());
+        ThreadProperty.remove("numericVar");
+        miscSpec.generateRandomAlphanumericString("6", "numeric", "numericVar");
+        String result = ThreadProperty.get("numericVar");
+        assertThat(result).isNotNull();
+        assertThat(result.length()).isEqualTo(6);
+        assertThat(result).matches("^[0-9]+$");
+    }
+
+    @Test
+    public void generateRandomAlphanumericStringWithHexCharset() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        MiscSpec miscSpec = new MiscSpec(new CommonG());
+        ThreadProperty.remove("hexVar");
+        miscSpec.generateRandomAlphanumericString("16", "hex", "hexVar");
+        String result = ThreadProperty.get("hexVar");
+        assertThat(result).isNotNull();
+        assertThat(result.length()).isEqualTo(16);
+        assertThat(result).matches("^[a-f0-9]+$");
+    }
+
+    @Test
+    public void generateRandomAlphanumericStringWithInvalidCharset() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+
+        MiscSpec miscSpec = new MiscSpec(new CommonG());
+        ThreadProperty.remove("random");
+        miscSpec.generateRandomAlphanumericString("10", "invalidCharset", null);
+        String result = ThreadProperty.get("random");
+        assertThat(result).isNotNull();
+        assertThat(result.length()).isEqualTo(10);
+        assertThat(result).matches("^[a-zA-Z0-9]+$");
+    }
+
 }
