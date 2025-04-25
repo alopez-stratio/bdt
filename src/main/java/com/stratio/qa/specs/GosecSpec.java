@@ -381,9 +381,9 @@ public class GosecSpec extends BaseGSpec {
     /**
      * Extracts policy ID from a JSON response based on policy name.
      *
-     * @param response          The JSON response string
-     * @param policyName        The name of the policy to search for
-     * @param isManagementBaas  Flag indicating if this is a management BaaS response
+     * @param response         The JSON response string
+     * @param policyName       The name of the policy to search for
+     * @param isManagementBaas Flag indicating if this is a management BaaS response
      * @return The policy ID (pid or id) if found, empty string otherwise
      */
     private String getPolicyIdFromResponse(String response, String policyName, boolean isManagementBaas) {
@@ -794,6 +794,8 @@ public class GosecSpec extends BaseGSpec {
 
         restSpec.sendRequestNoDataTable("GET", endPointGosec, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
+            String response = commonspec.getResponse().getResponse();
+            commonspec.getLogger().debug("Response from {}: {}", endPointGetAllUsers, response);
             if (commonspec.getResponse().getResponse().contains("\"" + uidOrGid + "\":\"" + resourceId + "\"")) {
                 restSpec.sendRequestNoDataTable("GET", endPointTenant, null, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
@@ -802,8 +804,17 @@ public class GosecSpec extends BaseGSpec {
                         commonspec.getLogger().debug("{} is already included in tenant", resourceId);
                     } else {
                         ((JsonArray) jsonTenantInfo.get(uidOrGidTenant)).add(resourceId);
-                        Future<Response> response = commonspec.generateRequest(requestOp, false, null, null, endPointTenant, JsonValue.readHjson(jsonTenantInfo.toString()).toString(), "json", "");
-                        commonspec.setResponse(requestOp, response.get());
+                        Future<Response> responseFuture = commonspec.generateRequest(
+                                requestOp,
+                                false,
+                                null,
+                                null,
+                                endPointTenant,
+                                JsonValue.readHjson(jsonTenantInfo.toString()).toString(),
+                                "json",
+                                ""
+                        );
+                        commonspec.setResponse(requestOp, responseFuture.get());
                         if (commonspec.getResponse().getStatusCode() != expectedStatusCode) {
                             throw new Exception("Error adding " + resource + " " + resourceId + " in tenant " + tenantId + " - Status code: " + commonspec.getResponse().getStatusCode());
                         }
@@ -1009,8 +1020,8 @@ public class GosecSpec extends BaseGSpec {
     /**
      * Include user inside group
      *
-     * @param userId         : id of the user to be included in group
-     * @param groupId       : id of the group where to include user
+     * @param userId          : id of the user to be included in group
+     * @param groupId         : id of the group where to include user
      * @param tenantOrig      : tenant where group lives (OPTIONAL)
      * @param tenantLoginInfo : user and password to log into tenant (OPTIONAL)
      * @throws Exception
