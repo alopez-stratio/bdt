@@ -519,6 +519,57 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("^I execute the command '(.+?)' in the keos-operator( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?$")
+    public void executeCommandInKeosOperatorPod(String command, String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout) {
+        String pod_namespace = System.getProperty("KEOS_OPERATOR_NAMESPACE", "keos-ops");
+        String pod_container = System.getProperty("KEOS_OPERATOR_CONTAINER", "keos-operator");
+
+        // Run Command in keos-operator pod
+        try {
+            runCommandInPod(command, getKeosOperatorPod(), pod_namespace, pod_container, failureReason, envVar, errEnvVar,
+                    fileName, errFileName, timeout);
+        } catch (Exception e) {
+            throw new RuntimeException("Error executing command on keos-operator pod: " + e.getMessage());
+        }
+    }
+
+    @When("^I execute the command defined in datatable in the keos-operator( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?( and it doesn't return an exception if timeout is reached)?:$")
+    public void runCommandInKeosOperatorDatatable(String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout, String avoidExceptionIfTimeout, DataTable dataTable) throws Exception {
+        String pod_namespace = System.getProperty("KEOS_OPERATOR_NAMESPACE", "keos-ops");
+        String pod_container = System.getProperty("KEOS_OPERATOR_CONTAINER", "keos-operator");
+
+        // Run Command in keos-operator pod
+        try {
+            runCommandInPodDatatable(getKeosOperatorPod(), pod_namespace, pod_container, failureReason, envVar,
+                    errEnvVar, fileName, errFileName, timeout, avoidExceptionIfTimeout, dataTable);
+        } catch (Exception e) {
+            throw new RuntimeException("Error executing command on keos-operator pod: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves the name of the Keos Operator pod in the specified namespace.
+     *
+     * @return The name of the Keos Operator pod.
+     */
+    private String getKeosOperatorPod() {
+        String pod_namespace = System.getProperty("KEOS_OPERATOR_NAMESPACE", "keos-ops");
+        String pod_name = System.getProperty("KEOS_OPERATOR_NAME", "keos-operator");
+
+        // Get keos-operator pod
+        try {
+            getPodsLabelSelector("pods", String.format("app.kubernetes.io/instance=%s,app.kubernetes.io/name=%s", pod_name, pod_name),
+                    pod_namespace, "keos-operator-pod", null);
+        } catch (Exception e) {
+            throw new RuntimeException("Error getting keos-operator pod: " + e.getMessage());
+        }
+
+        String keos_operator_pod = ThreadProperty.get("keos-operator-pod").trim().split("\n")[0];
+        Assert.assertTrue(keos_operator_pod.matches(pod_name + "-[0-9a-z-]+"),
+                "Pod name doesn't match expected pattern, got: " + keos_operator_pod);
+        return keos_operator_pod;
+    }
+
     @When("^I apply configuration file located at '(.+?)' in namespace '(.+?)'$")
     public void applyConfiguration(String yamlFile, String namespace) throws FileNotFoundException {
         commonspec.kubernetesClient.createOrReplaceResource(yamlFile, namespace);
