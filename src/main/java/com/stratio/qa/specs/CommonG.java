@@ -2526,7 +2526,13 @@ public class CommonG {
         while (keys.hasNext()) {
             // Obtain key
             String key = keys.next().toString();
-            // Obtain value of key
+
+            // If value is an array, we assign an empty array
+            if (jsonSchema.get(key) instanceof JSONArray) {
+                json.put(key, new ArrayList<>());
+                continue;
+            }
+
             JSONObject element = jsonSchema.getJSONObject(key);
             // Check if value contain properties
             // If it DOESN'T CONTAIN properties
@@ -2561,7 +2567,7 @@ public class CommonG {
                     }
                 }
 
-                // If it CONTAINS properties
+            // If it CONTAINS properties
             } else {
                 // Check if it has default value
                 if (element.has("default")) {

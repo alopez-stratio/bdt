@@ -1320,6 +1320,18 @@ public class CommonGTest {
     }
 
     @Test
+    public void testparseJSONSchemaWithEmptyArray() throws Exception{
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        String jsonSchemaHC = "{\"type\": \"object\",\"additionalProperties\": false,\"properties\": {\"serviceId\": {\"description\": \"Service ID\",\"type\": \"string\",\"default\": \"service-\"}, \"tags\": []}}";
+        String expected = "{\"serviceId\":\"service-\",\"tags\":[]}";
+
+        String result = commong.parseJSONSchema(new JSONObject(jsonSchemaHC)).toString();
+
+        assertThat(result).as("Result: " + result + " is not equal to expected one: " + expected).isEqualToIgnoringCase(expected);
+    }
+
+    @Test
     public void testMatchJsonToSchema() throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         CommonG commong = new CommonG();
