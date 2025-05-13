@@ -888,6 +888,17 @@ public class KubernetesClient {
     }
 
     /**
+     * kubectl logs pod -f --tail=10
+     *
+     * @param pod       Pod name
+     * @param namespace Namespace
+     * @param tailLines Number of lines to retrieve
+     */
+    public String getPodLog(String pod, String namespace, Integer tailLines) {
+        return k8sClient.pods().inNamespace(namespace).withName(pod).tailingLines(tailLines).getLog();
+    }
+
+    /**
      * kubectl exec mypod -- command
      *
      * @param pod       Pod
