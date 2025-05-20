@@ -148,7 +148,7 @@ public class KubernetesClient {
         getIngressPath();
 
         // Default values for some variables
-        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "1234");
+        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "Stratio-1234");
 
         //Set Gosec label in depployment
         setGosecVariables("gosec-management-baas", "keos-core");

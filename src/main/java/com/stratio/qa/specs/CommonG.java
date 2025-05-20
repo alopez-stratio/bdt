@@ -2852,7 +2852,7 @@ public class CommonG {
 
         if (loginInfo == null) {
             user = ThreadProperty.get("KEOS_USER");
-            password = ThreadProperty.get("KEOS_PASSWORD") != null ? ThreadProperty.get("KEOS_PASSWORD") : System.getProperty("KEOS_PASSWORD");
+            password = ThreadProperty.get("KEOS_PASSWORD") != null ? ThreadProperty.get("KEOS_PASSWORD") : System.getProperty("KEOS_PASSWORD", "Stratio-1234");
         } else {
             user = loginInfo.split(":")[0];
             password = loginInfo.split(":")[1];
