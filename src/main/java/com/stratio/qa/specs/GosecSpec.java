@@ -2627,6 +2627,7 @@ public class GosecSpec extends BaseGSpec {
         while (!executed && numberOfRetries >= 0) {
             numberOfRetries--;
             try {
+                commonspec.getLogger().info("Running ldap synchronizer");
                 runLdapSynchronizer(type);
                 executed = true;
             } catch (Exception | Error e) {
@@ -2712,6 +2713,7 @@ public class GosecSpec extends BaseGSpec {
                 "displayname: stratio\n" +
                 "mail: stratio@$domain\n" +
                 "userPassword: 1234";
+
         RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@skipOnEnv(keosVersion<0.6.0)"))) {
             throw new Exception("Spec only supports keos version >= 0.6");
@@ -2724,18 +2726,7 @@ public class GosecSpec extends BaseGSpec {
         k8SSpec.getKeyFromConfigMap(peopleKey, configMapName, "keos-idp", "people_ou", null);
 
         // Check if the user already exists on LDAP
-        boolean alreadyExists;
-        List<List<String>> command = Arrays.asList(
-                Arrays.asList("sh"),
-                Arrays.asList("-c"),
-                Arrays.asList("source /vault/secrets/idp-secrets ; ldapsearch -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass -b \"uid=" + user + "," + ThreadProperty.get("people_ou") + "\"")
-        );
-        try {
-            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
-            alreadyExists = ThreadProperty.get("output").contains("result: 0 Success");
-        } catch (Exception e) {
-            alreadyExists = false;
-        }
+        boolean alreadyExists = resourceExistsInLdap("user", user, ldapPod);
         if (skipIfExists != null && alreadyExists) {
             logger.info("The user already exists, skipping creation...");
         } else {
@@ -2744,7 +2735,7 @@ public class GosecSpec extends BaseGSpec {
             template = template.replace("stratio", user).replace("$ou_people", ThreadProperty.get("people_ou")).replace("userPassword: 1234", "userPassword: " + password);
             writeInFile(template, "ldapuser.template");
             k8SSpec.copyToRemoteFileWithRetry("target/test-classes/ldapuser.template", "/tmp/ldapuser.template", ldapPod, "keos-idp", "ldap");
-            command = Arrays.asList(
+            List<List<String>> command = Arrays.asList(
                     Arrays.asList("sh"),
                     Arrays.asList("-c"),
                     Arrays.asList("shtpl < /tmp/ldapuser.template > /tmp/user.ldif")
@@ -2763,10 +2754,16 @@ public class GosecSpec extends BaseGSpec {
             );
             k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
             assertThat(ThreadProperty.get("output")).as("Log contains query cancelled").contains("adding new entry \"uid=" + user + "," + ThreadProperty.get("people_ou") + "\"");
+            logger.info("User created in LDAP");
         }
         if (noSync == null) {
-            Thread.sleep(5000);
+            Thread.sleep(5 * 1000L);
             runLdapSynchronizerWithRetries("total", 5, 10);
+            if (!resourceExistsInLdap("user", user, ldapPod)) {
+                logger.warn("User not found in LDAP after sync, waiting 60 seconds and trying again...");
+                Thread.sleep(60 * 1000L);
+                runLdapSynchronizerWithRetries("total", 5, 10);
+            }
         }
     }
 
@@ -2842,6 +2839,7 @@ public class GosecSpec extends BaseGSpec {
                 "description: stratio group\n" +
                 "member: uid=uid,$ou_people\n" +
                 "memberUid: uid=uid,$ou_people\n";
+        List<List<String>> command;
 
         RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@skipOnEnv(keosVersion<0.6.0)"))) {
@@ -2857,18 +2855,7 @@ public class GosecSpec extends BaseGSpec {
         k8SSpec.getKeyFromConfigMap(groupsKey, configMapName, "keos-idp", "groups_ou", null);
 
         // Check if the group already exists on LDAP
-        boolean alreadyExists;
-        List<List<String>> command = Arrays.asList(
-                Arrays.asList("sh"),
-                Arrays.asList("-c"),
-                Arrays.asList("source /vault/secrets/idp-secrets ; ldapsearch -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass -b \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"")
-        );
-        try {
-            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, "output", "stderr", null, null, null, DataTable.create(command));
-            alreadyExists = ThreadProperty.get("output").contains("result: 0 Success");
-        } catch (Exception e) {
-            alreadyExists = false;
-        }
+        boolean alreadyExists = resourceExistsInLdap("group", group, ldapPod);
         if (skipIfExists != null && alreadyExists) {
             logger.info("The group already exists, skipping creation...");
         } else {
@@ -2896,10 +2883,16 @@ public class GosecSpec extends BaseGSpec {
             );
             k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null, null, null, null, null, null, DataTable.create(command));
             assertThat(ThreadProperty.get("output")).as("Log contains query cancelled").contains("adding new entry \"cn=" + group + "," + ThreadProperty.get("groups_ou") + "\"");
+            logger.info("Group created in LDAP");
         }
         if (noSync == null) {
-            Thread.sleep(5000);
+            Thread.sleep(5 * 1000L);
             runLdapSynchronizerWithRetries("total", 5, 10);
+            if (!resourceExistsInLdap("group", group, ldapPod)) {
+                logger.warn("Group not found in LDAP after sync, waiting 60 seconds and trying again...");
+                Thread.sleep(60 * 1000L);
+                runLdapSynchronizerWithRetries("total", 5, 10);
+            }
         }
     }
 
@@ -3082,6 +3075,44 @@ public class GosecSpec extends BaseGSpec {
             }
         } else {
             commonspec.getLogger().warn("Tag with id: {} does not exist", tagName);
+        }
+    }
+
+    /**
+     * Checks if a resource (user or group) exists in LDAP.
+     *
+     * @param resourceType Type of resource ("user" or "group")
+     * @param resourceId   ID of the resource to verify
+     * @param ldapPod      Name of the LDAP pod
+     * @return             true if the resource exists, false otherwise
+     */
+    public boolean resourceExistsInLdap(String resourceType, String resourceId, String ldapPod) {
+        String baseDN;
+        switch (resourceType.toLowerCase()) {
+            case "user":
+                baseDN = "\"uid=" + resourceId + "," + ThreadProperty.get("people_ou") + "\"";
+                break;
+            case "group":
+                baseDN = "\"cn=" + resourceId + "," + ThreadProperty.get("groups_ou") + "\"";
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported resource type: " + resourceType + ". Use 'user' or 'group'.");
+        }
+
+        List<List<String>> command = Arrays.asList(
+                Arrays.asList("sh"),
+                Arrays.asList("-c"),
+                Arrays.asList("source /vault/secrets/idp-secrets ; ldapsearch -H ldaps://ldap.keos-idp -D cn=ldap_admin,$ldap_base_dn -w $ldap_admin_pass -b " + baseDN)
+        );
+        try {
+            k8SSpec.runCommandInPodDatatable(ldapPod, "keos-idp", "ldap", null,
+                    "output", "stderr", null, null, null, null,
+                    DataTable.create(command));
+            logger.debug("LDAP search result: " + ThreadProperty.get("output"));
+            return ThreadProperty.get("output").contains("result: 0 Success");
+        } catch (Exception e) {
+            logger.warn("The resource " + resourceType + " does not exist in LDAP");
+            return false;
         }
     }
 }
