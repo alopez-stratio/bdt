@@ -2030,6 +2030,25 @@ public class CommonG {
     }
 
     /**
+     * Adds a new header with specified name and value
+     *
+     * @param name the name of the header to be added
+     * @param value the value of the header to be added
+     */
+    public void addHeader(String name, String value) {
+        this.headers.put(name, value);
+    }
+
+    /**
+     * Deletes a header with the specified name
+     *
+     * @param name the name of the header to be deleted
+     */
+    public void deleteHeader(String name) {
+        this.headers.remove(name);
+    }
+
+    /**
      * Parse jsonpath expression from a given string.
      * <p>
      * If the string is json we can obtain its keys using ~ symbol.

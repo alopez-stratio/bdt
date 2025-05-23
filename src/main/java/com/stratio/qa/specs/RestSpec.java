@@ -727,4 +727,20 @@ public class RestSpec extends BaseGSpec {
     public void deleteCookie(String name) {
         commonspec.deleteCookie(name);
     }
+
+    @Given("^I add a new header with name '(.*)' and value '(.*)'$")
+    public void addNewHeader(String name, String value) {
+        this.commonspec.addHeader(name, value);
+    }
+
+    @Given("^I replace the header with name '(.*)' to value '(.*)'$")
+    public void replaceHeader(String name, String value) {
+        this.commonspec.deleteHeader(name);
+        this.commonspec.addHeader(name, value);
+    }
+
+    @Given("^I delete the header with name '(.*)'$")
+    public void deleteHeader(String name) {
+        this.commonspec.deleteHeader(name);
+    }
 }
