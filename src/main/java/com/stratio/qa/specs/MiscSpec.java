@@ -593,67 +593,71 @@ public class MiscSpec extends BaseGSpec {
     public void convertDateToTimestamp(String date, String format, String timezone, String envVar) throws Exception {
 
         SimpleDateFormat isoFormat = new SimpleDateFormat(format);
-        if (timezone != null) {
-            isoFormat.setTimeZone(TimeZone.getTimeZone(timezone));
-        } else {
-            isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        }
+        String tz = (timezone != null) ? timezone : "UTC";
+        isoFormat.setTimeZone(TimeZone.getTimeZone(tz));
         try {
             Date d = isoFormat.parse(date);
-            GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("Europe/Madrid"));
+            GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone(tz));
             calendar.setTime(d);
             ThreadProperty.set(envVar, Long.toString(calendar.getTimeInMillis()));
-            commonspec.getLogger().debug("Your date in timestamp: {} with timezone: {}", calendar.getTimeInMillis(), timezone);
+            commonspec.getLogger().debug("Your date in timestamp: {} with timezone: {}", calendar.getTimeInMillis(), tz);
         } catch (AssertionError e) {
             commonspec.getLogger().error("Error converting date {}, check date and format", date);
             throw e;
         }
     }
 
-    /**
-     * Get current date and time and save into environment variable
+       /**
+     * Get current date and time and save it into an environment variable, using the specified timezone.
+     * If no timezone is provided, UTC will be used by default.
      *
-     * @param envVar : environment variable where date time is saved
+     * @param envVar   environment variable where the date/time is saved
+     * @param timezone (optional) timezone ID (e.g., "UTC", "Europe/Madrid"); if null or empty, uses UTC
      */
-    @Given("^I get current date and time and save the value in environment variable '(.+?)'$")
-    public void getCurrentDateTime(String envVar) {
+    @Given("^I get current date and time( with timezone '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getCurrentDateTime(String timezone, String envVar) {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        Date date = new Date(); //now
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
+        String tz = (timezone != null && !timezone.isEmpty()) ? timezone : "UTC";
+        dateFormat.setTimeZone(TimeZone.getTimeZone(tz));
+        Date date = new Date(); // now
         ThreadProperty.set(envVar, dateFormat.format(date));
-        commonspec.getLogger().debug("Current Date: {}", dateFormat.format(date));
+        commonspec.getLogger().debug("Current Date: {} with timezone: {}", dateFormat.format(date), tz);
     }
 
     /**
-     * Get current date and time plus provided minutes and save into environment variable
+     * Get current date and time plus the provided number of minutes and save it into an environment variable,
+     * using the specified timezone. If no timezone is provided, UTC will be used by default.
      *
-     * @param envVar        : environment variable where date time is saved
-     * @param addMinuteTime : added minutes
+     * @param addMinuteTime number of minutes to add to the current date/time
+     * @param timezone      (optional) timezone ID (e.g., "UTC", "Europe/Madrid"); if null or empty, uses UTC
+     * @param envVar        environment variable where the date/time is saved
      */
-    @Given("^I get date and time with '(.+?)' more minutes from now and save the value in environment variable '(.+?)'$")
-    public void getOneMoreMinute(int addMinuteTime, String envVar) {
+    @Given("^I get date and time with '(.+?)' more minutes from now( with timezone '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getOneMoreMinute(int addMinuteTime, String timezone, String envVar) {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        Date targetTime = new Date(); //now
-        targetTime = DateUtils.addMinutes(targetTime, addMinuteTime); //add minute
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
+        String tz = (timezone != null && !timezone.isEmpty()) ? timezone : "UTC";
+        dateFormat.setTimeZone(TimeZone.getTimeZone(tz));
+        Date targetTime = DateUtils.addMinutes(new Date(), addMinuteTime);
         ThreadProperty.set(envVar, dateFormat.format(targetTime));
-        commonspec.getLogger().debug("Date adding {} minutes : {}", addMinuteTime, dateFormat.format(targetTime));
+        commonspec.getLogger().debug("Date adding {} minutes : {} with timezone: {}", addMinuteTime, dateFormat.format(targetTime), tz);
     }
 
     /**
-     * Get current date and time plus provided seconds and save into environment variable
+     * Get current date and time plus the provided number of seconds and save it into an environment variable,
+     * using the specified timezone. If no timezone is provided, UTC will be used by default.
      *
-     * @param envVar         : environment variable where date time is saved
-     * @param addSecondsTime : added seconds
+     * @param addSecondsTime number of seconds to add to the current date/time
+     * @param timezone       (optional) timezone ID (e.g., "UTC", "Europe/Madrid"); if null or empty, uses UTC
+     * @param envVar         environment variable where the date/time is saved
      */
-    @Given("^I get date and time with '(.+?)' more seconds from now and save the value in environment variable '(.+?)'$")
-    public void getOneMoreSecond(int addSecondsTime, String envVar) {
+    @Given("^I get date and time with '(.+?)' more seconds from now( with timezone '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getOneMoreSecond(int addSecondsTime, String timezone, String envVar) {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        Date targetTime = new Date(); //now
-        targetTime = DateUtils.addSeconds(targetTime, addSecondsTime); //add seconds
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
+        String tz = (timezone != null && !timezone.isEmpty()) ? timezone : "UTC";
+        dateFormat.setTimeZone(TimeZone.getTimeZone(tz));
+        Date targetTime = DateUtils.addSeconds(new Date(), addSecondsTime);
         ThreadProperty.set(envVar, dateFormat.format(targetTime));
-        commonspec.getLogger().debug("Date adding {} seconds : {}", addSecondsTime, dateFormat.format(targetTime));
+        commonspec.getLogger().debug("Date adding {} seconds : {} with timezone: {}", addSecondsTime, dateFormat.format(targetTime), tz);
     }
 
 
