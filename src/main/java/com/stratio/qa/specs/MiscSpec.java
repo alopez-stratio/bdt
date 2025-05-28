@@ -164,6 +164,22 @@ public class MiscSpec extends BaseGSpec {
     }
 
     /**
+     * Step to write a text to a variable, using the doc string as the contents
+     * Usage:
+     * Given I save the following text in variable 'test':
+     *     """
+     *     line 1
+     *     line 2
+     *
+     *     line 3
+     *     """
+     */
+    @When("^I save the following text in variable '(.+?)':$")
+    public void createFileFromText(String envVar, String textContents) {
+        saveInEnvironment(textContents, envVar);
+    }
+
+    /**
      * Sets a variable to the value of the first variable if defined, otherwise sets it to a default value.
      * Usage:
      * Given I set variable 'KEY' to 'VAR' if defined, or 'VAR_DEFAULT' as default
