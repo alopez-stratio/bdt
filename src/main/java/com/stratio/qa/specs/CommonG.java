@@ -1363,7 +1363,6 @@ public class CommonG {
                         request = request.setRealm(realm);
                     }
 
-                    request.setRequestTimeout(180000);
                     response = this.getClient().executeRequest(request.build());
                     break;
                 }
