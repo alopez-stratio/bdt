@@ -312,9 +312,22 @@ public class HookGSpec extends BaseGSpec {
         commonspec.setClient(asyncHttpClient(config()
                 .setUseInsecureTrustManager(true)   // default is false
                 .setKeepAlive(false)                // default is true
-                .setConnectTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECT_TIMEOUT", "5000")))    // default is 5000ms
-                .setRequestTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_REQUEST_TIMEOUT", "60000")))   // default is 60000ms
-                .setReadTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_READ_TIMEOUT", "120000")))        // default is 60000ms
+                .setConnectTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECT_TIMEOUT", "5000")))    // 5s   (default is 5s)
+                .setRequestTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_REQUEST_TIMEOUT", "60000")))   // 60s  (default is 60s)
+                .setReadTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_READ_TIMEOUT", "120000")))        // 120s (default is 60s)
+                .build()));
+        commonspec.initClients();
+    }
+
+    @Before(order = ORDER_20, value = "@restWithLongerTimeout")
+    public void restClientLongTimeoutSetup() {
+        commonspec.getLogger().debug("Starting a REST client with longer timeouts");
+        commonspec.setClient(asyncHttpClient(config()
+                .setUseInsecureTrustManager(true)   // default is false
+                .setKeepAlive(false)                // default is true
+                .setConnectTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECT_TIMEOUT_LONG", "30000")))   // 30s  (default is 5s)
+                .setRequestTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_REQUEST_TIMEOUT_LONG", "600000")))  // 600s (default is 60s)
+                .setReadTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_READ_TIMEOUT_LONG", "600000")))        // 600s (default is 60s)
                 .build()));
         commonspec.initClients();
     }
