@@ -372,6 +372,30 @@ public class MiscSpec extends BaseGSpec {
         Assert.assertEquals(errorList.size(), 0, "\n" + String.join("\n", errorList) + "\n");
     }
 
+    /**
+     * Check if expression defined by JSONPath match in the service's JSON response.
+     * The allowed operations are: [equal, not equal, contains, does not contain, not empty, matches, size, higher than, lower than, is null, PathNotFound]
+     * Usage:
+     * Then the JSON response matches the following cases:
+     * | $.columns    | size         | 1    |
+     * | $.columns[0] | equal        | Test |
+     * | $.columns[1] | PathNotFound |      |
+     *
+     * @param table data table in which each row stores one expression
+     */
+    @Then("^the JSON response matches the following cases:$")
+    public void matchWithExpressionResponse(DataTable table) throws Exception {
+        try {
+            saveElementEnvironmentFile(null, "$", "_tmp_response_", null);
+        } catch (org.hjson.ParseException e) {
+            throw new Exception("Error parsing the service's response! Not a valid JSON:\n" + commonspec.getResponse().getResponse());
+        }
+        try {
+            matchWithExpresion("_tmp_response_", table);
+        } finally {
+            ThreadProperty.remove("_tmp_response_");
+        }
+    }
     /*
      * Check value stored in environment variable "is|matches|is higher than|is lower than|contains||does not contain|is different from" to value provided
      *
