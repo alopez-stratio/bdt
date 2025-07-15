@@ -35,6 +35,7 @@ import org.testng.Assert;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -2093,17 +2094,19 @@ public class GosecSpec extends BaseGSpec {
         if (commonspec.getResponse().getStatusCode() == 200) {
             if (isManagementBaas) {
                 miscSpec.saveElementEnvironment(null, "$.[?(@.serviceType == \"" + serviceType + "\")].versionList[*]", "BDT_PLUGINS");
-                String bdtPlugins = ThreadProperty.get("BDT_PLUGINS");
-                commonspec.runLocalCommand("echo '" + bdtPlugins + "' | jq '.[] | select (.serviceList[].name == \"" + serviceId + "\").version' | tr -d '\"'");
+                writeInFile(ThreadProperty.get("BDT_PLUGINS"), "gosecResponse.json");
+                commonspec.runLocalCommand("cat target/test-classes/gosecResponse.json | jq '.[] | select (.serviceList[].name == \"" + serviceId + "\").version' | tr -d '\"'");
                 commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
+                Files.delete(new File("target/test-classes/gosecResponse.json").toPath());
             } else {
                 if (gosecVersion.startsWith("0")) {
                     ThreadProperty.set(envVar, "N/A");
                 } else {
                     miscSpec.saveElementEnvironment(null, "$.[?(@.type == \"" + serviceType + "\")].pluginList[*]", "BDT_PLUGINS");
-                    String bdtPlugins = ThreadProperty.get("BDT_PLUGINS");
-                    commonspec.runLocalCommand("echo '" + bdtPlugins + "' | jq -Mrc '.[] as $parent | $parent.instanceList[] | select (.name == \"" + serviceId + "\" and .status == \"READY\") | $parent.version'");
+                    writeInFile(ThreadProperty.get("BDT_PLUGINS"), "gosecResponse.json");
+                    commonspec.runLocalCommand("cat target/test-classes/gosecResponse.json | jq -Mrc '.[] as $parent | $parent.instanceList[] | select (.name == \"" + serviceId + "\" and .status == \"READY\") | $parent.version'");
                     commonspec.runCommandLoggerAndEnvVar(0, envVar, Boolean.TRUE);
+                    Files.delete(new File("target/test-classes/gosecResponse.json").toPath());
                 }
             }
         } else {
