@@ -126,7 +126,7 @@ public class KeosSpec extends BaseGSpec {
                 tokenList = new String[]{ThreadProperty.get("discovery_sso_cookie_name")};
                 break;
             case "intelligence":
-                tokenList = new String[]{"jupyterhub-session-id", "jupyterhub-hub-login"};
+                tokenList = new String[]{"jupyterhub-session-id", "jupyterhub-hub-login", "stratio-cookie"};
                 break;
             case "cosmos":
                 tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth", "dcos-acs-auth-cookie", "dcos-acs-info-cookie"};
