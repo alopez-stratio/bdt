@@ -88,7 +88,7 @@
         <json.version>20180130</json.version>
         <crossdata-drivers.version>3.0.0-01f57c5</crossdata-drivers.version>
         <kafka-scala.version>2.12</kafka-scala.version>
-        <kafka.version>3.6.1</kafka.version>
+        <kafka.version>3.9.1</kafka.version>
         <kubernetes-client.version>6.3.1</kubernetes-client.version>
         <ok-http-client.version>3.12.12</ok-http-client.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
