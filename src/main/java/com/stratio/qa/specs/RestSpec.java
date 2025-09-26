@@ -643,9 +643,10 @@ public class RestSpec extends BaseGSpec {
      * Parses the SSE (Server-Sent Events) response and saves the events in a specified variable.
      *
      * @param envVar Variable name where to store the parsed events
+     * @return A JSONObject containing the parsed events.
      */
     @Given("^I parse the SSE response events and save them in environment variable '(.*)'$")
-    public void parseSSEEvents(String envVar) {
+    public JSONObject parseSSEEvents(String envVar) {
         List<Map<String, Object>> events = new ArrayList<>();
         Scanner scanner = new Scanner(this.commonspec.getResponse().getResponse());
         String eventType = null;
@@ -676,6 +677,7 @@ public class RestSpec extends BaseGSpec {
         Map<String, List<Map<String, Object>>> eventsJson = new HashMap<>();
         eventsJson.put("events", events);
         ThreadProperty.set(envVar, new JSONObject(eventsJson).toString());
+        return new JSONObject(eventsJson);
     }
 
     /**
@@ -726,5 +728,21 @@ public class RestSpec extends BaseGSpec {
     @Given("^I delete the cookie with name '(.*)'$")
     public void deleteCookie(String name) {
         commonspec.deleteCookie(name);
+    }
+
+    @Given("^I add a new header with name '(.*)' and value '(.*)'$")
+    public void addNewHeader(String name, String value) {
+        this.commonspec.addHeader(name, value);
+    }
+
+    @Given("^I replace the header with name '(.*)' to value '(.*)'$")
+    public void replaceHeader(String name, String value) {
+        this.commonspec.deleteHeader(name);
+        this.commonspec.addHeader(name, value);
+    }
+
+    @Given("^I delete the header with name '(.*)'$")
+    public void deleteHeader(String name) {
+        this.commonspec.deleteHeader(name);
     }
 }

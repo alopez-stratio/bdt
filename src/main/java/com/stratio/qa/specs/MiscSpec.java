@@ -44,10 +44,7 @@ import org.testng.Assert;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
-import java.security.Key;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
+import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.text.DateFormat;
@@ -167,6 +164,22 @@ public class MiscSpec extends BaseGSpec {
     }
 
     /**
+     * Step to write a text to a variable, using the doc string as the contents
+     * Usage:
+     * Given I save the following text in variable 'test':
+     *     """
+     *     line 1
+     *     line 2
+     *
+     *     line 3
+     *     """
+     */
+    @When("^I save the following text in variable '(.+?)':$")
+    public void createFileFromText(String envVar, String textContents) {
+        saveInEnvironment(textContents, envVar);
+    }
+
+    /**
      * Sets a variable to the value of the first variable if defined, otherwise sets it to a default value.
      * Usage:
      * Given I set variable 'KEY' to 'VAR' if defined, or 'VAR_DEFAULT' as default
@@ -206,6 +219,15 @@ public class MiscSpec extends BaseGSpec {
     @Given("^I print the file '(.+?)' contents$")
     public void printFileContents(String file) {
         logIntoScenario(String.format("%s -> \n%s", file, commonspec.retrieveData(file, "txt")));
+    }
+
+    /**
+     * Prints the service response to console and into the scenario.
+     */
+    @Given("^I print the service's response$")
+    public void printServiceResponse() {
+        logIntoScenario(String.format("Response HTTP Status -> %s", commonspec.getResponse().getStatusCode()));
+        logIntoScenario(String.format("Response Contents -> \n%s", commonspec.getResponse().getResponse()));
     }
 
     /**
@@ -350,6 +372,30 @@ public class MiscSpec extends BaseGSpec {
         Assert.assertEquals(errorList.size(), 0, "\n" + String.join("\n", errorList) + "\n");
     }
 
+    /**
+     * Check if expression defined by JSONPath match in the service's JSON response.
+     * The allowed operations are: [equal, not equal, contains, does not contain, not empty, matches, size, higher than, lower than, is null, PathNotFound]
+     * Usage:
+     * Then the JSON response matches the following cases:
+     * | $.columns    | size         | 1    |
+     * | $.columns[0] | equal        | Test |
+     * | $.columns[1] | PathNotFound |      |
+     *
+     * @param table data table in which each row stores one expression
+     */
+    @Then("^the JSON response matches the following cases:$")
+    public void matchWithExpressionResponse(DataTable table) throws Exception {
+        try {
+            saveElementEnvironmentFile(null, "$", "_tmp_response_", null);
+        } catch (org.hjson.ParseException e) {
+            throw new Exception("Error parsing the service's response! Not a valid JSON:\n" + commonspec.getResponse().getResponse());
+        }
+        try {
+            matchWithExpresion("_tmp_response_", table);
+        } finally {
+            ThreadProperty.remove("_tmp_response_");
+        }
+    }
     /*
      * Check value stored in environment variable "is|matches|is higher than|is lower than|contains||does not contain|is different from" to value provided
      *
@@ -587,67 +633,71 @@ public class MiscSpec extends BaseGSpec {
     public void convertDateToTimestamp(String date, String format, String timezone, String envVar) throws Exception {
 
         SimpleDateFormat isoFormat = new SimpleDateFormat(format);
-        if (timezone != null) {
-            isoFormat.setTimeZone(TimeZone.getTimeZone(timezone));
-        } else {
-            isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        }
+        String tz = (timezone != null) ? timezone : "UTC";
+        isoFormat.setTimeZone(TimeZone.getTimeZone(tz));
         try {
             Date d = isoFormat.parse(date);
-            GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("Europe/Madrid"));
+            GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone(tz));
             calendar.setTime(d);
             ThreadProperty.set(envVar, Long.toString(calendar.getTimeInMillis()));
-            commonspec.getLogger().debug("Your date in timestamp: {} with timezone: {}", calendar.getTimeInMillis(), timezone);
+            commonspec.getLogger().debug("Your date in timestamp: {} with timezone: {}", calendar.getTimeInMillis(), tz);
         } catch (AssertionError e) {
             commonspec.getLogger().error("Error converting date {}, check date and format", date);
             throw e;
         }
     }
 
-    /**
-     * Get current date and time and save into environment variable
+       /**
+     * Get current date and time and save it into an environment variable, using the specified timezone.
+     * If no timezone is provided, UTC will be used by default.
      *
-     * @param envVar : environment variable where date time is saved
+     * @param envVar   environment variable where the date/time is saved
+     * @param timezone (optional) timezone ID (e.g., "UTC", "Europe/Madrid"); if null or empty, uses UTC
      */
-    @Given("^I get current date and time and save the value in environment variable '(.+?)'$")
-    public void getCurrentDateTime(String envVar) {
+    @Given("^I get current date and time( with timezone '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getCurrentDateTime(String timezone, String envVar) {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        Date date = new Date(); //now
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
+        String tz = (timezone != null && !timezone.isEmpty()) ? timezone : "UTC";
+        dateFormat.setTimeZone(TimeZone.getTimeZone(tz));
+        Date date = new Date(); // now
         ThreadProperty.set(envVar, dateFormat.format(date));
-        commonspec.getLogger().debug("Current Date: {}", dateFormat.format(date));
+        commonspec.getLogger().debug("Current Date: {} with timezone: {}", dateFormat.format(date), tz);
     }
 
     /**
-     * Get current date and time plus provided minutes and save into environment variable
+     * Get current date and time plus the provided number of minutes and save it into an environment variable,
+     * using the specified timezone. If no timezone is provided, UTC will be used by default.
      *
-     * @param envVar        : environment variable where date time is saved
-     * @param addMinuteTime : added minutes
+     * @param addMinuteTime number of minutes to add to the current date/time
+     * @param timezone      (optional) timezone ID (e.g., "UTC", "Europe/Madrid"); if null or empty, uses UTC
+     * @param envVar        environment variable where the date/time is saved
      */
-    @Given("^I get date and time with '(.+?)' more minutes from now and save the value in environment variable '(.+?)'$")
-    public void getOneMoreMinute(int addMinuteTime, String envVar) {
+    @Given("^I get date and time with '(.+?)' more minutes from now( with timezone '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getOneMoreMinute(int addMinuteTime, String timezone, String envVar) {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        Date targetTime = new Date(); //now
-        targetTime = DateUtils.addMinutes(targetTime, addMinuteTime); //add minute
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
+        String tz = (timezone != null && !timezone.isEmpty()) ? timezone : "UTC";
+        dateFormat.setTimeZone(TimeZone.getTimeZone(tz));
+        Date targetTime = DateUtils.addMinutes(new Date(), addMinuteTime);
         ThreadProperty.set(envVar, dateFormat.format(targetTime));
-        commonspec.getLogger().debug("Date adding {} minutes : {}", addMinuteTime, dateFormat.format(targetTime));
+        commonspec.getLogger().debug("Date adding {} minutes : {} with timezone: {}", addMinuteTime, dateFormat.format(targetTime), tz);
     }
 
     /**
-     * Get current date and time plus provided seconds and save into environment variable
+     * Get current date and time plus the provided number of seconds and save it into an environment variable,
+     * using the specified timezone. If no timezone is provided, UTC will be used by default.
      *
-     * @param envVar         : environment variable where date time is saved
-     * @param addSecondsTime : added seconds
+     * @param addSecondsTime number of seconds to add to the current date/time
+     * @param timezone       (optional) timezone ID (e.g., "UTC", "Europe/Madrid"); if null or empty, uses UTC
+     * @param envVar         environment variable where the date/time is saved
      */
-    @Given("^I get date and time with '(.+?)' more seconds from now and save the value in environment variable '(.+?)'$")
-    public void getOneMoreSecond(int addSecondsTime, String envVar) {
+    @Given("^I get date and time with '(.+?)' more seconds from now( with timezone '(.+?)')? and save the value in environment variable '(.+?)'$")
+    public void getOneMoreSecond(int addSecondsTime, String timezone, String envVar) {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        Date targetTime = new Date(); //now
-        targetTime = DateUtils.addSeconds(targetTime, addSecondsTime); //add seconds
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Europe/Madrid"));
+        String tz = (timezone != null && !timezone.isEmpty()) ? timezone : "UTC";
+        dateFormat.setTimeZone(TimeZone.getTimeZone(tz));
+        Date targetTime = DateUtils.addSeconds(new Date(), addSecondsTime);
         ThreadProperty.set(envVar, dateFormat.format(targetTime));
-        commonspec.getLogger().debug("Date adding {} seconds : {}", addSecondsTime, dateFormat.format(targetTime));
+        commonspec.getLogger().debug("Date adding {} seconds : {} with timezone: {}", addSecondsTime, dateFormat.format(targetTime), tz);
     }
 
 
@@ -876,4 +926,48 @@ public class MiscSpec extends BaseGSpec {
         }
         Assert.assertEquals(errorList.size(), 0, "\n" + String.join("\n", errorList) + "\n");
     }
+
+    /**
+     * Generates a random alphanumeric string with the specified length and character set.
+     *
+     * @param lengthStr  Length of the random string to generate (defaults to 10)
+     * @param charset    Character set to use: "alpha" for letters only, "numeric" for numbers only,
+     *                   "alphanumeric" (default) for letters and numbers, "hex" for hexadecimal
+     * @param varName    Name of the environment variable to store the result (defaults to 'random')
+     */
+    @Given("^I generate a random string( with length '(\\d+)')?( using charset '(alpha|numeric|alphanumeric|hex)')?( and store it in variable '(.*?)')?$")
+    public void generateRandomAlphanumericString(String lengthStr, String charset, String varName) {
+        int length = (lengthStr != null) ? Integer.parseInt(lengthStr) : 10;
+        String selectedCharset = (charset != null) ? charset : "alphanumeric";
+        String variableName = (varName != null) ? varName : "random";
+
+        String characters;
+        switch (selectedCharset) {
+            case "alpha":
+                characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+                break;
+            case "numeric":
+                characters = "0123456789";
+                break;
+            case "hex":
+                characters = "0123456789abcdef";
+                break;
+            case "alphanumeric":
+            default:
+                characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                break;
+        }
+
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(length);
+
+        for (int i = 0; i < length; i++) {
+            int randomIndex = random.nextInt(characters.length());
+            sb.append(characters.charAt(randomIndex));
+        }
+
+        ThreadProperty.set(variableName, sb.toString());
+        logIntoScenario(String.format("%s -> %s", variableName, sb));
+    }
+
 }

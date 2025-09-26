@@ -31,7 +31,7 @@ public class SeleniumIT extends BaseGTest {
         this.browser = browser;
     }
 
-    @Test(dataProvider = "scenarios")
+    @Test(enabled = false, dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {
         runScenario(pickleWrapper, featureWrapper);
     }

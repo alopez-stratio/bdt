@@ -1363,7 +1363,6 @@ public class CommonG {
                         request = request.setRealm(realm);
                     }
 
-                    request.setRequestTimeout(180000);
                     response = this.getClient().executeRequest(request.build());
                     break;
                 }
@@ -2030,6 +2029,25 @@ public class CommonG {
     }
 
     /**
+     * Adds a new header with specified name and value
+     *
+     * @param name the name of the header to be added
+     * @param value the value of the header to be added
+     */
+    public void addHeader(String name, String value) {
+        this.headers.put(name, value);
+    }
+
+    /**
+     * Deletes a header with the specified name
+     *
+     * @param name the name of the header to be deleted
+     */
+    public void deleteHeader(String name) {
+        this.headers.remove(name);
+    }
+
+    /**
      * Parse jsonpath expression from a given string.
      * <p>
      * If the string is json we can obtain its keys using ~ symbol.
@@ -2526,7 +2544,13 @@ public class CommonG {
         while (keys.hasNext()) {
             // Obtain key
             String key = keys.next().toString();
-            // Obtain value of key
+
+            // If value is an array, we assign an empty array
+            if (jsonSchema.get(key) instanceof JSONArray) {
+                json.put(key, new ArrayList<>());
+                continue;
+            }
+
             JSONObject element = jsonSchema.getJSONObject(key);
             // Check if value contain properties
             // If it DOESN'T CONTAIN properties
@@ -2561,7 +2585,7 @@ public class CommonG {
                     }
                 }
 
-                // If it CONTAINS properties
+            // If it CONTAINS properties
             } else {
                 // Check if it has default value
                 if (element.has("default")) {
@@ -2846,7 +2870,7 @@ public class CommonG {
 
         if (loginInfo == null) {
             user = ThreadProperty.get("KEOS_USER");
-            password = ThreadProperty.get("KEOS_PASSWORD") != null ? ThreadProperty.get("KEOS_PASSWORD") : System.getProperty("KEOS_PASSWORD");
+            password = ThreadProperty.get("KEOS_PASSWORD") != null ? ThreadProperty.get("KEOS_PASSWORD") : System.getProperty("KEOS_PASSWORD", "Stratio-1234");
         } else {
             user = loginInfo.split(":")[0];
             password = loginInfo.split(":")[1];

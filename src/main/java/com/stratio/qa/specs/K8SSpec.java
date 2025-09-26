@@ -20,6 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.stratio.qa.utils.ThreadProperty;
+import cucumber.api.Scenario;
+import cucumber.api.java.Before;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
@@ -48,6 +50,13 @@ import static org.assertj.core.api.Assertions.fail;
  * @see <a href="K8SSpec-annotations.html">Kubernetes Steps</a>
  */
 public class K8SSpec extends BaseGSpec {
+
+    private Scenario scenario;
+
+    @Before
+    public void before(Scenario scenario) {
+        this.scenario = scenario;
+    }
 
     /**
      * Generic constructor.
@@ -517,6 +526,57 @@ public class K8SSpec extends BaseGSpec {
         if (Boolean.parseBoolean(result.get("timeout")) && avoidExceptionIfTimeout == null) {
             fail("Latch could not terminate within specified time");
         }
+    }
+
+    @When("^I execute the command '(.+?)' in the keos-operator( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?$")
+    public void executeCommandInKeosOperatorPod(String command, String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout) {
+        String pod_namespace = System.getProperty("KEOS_OPERATOR_NAMESPACE", "keos-ops");
+        String pod_container = System.getProperty("KEOS_OPERATOR_CONTAINER", "keos-operator");
+
+        // Run Command in keos-operator pod
+        try {
+            runCommandInPod(command, getKeosOperatorPod(), pod_namespace, pod_container, failureReason, envVar, errEnvVar,
+                    fileName, errFileName, timeout);
+        } catch (Exception e) {
+            throw new RuntimeException("Error executing command on keos-operator pod: " + e.getMessage());
+        }
+    }
+
+    @When("^I execute the command defined in datatable in the keos-operator( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?( and it doesn't return an exception if timeout is reached)?:$")
+    public void runCommandInKeosOperatorDatatable(String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout, String avoidExceptionIfTimeout, DataTable dataTable) throws Exception {
+        String pod_namespace = System.getProperty("KEOS_OPERATOR_NAMESPACE", "keos-ops");
+        String pod_container = System.getProperty("KEOS_OPERATOR_CONTAINER", "keos-operator");
+
+        // Run Command in keos-operator pod
+        try {
+            runCommandInPodDatatable(getKeosOperatorPod(), pod_namespace, pod_container, failureReason, envVar,
+                    errEnvVar, fileName, errFileName, timeout, avoidExceptionIfTimeout, dataTable);
+        } catch (Exception e) {
+            throw new RuntimeException("Error executing command on keos-operator pod: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves the name of the Keos Operator pod in the specified namespace.
+     *
+     * @return The name of the Keos Operator pod.
+     */
+    private String getKeosOperatorPod() {
+        String pod_namespace = System.getProperty("KEOS_OPERATOR_NAMESPACE", "keos-ops");
+        String pod_name = System.getProperty("KEOS_OPERATOR_NAME", "keos-operator");
+
+        // Get keos-operator pod
+        try {
+            getPodsLabelSelector("pods", String.format("app.kubernetes.io/instance=%s,app.kubernetes.io/name=%s", pod_name, pod_name),
+                    pod_namespace, "keos-operator-pod", null);
+        } catch (Exception e) {
+            throw new RuntimeException("Error getting keos-operator pod: " + e.getMessage());
+        }
+
+        String keos_operator_pod = ThreadProperty.get("keos-operator-pod").trim().split("\n")[0];
+        Assert.assertTrue(keos_operator_pod.matches(pod_name + "-[0-9a-z-]+"),
+                "Pod name doesn't match expected pattern, got: " + keos_operator_pod);
+        return keos_operator_pod;
     }
 
     @When("^I apply configuration file located at '(.+?)' in namespace '(.+?)'$")
@@ -1116,5 +1176,98 @@ public class K8SSpec extends BaseGSpec {
     @When("^I get default storageClass and save it in environment variable '(.+?)'$")
     public void getDefaultStorageClass(String envVar) throws Exception {
         ThreadProperty.set(envVar, commonspec.kubernetesClient.getDefaultStorageClass());
+    }
+
+    /**
+     * Starts the capture of logs from a specific pod in a given namespace.
+     * To be used with 'I get the new logs from pod' step.
+     *
+     * @param name      Name of the pod from which to capture logs.
+     * @param namespace Namespace where the pod is located.
+     */
+    @Given("^I start capturing logs from pod with name '(.+?)' in namespace '(.+?)'$")
+    public void startCapturingPodLogs(String name, String namespace) throws Exception {
+        // Store the last log line
+        ThreadProperty.remove("pod_logs_capture_" + name);
+        ThreadProperty.set("pod_logs_capture_" + name, commonspec.kubernetesClient.getPodLog(name, namespace, 1));
+    }
+
+    /**
+     * Gets the new logs generated by a pod since the last capture.
+     * This step must be used after 'I start capturing logs from pod' step.
+     *
+     * @param name      Name of the pod from which to get the new logs.
+     * @param namespace Namespace where the pod is located.
+     * @param envVar    (Optional) Name of the environment variable where to save the new logs.
+     * @param fileName  (Optional) Name of the file where to save the new logs.
+     */
+    @Then("^I get the new logs from pod with name '(.+?)' in namespace '(.+?)'( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    public void getNewPodLogs(String name, String namespace, String envVar, String fileName) throws Exception {
+        // Get initial logs
+        String initialLogs = ThreadProperty.get("pod_logs_capture_" + name);
+        if (initialLogs == null) {
+            throw new Exception("No initial logs found for pod '" + name + "'. " +
+                    "Please use the step 'I start capturing logs from pod' first");
+        }
+        // Save current logs for next capture
+        ThreadProperty.set("pod_logs_capture_" + name, commonspec.kubernetesClient.getPodLog(name, namespace, 1));
+        // Get current logs
+        String currentLogs = commonspec.kubernetesClient.getPodLog(name, namespace, 1000);
+
+        // Parse logs lines
+        String[] initialLines = initialLogs.split("\n");
+        String[] currentLines = currentLogs.split("\n");
+
+        StringBuilder newLogs = new StringBuilder();
+        // Get only new lines by finding where initial logs end in current logs
+        if (!currentLogs.isEmpty() && !initialLogs.isEmpty()) {
+            String lastInitialLine = initialLines.length > 0 ? initialLines[initialLines.length - 1] : "";
+            int lastLineIndex = -1;
+
+            // Find the last line of the initial log in the current log
+            for (int i = 0; i < currentLines.length; i++) {
+                if (currentLines[i].equals(lastInitialLine)) {
+                    lastLineIndex = i;
+                }
+            }
+
+            // Get all new lines (after the last match)
+            if (lastLineIndex >= 0 && lastLineIndex < currentLines.length - 1) {
+                for (int i = lastLineIndex + 1; i < currentLines.length; i++) {
+                    newLogs.append(currentLines[i]).append("\n");
+                }
+            } else if (!initialLogs.equals(currentLogs)) {
+                // If the last line is not found but there are changes, show the current logs
+                newLogs.append("--- Changes in logs detected. Showing current logs --- \n");
+                newLogs.append(currentLogs);
+            } else {
+                newLogs.append("--- No new logs found since initial capture. ---");
+            }
+        } else {
+            newLogs.append("--- No new logs found since initial capture. ---");
+        }
+
+        String result = newLogs.toString();
+
+        // Save logs and print them
+        if (envVar != null) {
+            ThreadProperty.set(envVar, result);
+        }
+        if (fileName != null) {
+            this.writeInFile(result, fileName);
+        }
+        this.logIntoScenario(result);
+    }
+
+    /**
+     * Logs the given message into Scenario step's output
+     *
+     * @param msg to print
+     */
+    public void logIntoScenario(String msg) {
+        commonspec.getLogger().info(msg);
+        if (scenario != null) {
+            scenario.write(msg);
+        }
     }
 }

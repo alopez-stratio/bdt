@@ -148,7 +148,7 @@ public class KubernetesClient {
         getIngressPath();
 
         // Default values for some variables
-        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "1234");
+        ThreadProperty.set("KEOS_PASSWORD", System.getProperty("KEOS_PASSWORD") != null ? System.getProperty("KEOS_PASSWORD") : "Stratio-1234");
 
         //Set Gosec label in depployment
         setGosecVariables("gosec-management-baas", "keos-core");
@@ -885,6 +885,17 @@ public class KubernetesClient {
      */
     public String getPodLog(String pod, String namespace) {
         return k8sClient.pods().inNamespace(namespace).withName(pod).getLog();
+    }
+
+    /**
+     * kubectl logs pod -f --tail=10
+     *
+     * @param pod       Pod name
+     * @param namespace Namespace
+     * @param tailLines Number of lines to retrieve
+     */
+    public String getPodLog(String pod, String namespace, Integer tailLines) {
+        return k8sClient.pods().inNamespace(namespace).withName(pod).tailingLines(tailLines).getLog();
     }
 
     /**
