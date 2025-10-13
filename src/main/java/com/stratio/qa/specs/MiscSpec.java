@@ -396,21 +396,36 @@ public class MiscSpec extends BaseGSpec {
             ThreadProperty.remove("_tmp_response_");
         }
     }
-    /*
-     * Check value stored in environment variable "is|matches|is higher than|is lower than|contains||does not contain|is different from" to value provided
+
+    /**
+     * Checks the value stored in an environment variable against a provided value using the specified operation.
+     * Supported operations:
+     * - is: checks if the values are exactly equal.
+     * - matches: checks if the value matches the given regular expression pattern.
+     * - does not match: checks if the value does not match the given regular expression pattern.
+     * - is higher than: checks if the environment variable (as a number) is greater than the provided value.
+     * - is higher than or equal to: checks if the environment variable (as a number) is greater than or equal to the provided value.
+     * - is lower than: checks if the environment variable (as a number) is less than the provided value.
+     * - is lower than or equal to: checks if the environment variable (as a number) is less than or equal to the provided value.
+     * - contains: checks if the environment variable contains the provided value as a substring.
+     * - does not contain: checks if the environment variable does not contain the provided value as a substring.
+     * - is different from: checks if the values are not equal.
      *
-     * @param envVar
-     * @param value
-     *
+     * @param envVar    the environment variable value to check
+     * @param operation the operation to perform (see above)
+     * @param value     the value to compare against
      */
-    @Then("^'(.+)' (is|matches|is higher than|is higher than or equal to|is lower than|is lower than or equal to|contains|does not contain|is different from) '(.+)'$")
+    @Then("^'(.+)' (is|matches|does not match|is higher than|is higher than or equal to|is lower than|is lower than or equal to|contains|does not contain|is different from) '(.+)'$")
     public void checkValue(String envVar, String operation, String value) throws Exception {
         switch (operation.toLowerCase()) {
             case "is":
                 Assertions.assertThat(envVar).as("Values are not equal.").isEqualTo(value);
                 break;
             case "matches":
-                Assertions.assertThat(envVar).as("Values are different.").matches(value);
+                Assertions.assertThat(envVar).as("The value does not matches the pattern.").matches(value);
+                break;
+            case "does not match":
+                Assertions.assertThat(envVar).as("The value matches the pattern, but it should not.").doesNotMatch(value);
                 break;
             case "is higher than":
                 if (envVar.matches("^-?\\d+$") && value.matches("^-?\\d+$")) {

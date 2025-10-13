@@ -398,22 +398,43 @@ public class MiscTest {
     }
 
     @Test
-    public void testCheckValueMatchesFail() throws Exception {
-        ThreadProperty.set("class", this.getClass().getCanonicalName());
-        CommonG commong = new CommonG();
-        MiscSpec misc = new MiscSpec(commong);
-
-        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> misc.checkValue("prueba", "matches", "test")).withMessageContaining("Values are different.");
-    }
-
-    @Test
-    public void testCheckValueMatchesSuccess() throws Exception {
+    public void testCheckValueIsStrSuccess() throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         CommonG commong = new CommonG();
         MiscSpec misc = new MiscSpec(commong);
 
         misc.checkValue("prueba", "is", "prueba");
     }
+
+    @Test
+    public void testCheckValueMatchesFail() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> misc.checkValue("prueba", "matches", ".*(v).*")).withMessageContaining("The value does not matches the pattern.");
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> misc.checkValue("prueba", "matches", "ue")).withMessageContaining("The value does not matches the pattern.");
+    }
+
+    @Test
+    public void testCheckValueDoesNotMatch() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        misc.checkValue("prueba", "does not match", ".*(v).*");
+        misc.checkValue("prueba", "does not match", "ue");
+    }
+
+    @Test
+    public void testCheckValueDoesNotMatchFail() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> misc.checkValue("prueba", "does not match", ".*(ue).*")).withMessageContaining("The value matches the pattern, but it should not.");
+    }
+
 
     @Test
     public void testCheckValueIsHigherThanException() throws Exception {
