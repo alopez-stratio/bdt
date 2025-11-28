@@ -380,7 +380,7 @@ public class KeosSpec extends BaseGSpec {
                 commandSpec.executeLocalCommand("pwd", null, "pwd", null);
                 commonspec.getLogger().debug("Local execution detected, creating docker container");
                 commandSpec.executeLocalCommand("docker run -dt --name " + ThreadProperty.get("localDocker") + " --net host -e VAULT_MASTER_KEY=" + System.getProperty("KEOS_SECRETS_PASS") + " -v /var/run/docker.sock:/var/run/docker.sock -v " + ThreadProperty.get("pwd") + "/target/test-classes/workspaceKeosInstaller:/workspace:z qa.int.stratio.com/stratio/keos-installer:" + System.getProperty("KEOS_VERSION") + " > /dev/null 2>&1", "0", null, null);
-                commandSpec.assertCommandExistsOnTimeOutLocal(100, 10, "docker logs " + ThreadProperty.get("localDocker"), "Starting interactive session", null);
+                commandSpec.assertCommandExistsOnTimeOutLocal(100, 10, "docker logs " + ThreadProperty.get("localDocker"), null, "Starting interactive session", null);
             }
             String finalCommand = "docker exec -t " + ThreadProperty.get("localDocker") + " bash -c" + command;
             commandSpec.executeLocalCommand(finalCommand, "0", envVar, null);

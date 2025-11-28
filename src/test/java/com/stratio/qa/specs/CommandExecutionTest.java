@@ -60,7 +60,7 @@ public class CommandExecutionTest {
         CommonG commong = new CommonG();
         CommandExecutionSpec cmdExec = new CommandExecutionSpec(commong);
 
-        assertThatExceptionOfType(Exception.class).isThrownBy(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep check", "check", null)).withMessageContaining("Local command output don't found yet after 5 seconds");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo check | grep check", " not","check", null)).withMessageContaining("Local command output don't found yet after 5 seconds");
     }
 
     @Test
@@ -69,7 +69,7 @@ public class CommandExecutionTest {
         CommonG commong = new CommonG();
         CommandExecutionSpec cmdExec = new CommandExecutionSpec(commong);
 
-        assertThatExceptionOfType(Exception.class).isThrownBy(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep check", "check", "2")).withMessageContaining("Local command output don't found yet after 5 seconds");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep check", " not", "check", "2")).withMessageContaining("Local command output don't found yet after 5 seconds");
     }
 
     @Test
@@ -78,7 +78,7 @@ public class CommandExecutionTest {
         CommonG commong = new CommonG();
         CommandExecutionSpec cmdExec = new CommandExecutionSpec(commong);
 
-        assertThatExceptionOfType(Exception.class).isThrownBy(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep test", "check", "0")).withMessageContaining("Local command output don't found yet after 5 seconds");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep test", null, "check", "0")).withMessageContaining("Local command output don't found yet after 5 seconds");
     }
 
     @Test
@@ -87,6 +87,6 @@ public class CommandExecutionTest {
         CommonG commong = new CommonG();
         CommandExecutionSpec cmdExec = new CommandExecutionSpec(commong);
 
-        Assertions.assertThatCode(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep test", "test", null)).doesNotThrowAnyException();
+        Assertions.assertThatCode(() -> cmdExec.assertCommandExistsOnTimeOutLocal(5,1,"echo test | grep test", null, "test", null)).doesNotThrowAnyException();
     }
 }

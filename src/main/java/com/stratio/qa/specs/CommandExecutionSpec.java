@@ -169,6 +169,68 @@ public class CommandExecutionSpec extends BaseGSpec {
         executeCommand(command, null, sExitStatus, envVar, -1);
     }
 
+    /**
+     * Checks if {@code expectedCount} text is found or not, whithin a {@code timeout} in the output of local command {@code command}
+     * and the exit status is the specified in {@code exitStatus}.
+     * Each negative lookup is followed by a wait of {@code wait} seconds.
+     *
+     * @param timeout
+     * @param wait
+     * @param command
+     * @param contains
+     * @param search
+     * @param sExitStatus
+     * @throws InterruptedException
+     */
+    @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, the local command output '(.+?)'( not)? contains '(.*?)'( with exit status '(\\d+)')?$")
+    public void assertCommandExistsOnTimeOutLocal(Integer timeout, Integer wait, String command, String contains, String search, String sExitStatus) throws Exception {
+        Integer exitStatus = (sExitStatus != null ? Integer.valueOf(sExitStatus) : null);
+
+        // contains == null  → "contains"
+        // contains != null  → "not contains"
+        boolean shouldContain = (contains == null);
+
+        boolean found = false;
+
+        for (int i = 0; i <= timeout && !found; i += wait) {
+            this.commonspec.getLogger().debug("Checking local output value");
+            this.commonspec.runLocalCommand(command);
+
+            try {
+                if (exitStatus != null) {
+                    com.stratio.qa.assertions.Assertions.assertThat(this.commonspec.getCommandExitStatus())
+                            .isEqualTo(exitStatus);
+                }
+
+                String result = this.commonspec.getCommandResult();
+
+                if (shouldContain) {
+                    // Caso: contains
+                    com.stratio.qa.assertions.Assertions.assertThat(result)
+                            .as("Expected to CONTAIN: " + search)
+                            .contains(search);
+                } else {
+                    // Caso: not contains
+                    com.stratio.qa.assertions.Assertions.assertThat(result)
+                            .as("Expected to NOT CONTAIN: " + search)
+                            .doesNotContain(search);
+                }
+
+                found = true;
+                timeout = i;
+
+            } catch (AssertionError e) {
+                this.commonspec.getLogger().info("Local command output don't found yet after " + i + " seconds");
+                Thread.sleep(wait * 1000L);
+            }
+        }
+
+        if (!found) {
+            throw new Exception("Local command output don't found yet after " + timeout + " seconds");
+        } else {
+            this.commonspec.getLogger().info("Local command output don't found yet after " + timeout + " seconds");
+        }
+    }
 
     /**
      * Checks if {@code expectedCount} text is found, whithin a {@code timeout} in the output of local command {@code command}
@@ -181,34 +243,61 @@ public class CommandExecutionSpec extends BaseGSpec {
      * @param search
      * @param sExitStatus
      * @throws InterruptedException
+     * @deprecated Content is checked/not checked in next method
      */
+    @Deprecated
     @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, the local command output '(.+?)' contains '(.*?)'( with exit status '(\\d+)')?$")
     public void assertCommandExistsOnTimeOutLocal(Integer timeout, Integer wait, String command, String search, String sExitStatus) throws Exception {
+        assertCommandExistsOnTimeOutLocal(timeout, wait, command, null, search, sExitStatus);
+    }
+
+    /**
+     * Checks if {@code expectedCount} text is found or not, whithin a {@code timeout} in the output of command {@code command}
+     * and the exit status is the specified in {@code exitStatus}.
+     * Each negative lookup is followed by a wait of {@code wait} seconds.
+     *
+     * @param timeout
+     * @param wait
+     * @param command
+     * @param contains
+     * @param search
+     * @param sExitStatus
+     * @throws InterruptedException
+     */
+    @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, the command output '(.+?)'( not)? contains '(.*?)'( with exit status '(\\d+)')?$")
+    public void assertCommandExistsOnTimeOut(Integer timeout, Integer wait, String command, String contains, String search, String sExitStatus) throws Exception {
         Integer exitStatus = sExitStatus != null ? Integer.valueOf(sExitStatus) : null;
         Boolean found = false;
+
+        command = "set -o pipefail && alias grep='grep --color=never' && " + command;
         for (int i = 0; (i <= timeout); i += wait) {
             if (found) {
                 break;
             }
-            commonspec.getLogger().debug("Checking local output value");
-            commonspec.runLocalCommand(command);
+            commonspec.getLogger().debug("Checking output value");
+            commonspec.getRemoteSSHConnection().runCommand(command);
+            commonspec.setCommandResult(commonspec.getRemoteSSHConnection().getResult());
             try {
                 if (exitStatus != null) {
-                    assertThat(commonspec.getCommandExitStatus()).isEqualTo(exitStatus);
+                    assertThat(commonspec.getRemoteSSHConnection().getExitStatus()).isEqualTo(exitStatus);
                 }
-                assertThat(commonspec.getCommandResult()).as("Contains " + search + ".").contains(search);
+                if (contains == null || contains.isEmpty()) {
+                    assertThat(commonspec.getCommandResult()).as("Contains " + search + ".").contains(search);
+                } else {
+                    assertThat(commonspec.getCommandResult()).as("doesn't contains " + search + ".").doesNotContain(search);
+                }
                 found = true;
                 timeout = i;
             } catch (AssertionError e) {
-                commonspec.getLogger().info("Local command output don't found yet after " + i + " seconds");
+                commonspec.getLogger().info("Command output don't found yet after " + i + " seconds");
                 Thread.sleep(wait * 1000);
             }
         }
 
         if (!found) {
-            throw new Exception("Local command output don't found yet after " + timeout + " seconds");
+            throw new Exception("Command output don't found yet after " + timeout + " seconds");
         }
-        commonspec.getLogger().info("Local command output found after " + timeout + " seconds");
+        commonspec.getLogger().info("Command output found after " + timeout + " seconds");
     }
 
     /**
@@ -250,54 +339,6 @@ public class CommandExecutionSpec extends BaseGSpec {
             throw new Exception("Local command output don't found yet after " + timeout + " seconds");
         }
         commonspec.getLogger().info("Local command output found after " + timeout + " seconds");
-    }
-
-    /**
-     * Checks if {@code expectedCount} text is found, whithin a {@code timeout} in the output of command {@code command}
-     * and the exit status is the specified in {@code exitStatus}.
-     * Each negative lookup is followed by a wait of {@code wait} seconds.
-     *
-     * @param timeout
-     * @param wait
-     * @param command
-     * @param search
-     * @param sExitStatus
-     * @throws InterruptedException
-     */
-    @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, the command output '(.+?)'( not)? contains '(.*?)'( with exit status '(\\d+)')?$")
-    public void assertCommandExistsOnTimeOut(Integer timeout, Integer wait, String command, String contains, String search, String sExitStatus) throws Exception {
-        Integer exitStatus = sExitStatus != null ? Integer.valueOf(sExitStatus) : null;
-        Boolean found = false;
-
-        command = "set -o pipefail && alias grep='grep --color=never' && " + command;
-        for (int i = 0; (i <= timeout); i += wait) {
-            if (found) {
-                break;
-            }
-            commonspec.getLogger().debug("Checking output value");
-            commonspec.getRemoteSSHConnection().runCommand(command);
-            commonspec.setCommandResult(commonspec.getRemoteSSHConnection().getResult());
-            try {
-                if (exitStatus != null) {
-                    assertThat(commonspec.getRemoteSSHConnection().getExitStatus()).isEqualTo(exitStatus);
-                }
-                if (contains == null || contains.isEmpty()) {
-                    assertThat(commonspec.getCommandResult()).as("Contains " + search + ".").contains(search);
-                } else {
-                    assertThat(commonspec.getCommandResult()).as("doesn't contains " + search + ".").doesNotContain(search);
-                }
-                found = true;
-                timeout = i;
-            } catch (AssertionError e) {
-                commonspec.getLogger().info("Command output don't found yet after " + i + " seconds");
-                Thread.sleep(wait * 1000);
-            }
-        }
-
-        if (!found) {
-            throw new Exception("Command output don't found yet after " + timeout + " seconds");
-        }
-        commonspec.getLogger().info("Command output found after " + timeout + " seconds");
     }
 
     /**
