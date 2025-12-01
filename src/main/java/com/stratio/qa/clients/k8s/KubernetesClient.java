@@ -366,8 +366,14 @@ public class KubernetesClient {
     }
 
     private void getK8sWorkerAndIngressHosts() {
+        List<Node> nodeList;
+        if (System.getProperty("CLUSTER_TYPE", "vmware").equals("gke")) {
+            nodeList = k8sClient.nodes().list().getItems();
+        } else {
+            nodeList = k8sClient.nodes().withLabelSelector(getLabelSelector("node-role.kubernetes.io/worker=")).list().getItems();
+        }
         // Get worker
-        for (Node node : k8sClient.nodes().withLabelSelector(getLabelSelector("node-role.kubernetes.io/worker=")).list().getItems()) {
+        for (Node node : nodeList) {
             // Check conditions ready
             boolean conditionsReady = false;
             for (NodeCondition nodeCondition : node.getStatus().getConditions()) {
