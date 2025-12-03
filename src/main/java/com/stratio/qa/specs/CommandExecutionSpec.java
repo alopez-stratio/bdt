@@ -233,25 +233,6 @@ public class CommandExecutionSpec extends BaseGSpec {
     }
 
     /**
-     * Checks if {@code expectedCount} text is found, whithin a {@code timeout} in the output of local command {@code command}
-     * and the exit status is the specified in {@code exitStatus}.
-     * Each negative lookup is followed by a wait of {@code wait} seconds.
-     *
-     * @param timeout
-     * @param wait
-     * @param command
-     * @param search
-     * @param sExitStatus
-     * @throws InterruptedException
-     * @deprecated Content is checked/not checked in next method
-     */
-    @Deprecated
-    @Then("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, the local command output '(.+?)' contains '(.*?)'( with exit status '(\\d+)')?$")
-    public void assertCommandExistsOnTimeOutLocal(Integer timeout, Integer wait, String command, String search, String sExitStatus) throws Exception {
-        assertCommandExistsOnTimeOutLocal(timeout, wait, command, null, search, sExitStatus);
-    }
-
-    /**
      * Checks if {@code expectedCount} text is found or not, whithin a {@code timeout} in the output of command {@code command}
      * and the exit status is the specified in {@code exitStatus}.
      * Each negative lookup is followed by a wait of {@code wait} seconds.
