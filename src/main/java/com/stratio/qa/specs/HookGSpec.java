@@ -328,6 +328,7 @@ public class HookGSpec extends BaseGSpec {
                 .setConnectTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECT_TIMEOUT_LONG", "30000")))   // 30s  (default is 5s)
                 .setRequestTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_REQUEST_TIMEOUT_LONG", "600000")))  // 600s (default is 60s)
                 .setReadTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_READ_TIMEOUT_LONG", "600000")))        // 600s (default is 60s)
+                .setMaxRequestRetry(0)              // Disable automatic retries on connection failures
                 .build()));
         commonspec.initClients();
     }
