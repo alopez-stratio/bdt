@@ -321,13 +321,16 @@ public class HookGSpec extends BaseGSpec {
 
     @Before(order = ORDER_20, value = "@restWithLongerTimeout")
     public void restClientLongTimeoutSetup() {
-        commonspec.getLogger().debug("Starting a REST client with longer timeouts");
+        commonspec.getLogger().debug("Starting a REST client with longer timeouts and keep-alive enabled");
         commonspec.setClient(asyncHttpClient(config()
                 .setUseInsecureTrustManager(true)   // default is false
-                .setKeepAlive(false)                // default is true
+                .setKeepAlive(true)                 // Keep connections alive for long requests (prevents RemotelyClosedException)
                 .setConnectTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECT_TIMEOUT_LONG", "30000")))   // 30s  (default is 5s)
                 .setRequestTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_REQUEST_TIMEOUT_LONG", "600000")))  // 600s (default is 60s)
                 .setReadTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_READ_TIMEOUT_LONG", "600000")))        // 600s (default is 60s)
+                .setPooledConnectionIdleTimeout(Integer.parseInt(System.getProperty("BDT_CLIENT_POOLED_IDLE_TIMEOUT_LONG", "900000"))) // 900s (15 min) - prevents idle connection closures
+                .setConnectionTtl(Integer.parseInt(System.getProperty("BDT_CLIENT_CONNECTION_TTL_LONG", "900000")))    // 900s (15 min) - max connection lifetime
+                .setTcpNoDelay(true)                // Disable Nagle's algorithm for better responsiveness
                 .setMaxRequestRetry(0)              // Disable automatic retries on connection failures
                 .build()));
         commonspec.initClients();

@@ -36,6 +36,32 @@ _**group execution**_
 
 ` mvn verify -DSECS=5 -Dgroups=hol `
 
+### REST Client Configuration
+
+BDT provides configuration options for REST client timeouts through system properties. There are two sets of configurations:
+
+#### Standard REST Client (`@rest`, `@dcos`, `@keos`)
+- `BDT_CLIENT_CONNECT_TIMEOUT` - Connection timeout in milliseconds (default: 5000ms / 5s)
+- `BDT_CLIENT_REQUEST_TIMEOUT` - Request timeout in milliseconds (default: 60000ms / 60s)
+- `BDT_CLIENT_READ_TIMEOUT` - Read timeout in milliseconds (default: 120000ms / 120s)
+
+#### Long Timeout REST Client (`@restWithLongerTimeout`)
+For long-running requests (5+ minutes), use the `@restWithLongerTimeout` tag with extended timeouts and keep-alive enabled:
+
+- `BDT_CLIENT_CONNECT_TIMEOUT_LONG` - Connection timeout in milliseconds (default: 30000ms / 30s)
+- `BDT_CLIENT_REQUEST_TIMEOUT_LONG` - Request timeout in milliseconds (default: 600000ms / 600s / 10min)
+- `BDT_CLIENT_READ_TIMEOUT_LONG` - Read timeout in milliseconds (default: 600000ms / 600s / 10min)
+- `BDT_CLIENT_POOLED_IDLE_TIMEOUT_LONG` - Pooled connection idle timeout in milliseconds (default: 900000ms / 900s / 15min)
+- `BDT_CLIENT_CONNECTION_TTL_LONG` - Connection time-to-live in milliseconds (default: 900000ms / 900s / 15min)
+
+**Note:** The long timeout client has keep-alive enabled and automatic retries disabled to prevent duplicate requests. This configuration helps avoid `RemotelyClosedException` errors on long-running requests.
+
+_Example:_
+
+```
+mvn verify -DBDT_CLIENT_REQUEST_TIMEOUT_LONG=900000 -DBDT_CLIENT_POOLED_IDLE_TIMEOUT_LONG=1200000
+```
+
 ## ASPECTS
 
 As part of BDT implementation, there are a couple of AspectJ aspects which may be useful for your scenarios:
