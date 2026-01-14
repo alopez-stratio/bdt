@@ -176,6 +176,7 @@ public class ReplacementAspect {
                             PickleString pickleString = (PickleString) argumentList.get(a);
                             pickleString = new PickleString(pickleString.getLocation(), replacedElement(pickleString.getContent(), pjp));
                             argumentList.set(a, pickleString);
+                            sbDataTable.append(pickleString.getContent()).append("\n");
                         }
                     }
 
@@ -209,7 +210,7 @@ public class ReplacementAspect {
                     if (HookGSpec.loggerEnabled) {
                         logger.info("   {}{}", keyword, newName);
                         if (!sbDataTable.toString().isEmpty()) {
-                            logger.info("  {}", sbDataTable.toString());
+                            logger.info("  {}", sbDataTable);
                         }
                     }
 

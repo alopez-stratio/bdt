@@ -898,6 +898,14 @@ public class DatabaseSpec extends BaseGSpec {
         }
     }
 
+    @When("^I execute query through JDBC connection(, returning an exception)?(, returning a warning)?( with message \"(.+?)\")?:$")
+    public void executeJdbcQueryDocStringFlags(String exceptionReturned,
+                                               String warningReturned,
+                                               String exceptionMessageExpected,
+                                               String query) throws Exception {
+        executeJdbcQuery(query, exceptionReturned, warningReturned, exceptionMessageExpected);
+    }
+
     /*
      * @param query
      * executes query in database
@@ -1055,6 +1063,11 @@ public class DatabaseSpec extends BaseGSpec {
             commonspec.getLogger().error("Exception in query", e);
             Assertions.assertThat(rs).as("There are no response from SELECT - Error message: " + e.getMessage()).isNotNull();
         }
+    }
+
+    @When("I query the database with:")
+    public void selectDataDocString(String query) throws Exception {
+        selectData(query);
     }
 
     /**
