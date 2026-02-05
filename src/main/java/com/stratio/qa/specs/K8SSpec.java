@@ -1060,6 +1060,39 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
+    @When("I read secret located in path '(.+?)' using Vault API and save result in variable '(.+?)'")
+    public void readSecretVault(String path, String envVar) throws Exception {
+        hasSecretVault(path);
+
+        Exception exception = null;
+        setLocalPortForward(8200, 8200, "service", "vault", "keos-core");
+        try {
+            String readSecretCommand = "curl -k --header \"X-Vault-Token:" + ThreadProperty.get("VAULT_TOKEN") + "\" --request GET --silent https://127.0.0.1:8200/v1";
+            commonspec.getLogger().debug("Curl to read secret: " + readSecretCommand + path);
+            commonspec.runLocalCommand(readSecretCommand + path);
+
+            String response = commonspec.getCommandResult();
+            commonspec.getLogger().debug("Secret response: " + response);
+
+            // Parse JSON response and extract 'data' field
+            JSONObject jsonResponse = new JSONObject(response);
+            if (jsonResponse.has("data")) {
+                JSONObject dataObject = jsonResponse.getJSONObject("data");
+                ThreadProperty.set(envVar, dataObject.toString());
+                commonspec.getLogger().debug("Secret data saved in variable '" + envVar + "': " + dataObject.toString());
+            } else {
+                throw new Exception("Response does not contain 'data' field. Response: " + response);
+            }
+        } catch (Exception e) {
+            exception = e;
+        } finally {
+            closePortForward();
+            if (exception != null) {
+                throw exception;
+            }
+        }
+    }
+
     /**
      * kubectl cp /tmp/foo <some-namespace>/<some-pod>:/tmp/bar
      */
