@@ -1918,56 +1918,82 @@ public class CommonG {
      * @param timeout max time in seconds that the command is allowed to run
      */
     public void runLocalCommand(String command, int timeout) throws Exception {
-        String result = "";
-        String line;
-        Process p;
+        Process p = null;
         boolean aborted = false;
+
+        StringBuilder out = new StringBuilder();
+        StringBuilder err = new StringBuilder();
+
         try {
-            p = Runtime.getRuntime().exec(new String[]{"/bin/sh", "-c", command});
+            p = new ProcessBuilder("/bin/sh", "-c", command).start();
+            final Process proc = p;
+
+            // stdout gobbler
+            Thread tOut = new Thread(() -> {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                    String line;
+                    boolean first = true;
+                    while ((line = br.readLine()) != null) {
+                        if (!first) {
+                            out.append("\n");
+                        }
+                        out.append(line);
+                        first = false;
+                    }
+                } catch (Exception ignored) { }
+            }, "localcmd-stdout");
+
+            // stderr gobbler
+            Thread tErr = new Thread(() -> {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        err.append(line).append("\n");
+                    }
+                } catch (Exception ignored) { }
+            }, "localcmd-stderr");
+
+            tOut.start();
+            tErr.start();
+
+            boolean finished;
             if (timeout > 0) {
-                if (!p.waitFor(timeout, TimeUnit.SECONDS)) {
-                    this.commandExitStatus = 124;
-                    this.commandResult = "The command took too long to finish";
-                    aborted = true;
-                }
+                finished = p.waitFor(timeout, TimeUnit.SECONDS);
             } else {
                 p.waitFor();
+                finished = true;
             }
+
+            if (!finished) {
+                aborted = true;
+                this.commandExitStatus = 124;
+                this.commandResult = "The command took too long to finish";
+                // mata el proceso y drena lo que quede
+                p.destroyForcibly();
+            }
+
+            // espera a que terminen de drenar (un poco)
+            tOut.join(2000);
+            tErr.join(2000);
+
+            if (!aborted) {
+                this.commandExitStatus = p.exitValue();
+            }
+            this.commandResult = out.toString();
+            this.commandResultError = err.toString();
+
         } catch (java.io.IOException e) {
             this.commandExitStatus = 1;
             this.commandResult = "Error";
-            return;
-        }
-
-        if (!aborted) {
-            BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            while ((line = input.readLine()) != null) {
-                if (result.isEmpty()) {
-                    result += line;
-                } else {
-                    result += "\n" + line;
+            this.commandResultError = e.getMessage();
+        } finally {
+            if (p != null) {
+                p.destroy();
+                if (p.isAlive()) {
+                    p.destroyForcibly();
                 }
             }
-            input.close();
-
-            StringBuilder sbError = new StringBuilder();
-            BufferedReader error = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-            while ((line = error.readLine()) != null) {
-                sbError.append(line).append("\n");
-            }
-            error.close();
-
-            this.commandResult = result;
-            this.commandExitStatus = p.exitValue();
-            this.commandResultError = sbError.toString();
         }
-
-        p.destroy();
-
-        if (p.isAlive()) {
-            p.destroyForcibly();
-        }
-
     }
 
     public int getCommandExitStatus() {
