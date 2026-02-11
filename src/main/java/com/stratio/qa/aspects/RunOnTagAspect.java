@@ -285,145 +285,68 @@ public class RunOnTagAspect {
     private boolean checkVersion(char operador, String param, String value) throws Exception {
         boolean result = true;
         String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
-        String property = System.getProperty(param) != null ? System.getProperty(param, "") : ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
-        String envVarValue = property.replaceAll("-SNAPSHOT+[0-9a-zA-Z]", "error").replaceAll("-([a-zA-Z0-9]{7}[0-9]|M[1-9]*[0-9][a-zA-Z]|RC[1-9]*[0-9][a-zA-Z])", "error").replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]*[0-9]|RC[1-9]*[0-9])", "");
+
+        // Obtener la propiedad del sistema o ThreadProperty
+        String property = System.getProperty(param) != null ? System.getProperty(param) :
+                ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
+
+        // Limpiar qualifiers antiguos
+        String envVarValue = property
+                .replaceAll("-SNAPSHOT+[0-9a-zA-Z]", "error")
+                .replaceAll("-([a-zA-Z0-9]{7}[0-9]|M[1-9]*[0-9][a-zA-Z]|RC[1-9]*[0-9][a-zA-Z])", "error")
+                .replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]*[0-9]|RC[1-9]*[0-9])", "");
+
+        // Normalizar qualifiers modernos
         envVarValue = normalizeModernQualifier(envVarValue);
         value = normalizeModernQualifier(value);
 
+        // Validar formato
         if (!Pattern.matches(regexp, envVarValue) || !Pattern.matches(regexp, value)) {
             throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
-        } else if (operador == '=') {
-            if (value.contains("-") || envVarValue.contains("-")) {
-                String[] paramversion = envVarValue.split("-");
-                String[] valueversion = value.split("-");
-                if (paramversion.length != valueversion.length) {
-                    result = false;
-                } else {
-                    int j = 0;
-                    while (j < paramversion.length && result) {
-                        String[] parver = paramversion[j].split("\\.");
-                        String[] valver = valueversion[j].split("\\.");
-                        if (parver.length != valver.length) {
-                            result = false;
-                        } else {
-                            int z = 0;
-                            while (z < parver.length && result) {
-                                if (Integer.parseInt(parver[z]) != Integer.parseInt(valver[z])) {
-                                    result = false;
-                                }
-                                z++;
-                            }
-                        }
-                        j++;
-                    }
-                }
-            } else {
-                String[] parver = envVarValue.split("\\.");
-                String[] valver = value.split("\\.");
-                if (parver.length != valver.length) {
-                    result = false;
-                } else {
-                    int z = 0;
-                    while (z < parver.length && result) {
-                        if (Integer.parseInt(parver[z]) != Integer.parseInt(valver[z])) {
-                            result = false;
-                        }
-                        z++;
-                    }
-                }
+        }
+
+        // Split por "-"
+        String[] paramParts = envVarValue.split("-");
+        String[] valueParts = value.split("-");
+
+        int size = Math.min(paramParts.length, valueParts.length);
+
+        for (int j = 0; j < size; j++) {
+            String[] parVer = paramParts[j].split("\\.");
+            String[] valVer = valueParts[j].split("\\.");
+
+            if (parVer.length != valVer.length) {
+                throw new Exception("Error while parsing params. The versions must have the same number of elements");
             }
-        } else {
-            if ((value.contains("-") || envVarValue.contains("-"))) {
-                String[] paramversion = envVarValue.split("-");
-                String[] valueversion = value.split("-");
-                if (operador == '>' && paramversion.length < valueversion.length) {
-                    result = false;
-                } else if (operador == '<' && paramversion.length > valueversion.length) {
-                    result = false;
-                } else {
-                    int size = paramversion.length;
-                    if (valueversion.length < size) {
-                        size = valueversion.length;
-                    }
-                    int countversion = 0;
-                    int j = 0;
-                    while (j < size && result) {
-                        String[] parver = paramversion[j].split("\\.");
-                        String[] valver = valueversion[j].split("\\.");
-                        if (parver.length != valver.length) {
-                            throw new Exception("Error while parsing params. The versions must have the same number of elements");
-                        } else {
-                            int count = 0;
-                            int z = 0;
-                            while (z < parver.length && result) {
-                                if (operador == '>' && Integer.parseInt(parver[z]) < Integer.parseInt(valver[z])) {
-                                    result = false;
-                                } else if (operador == '<' && Integer.parseInt(parver[z]) > Integer.parseInt(valver[z])) {
-                                    result = false;
-                                } else if (Integer.parseInt(parver[z]) == Integer.parseInt(valver[z])) {
-                                    count = count + 1;
-                                } else {
-                                    z = parver.length;
-                                    j = size;
-                                }
-                                z++;
-                            }
-                            if (count == parver.length) {
-                                countversion = countversion + 1;
-                            }
-                        }
-                        j++;
-                    }
 
-                    if (countversion == size) {
+            for (int z = 0; z < parVer.length; z++) {
+                int p = Integer.parseInt(parVer[z]);
+                int v = Integer.parseInt(valVer[z]);
 
-                        boolean paramHasQualifier = envVarValue.contains("-");
-                        boolean valueHasQualifier = value.contains("-");
-
-                        if (operador == '>') {
-                            if (!paramHasQualifier && valueHasQualifier) {
-                                result = true;
-                            } else if (paramHasQualifier && !valueHasQualifier) {
-                                result = false;
-                            } else {
-                                result = false;
-                            }
-                        } else if (operador == '<') {
-                            if (paramHasQualifier && !valueHasQualifier) {
-                                result = true;
-                            } else if (!paramHasQualifier && valueHasQualifier) {
-                                result = false;
-                            } else {
-                                result = false;
-                            }
-                        }
-                    }
-                }
-            } else {
-                String[] parver = envVarValue.split("\\.");
-                String[] valver = value.split("\\.");
-                if (parver.length != valver.length) {
-                    throw new Exception("Error while parsing params. The versions must have the same number of elements");
-                }
-                int count = 0;
-                int z = 0;
-                while (z < parver.length && result) {
-                    if (operador == '>' && Integer.parseInt(parver[z]) < Integer.parseInt(valver[z])) {
-                        result = false;
-                    } else if (operador == '<' && Integer.parseInt(parver[z]) > Integer.parseInt(valver[z])) {
-                        result = false;
-                    } else if (Integer.parseInt(parver[z]) == Integer.parseInt(valver[z])) {
-                        count = count + 1;
-                    } else {
-                        z = parver.length;
-                    }
-                    z++;
-                }
-                if (count == parver.length) {
-                    result = false;
+                if (operador == '=' && p != v) {
+                    return false;
+                } else if (operador == '>' && p < v) {
+                    return false;
+                } else if (operador == '<' && p > v) {
+                    return false;
                 }
             }
         }
+
+        // Si son iguales en la parte numérica, comparar qualifiers
+        if (paramParts.length != valueParts.length) {
+            boolean paramHasQualifier = envVarValue.contains("-");
+            boolean valueHasQualifier = value.contains("-");
+
+            if (operador == '>') {
+                result = !paramHasQualifier && valueHasQualifier; // release > qualifier
+            } else if (operador == '<') {
+                result = paramHasQualifier && !valueHasQualifier; // qualifier < release
+            } else {
+                result = false; // '=' pero tienen diferente qualifier
+            }
+        }
+
         return result;
     }
 
@@ -441,11 +364,9 @@ public class RunOnTagAspect {
     }
 
     private String normalizeModernQualifier(String version) {
-        if (version == null) {
-            return null;
-        }
+        if (version == null) return null;
 
-        // Only change with new format
+        // Cambiar solo si cumple el nuevo formato m.# o rc.#
         if (version.matches("^\\d+\\.\\d+\\.\\d+-(m|rc)\\.\\d+$")) {
             return version
                     .replaceAll("-m\\.(\\d+)", "-0-$1")
@@ -454,7 +375,6 @@ public class RunOnTagAspect {
 
         return version;
     }
-
 }
 
 
