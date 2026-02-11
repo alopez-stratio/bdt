@@ -427,8 +427,8 @@ public class RunOnTagAspect {
         // Only change with new format
         if (version.matches("^\\d+\\.\\d+\\.\\d+-(m|rc)\\.\\d+$")) {
             return version
-                    .replaceAll("-m\\.(\\d+)", "-0.$1")
-                    .replaceAll("-rc\\.(\\d+)", "-1.$1");
+                    .replaceAll("-m\\.(\\d+)", "-0-$1")
+                    .replaceAll("-rc\\.(\\d+)", "-1-$1");
         }
 
         return version;
