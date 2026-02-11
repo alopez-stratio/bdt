@@ -420,7 +420,9 @@ public class RunOnTagAspect {
     }
 
     private String normalizeModernQualifier(String version) {
-        if (version == null) return null;
+        if (version == null) {
+            return null;
+        }
 
         // Only change with new format
         if (version.matches("^\\d+\\.\\d+\\.\\d+-(m|rc)\\.\\d+$")) {
