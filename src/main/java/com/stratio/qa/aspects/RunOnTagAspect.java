@@ -364,7 +364,9 @@ public class RunOnTagAspect {
     }
 
     private String normalizeModernQualifier(String version) {
-        if (version == null) return null;
+        if (version == null) {
+            return null;
+        }
 
         // Cambiar solo si cumple el nuevo formato m.# o rc.#
         if (version.matches("^\\d+\\.\\d+\\.\\d+-(m|rc)\\.\\d+$")) {
