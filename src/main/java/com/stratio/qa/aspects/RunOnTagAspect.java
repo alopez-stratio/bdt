@@ -374,8 +374,29 @@ public class RunOnTagAspect {
                         }
                         j++;
                     }
-                    if (countversion == size && paramversion.length == valueversion.length) {
-                        result = false;
+
+                    if (countversion == size) {
+
+                        boolean paramHasQualifier = envVarValue.contains("-");
+                        boolean valueHasQualifier = value.contains("-");
+
+                        if (operador == '>') {
+                            if (!paramHasQualifier && valueHasQualifier) {
+                                result = true;
+                            } else if (paramHasQualifier && !valueHasQualifier) {
+                                result = false;
+                            } else {
+                                result = false;
+                            }
+                        } else if (operador == '<') {
+                            if (paramHasQualifier && !valueHasQualifier) {
+                                result = true;
+                            } else if (!paramHasQualifier && valueHasQualifier) {
+                                result = false;
+                            } else {
+                                result = false;
+                            }
+                        }
                     }
                 }
             } else {
