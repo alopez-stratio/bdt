@@ -2692,4 +2692,61 @@ public class RunOnEnvTagAspectTest {
         tagList.add(new PickleTag(new PickleLocation(1,0),"@skipOnEnv(TEST=!TEST2)"));
         assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
+
+    @Test
+    public void testVersionComparison_mLowerThanRc() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION<1.0.0-rc.1)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testVersionComparison_rcLowerThanRelease() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION<1.0.0)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testVersionComparison_releaseGreaterThanRc() throws Exception {
+        System.setProperty("VERSION","1.0.0");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-rc.1)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testVersionComparison_rcNumericOrder() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.2");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-rc.1)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testVersionComparison_mNumericOrder() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.3");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-m.1)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testVersionComparison_rcEquality() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-rc.1)"));
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testVersionComparison_rcNotGreaterThanRelease() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
 }

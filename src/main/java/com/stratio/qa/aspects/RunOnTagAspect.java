@@ -287,6 +287,9 @@ public class RunOnTagAspect {
         String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
         String property = System.getProperty(param) != null ? System.getProperty(param, "") : ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
         String envVarValue = property.replaceAll("-SNAPSHOT+[0-9a-zA-Z]", "error").replaceAll("-([a-zA-Z0-9]{7}[0-9]|M[1-9]*[0-9][a-zA-Z]|RC[1-9]*[0-9][a-zA-Z])", "error").replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]*[0-9]|RC[1-9]*[0-9])", "");
+        envVarValue = normalizeModernQualifier(envVarValue);
+        value = normalizeModernQualifier(value);
+
         if (!Pattern.matches(regexp, envVarValue) || !Pattern.matches(regexp, value)) {
             throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
         } else if (operador == '=') {
@@ -415,6 +418,20 @@ public class RunOnTagAspect {
             }
         }
     }
+
+    private String normalizeModernQualifier(String version) {
+        if (version == null) return null;
+
+        // Only change with new format
+        if (version.matches("^\\d+\\.\\d+\\.\\d+-(m|rc)\\.\\d+$")) {
+            return version
+                    .replaceAll("-m\\.(\\d+)", "-0.$1")
+                    .replaceAll("-rc\\.(\\d+)", "-1.$1");
+        }
+
+        return version;
+    }
+
 }
 
 
