@@ -794,41 +794,88 @@ public class CCTSpec extends BaseGSpec {
         return numTasksRunning == numTasks;
     }
 
-    @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I check that the job with ID '(.+?)' in CCT is in '(created|started|stopped|failed|completed|completed_with_errors)' status( and fails if job is in '(created|started|stopped|failed|completed|completed_with_errors)' status)?")
-    public void checkJobStatus(Integer timeout, Integer wait, String jobId, String expectedStatus, String notExpectedStatusCauseFail) throws Exception {
+    /**
+     * Checks the status of a CCT job, waiting actively until a terminal status is reached
+     * (stopped, failed, completed, completed_with_errors), then asserts the job is in the expected status.
+     * The expected status parameter accepts a single value or a comma-separated list
+     * (e.g. 'completed' or 'completed,completed_with_errors').
+     *
+     * @param timeout                    : maximum waiting time in seconds
+     * @param wait                       : polling interval in seconds
+     * @param jobId                      : CCT job ID to monitor
+     * @param expectedStatuses           : comma-separated list of accepted statuses (e.g. 'completed' or 'completed,completed_with_errors')
+     * @param notExpectedStatusCauseFail : comma-separated list of statuses that will cause immediate failure (optional)
+     */
+    @Given("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, I check that the job with ID '(.+?)' in CCT is in '([^']+)' status( and fails if job is in '([^']+)' status)?")
+    public void checkCCTJobStatus(Integer timeout, Integer wait, String jobId, String expectedStatuses, String notExpectedStatusCauseFail) throws Exception {
+        final List<String> terminalStatuses = Arrays.asList("stopped", "failed", "completed", "completed_with_errors");
+        final List<String> acceptedStatuses = Arrays.asList(expectedStatuses.toLowerCase().split(","));
+        final List<String> failStatuses = notExpectedStatusCauseFail != null ? Arrays.asList(notExpectedStatusCauseFail.toLowerCase().split(",")) : new ArrayList<>();
+
         // Set REST connection
         commonspec.setCCTConnection(null, null);
         String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/jobs/" + jobId;
-        boolean statusService = false;
-        int i = 0;
-        while (!statusService && i <= timeout) {
+        String currentStatus = null;
+        boolean reachedTerminalStatus = false;
+
+        for (int elapsed = 0; elapsed <= timeout; elapsed += wait) {
+            // Get current Job status
             try {
-                if (commonspec.getCookies().size() == 0) {
-                    commonspec.setCCTConnection(null, null);
-                }
                 Future<Response> response = commonspec.generateRequest("GET", false, null, null, endPoint, "", null);
                 commonspec.setResponse(endPoint, response.get());
-                miscSpec.saveElementEnvironment(null, "$.status", "jobStatus");
-                statusService = expectedStatus.equalsIgnoreCase(ThreadProperty.get("jobStatus"));
+                if (response.get().getStatusCode() != 200) {
+                    throw new Exception("Request failed with status code: " + response.get().getStatusCode());
+                }
+                currentStatus = new JSONObject(response.get().getResponseBody()).getString("status");
             } catch (Exception e) {
-                commonspec.getLogger().warn("Error in request " + endPoint + " - " + e);
-                commonspec.setCookies(new ArrayList<>()); // Set to empty list to force new cookies in next iteration
+                commonspec.getLogger().error("Error in request " + endPoint + " - " + e);
+                // Set cookies again in case they have expired during the waiting time
+                commonspec.setCookies(new ArrayList<>());
+                commonspec.setCCTConnection(null, null);
             }
-            if (!statusService) {
-                if (notExpectedStatusCauseFail != null && ThreadProperty.get("jobStatus") != null && notExpectedStatusCauseFail.equalsIgnoreCase(ThreadProperty.get("jobStatus"))) {
-                    commonspec.getLogger().warn("Job response:\n" + commonspec.getResponse().getResponse());
-                    fail("CCT job has " + notExpectedStatusCauseFail + " status");
-                }
-                commonspec.getLogger().warn(expectedStatus + " status not found after " + i + " seconds. Current status: " + ThreadProperty.get("jobStatus"));
-                if (i < timeout) {
-                    Thread.sleep(wait * 1000);
-                }
+
+            // Exit loop if job has reached a terminal status
+            if (currentStatus != null && terminalStatuses.contains(currentStatus.toLowerCase())) {
+                reachedTerminalStatus = true;
+                break;
             }
-            i += wait;
+
+            // Fail immediately if job has reached a status that causes failure
+            if (currentStatus != null && failStatuses.contains(currentStatus.toLowerCase())) {
+                commonspec.getLogger().warn("Job response:\n" + commonspec.getResponse().getResponse());
+                fail("CCT job has " + currentStatus + " status, which is not allowed");
+            }
+
+            // Wait before next status check
+            commonspec.getLogger().warn("Terminal status not reached after " + elapsed + " seconds. Current status: " + currentStatus);
+            Thread.sleep(wait * 1000);
         }
-        if (!statusService) {
-            fail(expectedStatus + " status not found after " + timeout + " seconds for job " + jobId);
+
+        // Assert job reached a terminal status
+        if (!reachedTerminalStatus) {
+            fail("CCT job '" + jobId + "' did not reach a terminal status after " + timeout + " seconds. Last known status: " + currentStatus);
         }
+
+        // Assert job finished with an accepted status
+        if (!acceptedStatuses.contains(currentStatus.toLowerCase())) {
+            commonspec.getLogger().warn("Job response:\n" + commonspec.getResponse().getResponse());
+            fail("CCT job '" + jobId + "' finished with status '" + currentStatus + "' but expected one of: [" + expectedStatuses + "]");
+        }
+    }
+
+    /**
+     * Waits for a CCT job to reach a terminal status and then asserts it matches one of the expected statuses.
+     * Terminal statuses are: stopped, failed, completed, completed_with_errors.
+     * Expected statuses can be a comma-separated list, e.g. 'completed,completed_with_errors'.
+     * Timeout defaults to 600 seconds if not specified; polling interval is fixed at 10 seconds.
+     *
+     * @param jobId           : CCT job ID to monitor
+     * @param expectedStatuses: comma-separated list of accepted final statuses (e.g. 'completed' or 'completed,completed_with_errors')
+     * @param timeout         : optional maximum waiting time in seconds (default: 600)
+     */
+    @Given("^I wait for CCT job '(.+?)' to finish in status '([^']+)'( in less than '(\\d+)' seconds)?$")
+    public void checkCCTJobStatus(String jobId, String expectedStatuses, Integer timeout) throws Exception {
+        checkCCTJobStatus(timeout != null ? timeout : 600, 10, jobId, expectedStatuses, "failed");
     }
 
     /**
