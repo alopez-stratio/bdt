@@ -23,6 +23,8 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;
+import cucumber.api.Scenario;
+import cucumber.api.java.Before;
 import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.DBObjectsAssert;
 import com.stratio.qa.exceptions.DBException;
@@ -65,6 +67,8 @@ public class DatabaseSpec extends BaseGSpec {
 
     public static final int VALUE_SUBSTRING = 3;
 
+    private Scenario scenario;
+
     /**
      * Generic constructor.
      *
@@ -73,6 +77,11 @@ public class DatabaseSpec extends BaseGSpec {
     public DatabaseSpec(CommonG spec) {
         this.commonspec = spec;
 
+    }
+
+    @Before
+    public void before(Scenario scenario) {
+        this.scenario = scenario;
     }
 
     /**
@@ -1888,5 +1897,123 @@ public class DatabaseSpec extends BaseGSpec {
         }
 
         assertThat(tablePattern).as("response is not equal to the expected").isEqualTo(sqlTable);
+    }
+
+    @Then("^I save in '(.+?)' the value of column '(.+?)' where column '(.+?)' is '(.+?)'$")
+    public void saveValueFromColumnWhere(String variableName, String targetColumn, String filterColumn, String filterValue) throws Exception {
+        Map<String, List<String>> previousSqlResult = this.getCommonSpec().getPreviousSqlResult();
+
+        if (previousSqlResult == null || previousSqlResult.isEmpty()) {
+            throw new Exception("Result not stored. Query must be executed with step 'I query the database with ...'");
+        }
+
+        List<String> filterValues = previousSqlResult.get(filterColumn);
+        List<String> targetValues = previousSqlResult.get(targetColumn);
+
+        if (filterValues == null) {
+            throw new Exception("Column '" + filterColumn + "' doesn't appear in SQL result");
+        }
+
+        if (targetValues == null) {
+            throw new Exception("Column '" + targetColumn + "' doesn't appear in SQL result");
+        }
+
+        if (filterValues.size() != targetValues.size()) {
+            throw new Exception("SQL result columns '" + filterColumn + "' and '" + targetColumn + "' have different sizes");
+        }
+
+        for (int i = 0; i < filterValues.size(); i++) {
+            if (filterValue.equals(filterValues.get(i))) {
+                ThreadProperty.set(variableName, targetValues.get(i));
+                scenario.write("Variable: " + variableName + "\n" + "Value: " + targetValues.get(i));
+                return;
+            }
+        }
+
+        throw new Exception("No row found where column '" + filterColumn + "' has value '" + filterValue + "'");
+    }
+
+    @Then("^the value of column '(.+?)' where column '(.+?)' is '(.+?)' has to be '(.+?)'$")
+    public void checkValueFromColumnWhere(String targetColumn, String filterColumn, String filterValue, String expectedValue) throws Exception {
+
+        Map<String, List<String>> previousSqlResult = this.getCommonSpec().getPreviousSqlResult();
+
+        if (previousSqlResult == null || previousSqlResult.isEmpty()) {
+            throw new Exception("Result not stored. Query must be executed with step 'I query the database with ...'");
+        }
+
+        List<String> filterValues = previousSqlResult.get(filterColumn);
+        List<String> targetValues = previousSqlResult.get(targetColumn);
+
+        if (filterValues == null) {
+            throw new Exception("Column '" + filterColumn + "' doesn't appear in SQL result");
+        }
+
+        if (targetValues == null) {
+            throw new Exception("Column '" + targetColumn + "' doesn't appear in SQL result");
+        }
+
+        if (filterValues.size() != targetValues.size()) {
+            throw new Exception("SQL result columns '" + filterColumn + "' and '" + targetColumn + "' have different sizes");
+        }
+
+        for (int i = 0; i < filterValues.size(); i++) {
+            if (filterValue.equals(filterValues.get(i))) {
+
+                String actualValue = targetValues.get(i);
+                scenario.write("Actual value: " + actualValue);
+
+                Assertions.assertThat(actualValue)
+                        .as("Value of column '" + targetColumn + "' where column '" + filterColumn + "' is '" + filterValue + "'")
+                        .isEqualTo(expectedValue);
+
+                return;
+            }
+        }
+
+        throw new Exception("No row found where column '" + filterColumn + "' has value '" + filterValue + "'");
+    }
+
+    @Then("^I save the row where column '(.+?)' is '(.+?)' with prefix '(.+?)'$")
+    public void saveRowWhere(String filterColumn, String filterValue, String prefix) throws Exception {
+
+        Map<String, List<String>> previousSqlResult = this.getCommonSpec().getPreviousSqlResult();
+
+        if (previousSqlResult == null || previousSqlResult.isEmpty()) {
+            throw new Exception("Result not stored. Query must be executed with step 'I query the database with ...'");
+        }
+
+        List<String> filterValues = previousSqlResult.get(filterColumn);
+
+        if (filterValues == null) {
+            throw new Exception("Column '" + filterColumn + "' doesn't appear in SQL result");
+        }
+
+        int rowIndex = -1;
+
+        for (int i = 0; i < filterValues.size(); i++) {
+            if (filterValue.equals(filterValues.get(i))) {
+                rowIndex = i;
+                break;
+            }
+        }
+
+        if (rowIndex == -1) {
+            throw new Exception("No row found where column '" + filterColumn + "' has value '" + filterValue + "'");
+        }
+
+        for (Map.Entry<String, List<String>> entry : previousSqlResult.entrySet()) {
+
+            String columnName = entry.getKey();
+            List<String> columnValues = entry.getValue();
+
+            if (rowIndex >= columnValues.size()) {
+                throw new Exception("Column '" + columnName + "' does not contain row index " + rowIndex);
+            }
+
+            String value = columnValues.get(rowIndex);
+            scenario.write("EnvVar " + prefix + "." + columnName + " = " + value);
+            ThreadProperty.set(prefix + "." + columnName, value);
+        }
     }
 }
