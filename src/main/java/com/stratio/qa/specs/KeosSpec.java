@@ -131,6 +131,9 @@ public class KeosSpec extends BaseGSpec {
             case "cosmos":
                 tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth", "dcos-acs-auth-cookie", "dcos-acs-info-cookie"};
                 break;
+            case "genai-litellm":
+                tokenList = new String[]{"token"};
+                break;
             default:
                 break;
         }
@@ -151,7 +154,8 @@ public class KeosSpec extends BaseGSpec {
                 Map.entry("stratio-governance-auth", "keosGovernanceAuthCookie"),
                 Map.entry("user",                    "user"),
                 Map.entry("dcos-acs-auth-cookie",    "cosmosAuthCookie"),
-                Map.entry("dcos-acs-info-cookie",    "cosmosInfoAuthCookie")
+                Map.entry("dcos-acs-info-cookie",    "cosmosInfoAuthCookie"),
+                Map.entry("token",                   "genai-litellm-token")
         );
         for (Map.Entry<String, String> entry : cookiesToAddToThreadProperty) {
             if (CookiesUtils.hasCookieWithName(entry.getKey())) {
