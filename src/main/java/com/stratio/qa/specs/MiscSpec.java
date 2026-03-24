@@ -491,6 +491,28 @@ public class MiscSpec extends BaseGSpec {
     }
 
     /**
+     * Check if a variable is defined or not defined (ThreadProperty or System property).
+     *
+     * @param varName   variable name to check
+     * @param operation [is defined, is not defined]
+     */
+    @Then("^the variable '(.+?)' (is defined|is not defined)$")
+    public void checkVariableDefined(String varName, String operation) throws Exception {
+        boolean isDefined = ThreadProperty.get(varName) != null || System.getProperty(varName) != null;
+
+        switch (operation.toLowerCase()) {
+            case "is defined":
+                Assertions.assertThat(isDefined).as("Variable is not defined.").isTrue();
+                break;
+            case "is not defined":
+                Assertions.assertThat(isDefined).as("Variable is defined.").isFalse();
+                break;
+            default:
+                throw new Exception("Not a valid comparison. Valid ones are: ['is defined', 'is not defined']");
+        }
+    }
+
+    /**
      * Validates that the JSON stored in a variable matches against a JSON schema.
      *
      * @param envVar      the environment variable name that holds the JSON string
@@ -825,6 +847,32 @@ public class MiscSpec extends BaseGSpec {
         } catch (AssertionError e) {
             commonspec.getLogger().error("Error creating JWT, check data");
             throw e;
+        }
+    }
+
+    /**
+     * Decodes the JWT payload and saves it as a JSON object in a variable.
+     * @param jwtVariableName The variable name containing the JWT token (e.g., 'genai-litellm-token')
+     * @param outputVariableName The variable name where the decoded payload will be saved
+     */
+    @Given("^I decode JWT from variable '(.+?)' and save the payload in variable '(.+?)'$")
+    public void decodeJwtPayload(String jwtVariableName, String outputVariableName) {
+        String jwt = ThreadProperty.get(jwtVariableName);
+        Assert.assertFalse(jwt == null || jwt.isEmpty(),
+                "JWT variable '" + jwtVariableName + "' is empty or not set");
+
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("Invalid JWT format");
+            }
+
+            byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
+            String payloadJson = new String(payloadBytes, java.nio.charset.StandardCharsets.UTF_8);
+
+            ThreadProperty.set(outputVariableName, payloadJson);
+        } catch (Exception e) {
+            throw new AssertionError("Failed to decode JWT: " + e.getMessage(), e);
         }
     }
 

@@ -132,7 +132,7 @@ public class KeosSpec extends BaseGSpec {
                 tokenList = new String[]{"user", "_oauth2_proxy", "stratio-cookie", "stratio-governance-auth", "dcos-acs-auth-cookie", "dcos-acs-info-cookie"};
                 break;
             case "genai-litellm":
-                tokenList = new String[]{"token"};
+                tokenList = new String[]{"stratio-cookie", "token"};
                 break;
             default:
                 break;
