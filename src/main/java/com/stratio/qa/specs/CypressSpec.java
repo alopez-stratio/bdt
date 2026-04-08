@@ -59,7 +59,7 @@ public class CypressSpec extends BaseGSpec {
         String configVariable = configFile == null ? "" : " --config-file cypress/e2e/" + configFile;
         String videoVariable = videopath == null ? "" : " --config trashAssetsBeforeRuns=false,videoUploadOnPasses=true,videosFolder=" + videopath;
         String headedVariable = System.getProperty("CYPRESS_HEADED") != null && System.getProperty("CYPRESS_HEADED").equals("true") ? " --headed" : "";
-        String recordVariable = System.getenv("CYPRESS_RECORD_KEY") != null && !System.getenv("CYPRESS_RECORD_KEY").isEmpty() ? " --record --key " + System.getenv("CYPRESS_RECORD_KEY") : "";
+        String recordVariable = System.getProperty("CYPRESS_RECORD_KEY") != null && !System.getProperty("CYPRESS_RECORD_KEY").isEmpty() ? " --record --key " + System.getProperty("CYPRESS_RECORD_KEY") : "";
         String command = cypressVariables + " npx cypress run" + cypressBrowser + " --spec cypress/e2e/" + testcase + configVariable + videoVariable + headedVariable + recordVariable;
 
         this.commonspec.getLogger().info("Executing cypress: " + command);
