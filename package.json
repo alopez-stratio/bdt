@@ -17,7 +17,7 @@
   "devDependencies": {
     "@stratio/egeo": "28.1.4",
     "@types/node": "14.14.31",
-    "cypress": "15.11.0",
+    "cypress": "^15.13.0",
     "cypress-file-upload": "5.0.8",
     "cypress-intellij-reporter": "0.0.7",
     "cypress-multi-reporters": "1.6.1",
