@@ -97,6 +97,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.stratio.qa.assertions.Assertions.assertThat;
+import static org.asynchttpclient.Dsl.asyncHttpClient;
+import static org.asynchttpclient.Dsl.config;
 import static org.testng.Assert.fail;
 
 import java.text.ParseException;
@@ -3027,19 +3029,28 @@ public class CommonG {
     }
 
     public void downloadFileWithTimeout(String url, String destinationPath, int timeout) throws Exception {
-        Response response = getClient().prepareGet(url)
-                .execute()
-                .toCompletableFuture()
-                .get(timeout, TimeUnit.SECONDS);
+        int timeoutMs = timeout * 1000;
+        try (AsyncHttpClient downloadClient = asyncHttpClient(config()
+                .setUseInsecureTrustManager(true)
+                .setKeepAlive(false)
+                .setConnectTimeout(5000)
+                .setRequestTimeout(timeoutMs)
+                .setReadTimeout(timeoutMs)
+                .build())) {
+            Response response = downloadClient.prepareGet(url)
+                    .execute()
+                    .toCompletableFuture()
+                    .get(timeout, TimeUnit.SECONDS);
 
-        if (response.getStatusCode() == 200) {
-            try (InputStream inputStream = response.getResponseBodyAsStream();
-                 ReadableByteChannel readableByteChannel = Channels.newChannel(inputStream);
-                 FileOutputStream fileOutputStream = new FileOutputStream(destinationPath)) {
-                fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            if (response.getStatusCode() == 200) {
+                try (InputStream inputStream = response.getResponseBodyAsStream();
+                     ReadableByteChannel readableByteChannel = Channels.newChannel(inputStream);
+                     FileOutputStream fileOutputStream = new FileOutputStream(destinationPath)) {
+                    fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+                }
+            } else {
+                throw new Exception("Failed to download file: " + response.getStatusCode());
             }
-        } else {
-            throw new Exception("Failed to download file: " + response.getStatusCode());
         }
     }
 

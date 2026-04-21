@@ -191,7 +191,8 @@ public class KubernetesClient {
                 Files.delete(tgzFile);
             }
             // Download workspace
-            commonspec.downloadFileWithTimeout(workspaceURL, tgzFile.toAbsolutePath().toString(), 20); // With timeout of 20 seconds
+            int downloadTimeout = Integer.parseInt(System.getProperty("BDT_KEOS_WORKSPACE_DOWNLOAD_TIMEOUT", "120"));
+            commonspec.downloadFileWithTimeout(workspaceURL, tgzFile.toAbsolutePath().toString(), downloadTimeout);
             // Extract file
             commonspec.extractTgz(tgzFile, targetDir);
             // Remove file
