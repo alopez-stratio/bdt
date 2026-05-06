@@ -2,7 +2,13 @@
 
 Only listing significant user-visible, not internal code cleanups and minor bug fixes.
 
-## 1.0.0 (upcoming)
+## 2.0.0 (upcoming)
+
+* Pending changelog
+
+## Previous development
+
+### Branched to branch-1.0 (2026-05-06)
 * [ROCK-14526] Upgrade to Cypress 15.13.0 and cypress-terminal-report 7.3.3
 * [DGPB-13543] Add option to force service uninstall
 * [GS-9454] Use stratio-cookie instead oauth2-proxy-cookie to upload user secrets
@@ -33,7 +39,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [DGPB-11154] Add support to install a descriptor without type key in a property
 * [ROCK-10735] Changes for GoveranceRequest with k8s 0.9.0 - Header "X-Userid" with ldap changes
 
-## Previous development
+
 
 ### Branched to branch-0.21 (2022-07-01)
 
