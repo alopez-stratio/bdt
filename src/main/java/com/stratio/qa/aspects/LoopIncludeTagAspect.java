@@ -17,10 +17,6 @@
 package com.stratio.qa.aspects;
 
 import com.stratio.qa.exceptions.IncludeException;
-import cucumber.runtime.io.Resource;
-import org.aspectj.lang.annotation.Around;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Pointcut;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,33 +24,14 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
 
-@Aspect
 public class LoopIncludeTagAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
-    @Pointcut("execution (private * com.stratio.qa.cucumber.runtime.model.FeatureParser.read(..)) &&" + "args (resource)")
-    protected void featureBuilderRead(Resource resource) {
-    }
-
-    /**
-     * @param resource resource containing feature
-     * @return String parsed feature after aspect applied
-     * @throws Throwable exception
-     */
-    @Around(value = "featureBuilderRead(resource)")
-    public String aroundAddLoopTagPointcutScenario(Resource resource) throws Throwable {
-        List<String> lines = Files.readAllLines(Paths.get(resource.getPath().getRawSchemeSpecificPart()), StandardCharsets.UTF_8);
+    public void processBackground(List<String> lines) {
         String listParams;
-        String path = resource.getPath().getRawSchemeSpecificPart();
-        int endIndex = path.lastIndexOf("/") + 1;
-        path = path.substring(0, endIndex);
-
         for (int s = 0; s < lines.size(); s++) {
             if (lines.get(s).toUpperCase().matches("\\s*@BACKGROUND.*")) {
                 listParams = lines.get(s).substring((lines.get(s).lastIndexOf("(") + 1), (lines.get(s).length()) - 1);
@@ -75,8 +52,6 @@ public class LoopIncludeTagAspect {
                 }
             }
         }
-        parseLines(lines, path);
-        return String.join("\n", lines);
     }
 
     public String parseLines(List<String> lines, String path) throws IncludeException {

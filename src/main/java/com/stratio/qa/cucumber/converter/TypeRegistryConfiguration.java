@@ -14,36 +14,17 @@
  * limitations under the License.
  */
 
+// STRATIO-FORK: registers custom ParameterType "isornot" -> "(IS|IS NOT)" -> Boolean,
+// used in Stratio step definitions that match "IS" / "IS NOT" phrases.
+
 package com.stratio.qa.cucumber.converter;
 
-import cucumber.api.TypeRegistry;
-import cucumber.api.TypeRegistryConfigurer;
-import io.cucumber.cucumberexpressions.ParameterType;
-import io.cucumber.cucumberexpressions.Transformer;
+import io.cucumber.java.ParameterType;
 
-import java.util.Locale;
+public class TypeRegistryConfiguration {
 
-import static java.util.Locale.ENGLISH;
-
-public class TypeRegistryConfiguration implements TypeRegistryConfigurer {
-
-    @Override
-    public Locale locale() {
-        return ENGLISH;
-    }
-
-    @Override
-    public void configureTypeRegistry(TypeRegistry typeRegistry) {
-        typeRegistry.defineParameterType(new ParameterType<>(
-                "isornot",
-                "(IS|IS NOT)",
-                Boolean.class,
-                new Transformer<Boolean>() {
-                    @Override
-                    public Boolean transform(String input) throws Throwable {
-                        return "IS".equals(input);
-                    }
-                }
-        ));
+    @ParameterType("IS|IS NOT")
+    public Boolean isornot(String input) {
+        return "IS".equals(input);
     }
 }

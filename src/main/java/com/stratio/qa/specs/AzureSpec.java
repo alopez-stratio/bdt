@@ -5,7 +5,7 @@ import com.azure.storage.file.datalake.*;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
 import com.azure.storage.file.datalake.models.PathItem;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.When;
 
 import java.time.Duration;
 import java.util.ArrayList;

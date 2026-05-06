@@ -16,15 +16,13 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import gherkin.events.PickleEvent;
+import io.cucumber.core.gherkin.Pickle;
 
 /**
- * The only purpose of this interface is to be able to provide a custom
- * <pre>toString()</pre>, making TestNG reports look more descriptive.
- *
+ * Wrapper around a Cucumber 6 Pickle to provide a descriptive toString() for TestNG reports.
  */
 public interface PickleEventWrapper {
 
-    PickleEvent getPickleEvent();
+    Pickle getPickleEvent();
 
 }

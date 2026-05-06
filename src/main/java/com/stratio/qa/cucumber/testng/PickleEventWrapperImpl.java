@@ -16,22 +16,23 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import gherkin.events.PickleEvent;
+import io.cucumber.core.gherkin.Pickle;
 
 class PickleEventWrapperImpl implements PickleEventWrapper {
 
-    private final PickleEvent pickleEvent;
+    private final Pickle pickle;
 
-    PickleEventWrapperImpl(PickleEvent pickleEvent) {
-        this.pickleEvent = pickleEvent;
+    PickleEventWrapperImpl(Pickle pickle) {
+        this.pickle = pickle;
     }
 
-    public PickleEvent getPickleEvent() {
-        return pickleEvent;
+    @Override
+    public Pickle getPickleEvent() {
+        return pickle;
     }
 
     @Override
     public String toString() {
-        return pickleEvent.pickle.getName();
+        return pickle.getName();
     }
 }

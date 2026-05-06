@@ -23,7 +23,9 @@ import cucumber.api.CucumberOptions;
 import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {"src/test/resources/features/selenium.feature"})
+@CucumberOptions(plugin = "json:target/cucumber-selenium.json", features = {
+        "src/test/resources/features/readWebElementTextToVariable.feature"
+})
 public class SeleniumIT extends BaseGTest {
 
     @Factory(enabled = false, dataProviderClass = BrowsersDataProvider.class, dataProvider = "availableUniqueBrowsers")
@@ -31,7 +33,7 @@ public class SeleniumIT extends BaseGTest {
         this.browser = browser;
     }
 
-    @Test(enabled = false, dataProvider = "scenarios")
+    @Test(dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {
         runScenario(pickleWrapper, featureWrapper);
     }

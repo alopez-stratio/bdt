@@ -21,7 +21,7 @@ import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {
+@CucumberOptions(plugin = "json:target/cucumber-get-secrets-from-vault-using-cct.json", features = {
         "src/test/resources/features/getSecretsFromVaultUsingCCTIT.feature"
 })
 public class GetSecretsFromVaultUsingCCTIT extends BaseGTest{

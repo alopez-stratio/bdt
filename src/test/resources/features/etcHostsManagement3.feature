@@ -20,7 +20,7 @@ Feature: Check /etc/hosts has been restored and lock file removed by general cle
   Scenario: Set /etc/hosts variable
     Given I save '~/.hosts' in variable 'etchosts'
     Given I save '~' in variable 'hostsfolderpath'
-    Given I run 'if [ ! -f ~/.hosts ]; then echo "127.0.0.1  localhost" >> ~/.hosts; fi' locally
+    Given I run 'if [ ! -f ~/.hosts ] || [ ! -s ~/.hosts ]; then echo "127.0.0.1  localhost" > ~/.hosts; fi' locally
 
   Scenario: Check local system is back to initial state
     # Check /etc/hosts file is restored

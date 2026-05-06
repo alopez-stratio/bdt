@@ -13,26 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.stratio.qa.specs;
+package com.stratio.qa.ATests;
 
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
 import com.stratio.qa.data.BrowsersDataProvider;
-
 import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Factory;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {"src/test/resources/features/selenium.feature"})
-public class HookGIT extends BaseGTest {
+@CucumberOptions(plugin = "json:target/cucumber-new-cucumber-apis.json", features = {
+        "src/test/resources/features/newCucumberApis.feature",
+        "src/test/resources/features/newCucumberApis2.feature"
+})
+public class NewCucumberApisIT extends BaseGTest {
 
     @Factory(enabled = false, dataProviderClass = BrowsersDataProvider.class, dataProvider = "availableUniqueBrowsers")
-    public HookGIT(String browser) {
+    public NewCucumberApisIT(String browser) {
         this.browser = browser;
     }
 
-    @Test(enabled = false, dataProvider = "scenarios")
+    @Test(dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {
         runScenario(pickleWrapper, featureWrapper);
     }

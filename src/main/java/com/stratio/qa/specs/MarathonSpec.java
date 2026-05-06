@@ -21,8 +21,8 @@ import com.stratio.qa.utils.ThreadProperty;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import io.cucumber.datatable.DataTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

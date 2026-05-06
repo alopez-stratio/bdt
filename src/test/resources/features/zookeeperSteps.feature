@@ -27,4 +27,8 @@ Feature: Zookeeper steps test
   Scenario: create zookeeper node and check existance
     Then I create the zNode '/testnonephemeraldata' with content 'mydata' which IS ephemeral
     Then the zNode '/testnonephemeraldata' exists and contains 'mydata'
+
+  Scenario: clean up non-ephemeral nodes
+    Then I remove the zNode '/testnonephemeral'
+    Then the zNode '/testnonephemeral' does not exist
     Then I disconnect from Zookeeper

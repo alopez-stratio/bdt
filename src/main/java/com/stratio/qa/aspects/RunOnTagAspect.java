@@ -17,12 +17,10 @@
 package com.stratio.qa.aspects;
 
 import com.stratio.qa.utils.ThreadProperty;
-import gherkin.events.PickleEvent;
-import gherkin.pickles.PickleLocation;
-import gherkin.pickles.PickleTag;
-import org.aspectj.lang.JoinPoint;
+import io.cucumber.core.gherkin.Pickle;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,9 +34,9 @@ public class RunOnTagAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
-    @Pointcut("execution (* cucumber.runner.Runner.runPickle(..)) && "
-            + "args (pickleEvent)")
-    protected void AddRunOnTagPointcutScenario(PickleEvent pickleEvent) {
+    @Pointcut("execution (* io.cucumber.core.runner.Runner.runPickle(..)) && "
+            + "args (pickle)")
+    protected void AddRunOnTagPointcutScenario(Pickle pickle) {
     }
 
     /**
@@ -66,40 +64,34 @@ public class RunOnTagAspect {
      *<dd>The scenario will omitted if ALL of params are defined. (AND)</dd>
      *</dl>
      *
-     * @param pickleEvent pickleEvent
+     * @param pjp ProceedingJoinPoint
+     * @param pickle pickle
      * @throws Throwable exception
      */
-    @Before(value = "AddRunOnTagPointcutScenario(pickleEvent)")
-    public void aroundAddRunOnTagPointcut(JoinPoint jp, PickleEvent pickleEvent) throws Throwable {
-        int line = 0;
-        if (!pickleEvent.pickle.getLocations().isEmpty()) {
-            line = pickleEvent.pickle.getLocations().get(0).getLine();
-        }
+    @Around(value = "AddRunOnTagPointcutScenario(pickle)")
+    public void aroundAddRunOnTagPointcut(ProceedingJoinPoint pjp, Pickle pickle) throws Throwable {
+        int line = pickle.getLocation().getLine();
         try {
-            Boolean exit = tagsIteration(pickleEvent.pickle.getTags(), line);
+            boolean exit = tagsIteration(pickle.getTags(), line);
             if (exit) {
-                ThreadProperty.set("skippedOnParams" + pickleEvent.pickle.getName() + line, "true");
+                ThreadProperty.set("skippedOnParams" + pickle.getName() + line, "true");
+                return;
             }
         } catch (Exception e) {
             logger.error(e.getMessage());
-            pickleEvent.pickle.getTags().add(new PickleTag(new PickleLocation(line, 0), "@ignore"));
-            pickleEvent.pickle.getTags().add(new PickleTag(new PickleLocation(line, 0), "@envCondition"));
+            return;
         }
+        pjp.proceed();
     }
 
-    public boolean tagsIteration(List<PickleTag> tags, Integer line) throws Exception {
-        PickleLocation pickleLocation = new PickleLocation(line, 0);
-        for (PickleTag tag : tags) {
-            if (tag.getName().contains("@runOnEnv")) {
-                if (!checkParams(getParams(tag.getName()))) {
-                    tags.add(new PickleTag(pickleLocation, "@ignore"));
-                    tags.add(new PickleTag(pickleLocation, "@envCondition"));
+    public boolean tagsIteration(List<String> tags, Integer line) throws Exception {
+        for (String tag : tags) {
+            if (tag.contains("@runOnEnv")) {
+                if (!checkParams(getParams(tag))) {
                     return true;
                 }
-            } else if (tag.getName().contains("@skipOnEnv")) {
-                if (checkParams(getParams(tag.getName()))) {
-                    tags.add(new PickleTag(pickleLocation, "@ignore"));
-                    tags.add(new PickleTag(pickleLocation, "@envCondition"));
+            } else if (tag.contains("@skipOnEnv")) {
+                if (checkParams(getParams(tag))) {
                     return true;
                 }
             }

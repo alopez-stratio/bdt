@@ -16,17 +16,18 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import com.stratio.qa.cucumber.runtime.model.CucumberFeature;
+import io.cucumber.core.gherkin.Feature;
 
 class CucumberFeatureWrapperImpl implements CucumberFeatureWrapper {
-    private final CucumberFeature cucumberFeature;
+    private final Feature feature;
 
-    CucumberFeatureWrapperImpl(CucumberFeature cucumberFeature) {
-        this.cucumberFeature = cucumberFeature;
+    CucumberFeatureWrapperImpl(Feature feature) {
+        this.feature = feature;
     }
 
     @Override
     public String toString() {
-        return cucumberFeature.getGherkinFeature().getFeature().getName();
+        io.cucumber.plugin.event.Node.Feature nodeFeature = (io.cucumber.plugin.event.Node.Feature) feature;
+        return nodeFeature.getKeyword() + ": " + nodeFeature.getName();
     }
 }

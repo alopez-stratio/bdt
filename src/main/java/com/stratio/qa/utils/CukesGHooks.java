@@ -20,11 +20,9 @@ import com.stratio.qa.cucumber.testng.TestSourcesModel;
 import com.stratio.qa.cucumber.testng.TestSourcesModelUtil;
 import com.stratio.qa.specs.BaseGSpec;
 import com.stratio.qa.specs.HookGSpec;
-import cucumber.api.PickleStepTestStep;
-import cucumber.api.Result;
-import cucumber.api.TestCase;
-import cucumber.api.event.*;
-import cucumber.runtime.Utils;
+import io.cucumber.plugin.ConcurrentEventListener;
+import io.cucumber.plugin.event.*;
+import io.cucumber.plugin.event.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,14 +86,15 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
     }
 
     private void handleTestSourceRead(TestSourceRead event) {
-        TestSourcesModelUtil.INSTANCE.getTestSourcesModel().addTestSourceReadEvent(event.uri, event);
+        TestSourcesModelUtil.INSTANCE.getTestSourcesModel().addTestSourceReadEvent(event.getUri().toString(), event);
     }
 
     private void handleTestCaseStarted(TestCaseStarted event) {
-        if (currentFeatureFile == null || !currentFeatureFile.equals(event.testCase.getUri())) {
-            currentFeatureFile = event.testCase.getUri();
+        String uri = event.getTestCase().getUri().toString();
+        if (currentFeatureFile == null || !currentFeatureFile.equals(uri)) {
+            currentFeatureFile = uri;
         }
-        TestCase tc = event.testCase;
+        TestCase tc = event.getTestCase();
         logger.info("Feature/Scenario: {}/{} ", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile), tc.getName());
         ThreadProperty.set("feature", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile));
         ThreadProperty.set("scenario", calculateElementName(tc));
@@ -103,30 +102,30 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
 
     private void handleTestStepStarted(TestStepStarted event) {
         if (HookGSpec.loggerEnabled) {
-            if (event.testStep instanceof PickleStepTestStep) {
-                PickleStepTestStep testStep = (PickleStepTestStep) event.testStep;
-                TestSourcesModel.AstNode astNode = TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getAstNode(currentFeatureFile, testStep.getStepLine());
-                if (astNode != null) {
-                    if (TestSourcesModel.isBackgroundStep(astNode)) {
-                        if (!isLastStepBackground) {
-                            logger.info(" Background:");
-                        }
-                        isLastStepBackground = true;
-                    } else {
-                        if (isLastStepBackground) {
-                            logger.info(" Steps:");
-                        }
-                        isLastStepBackground = false;
+            if (event.getTestStep() instanceof PickleStepTestStep) {
+                PickleStepTestStep testStep = (PickleStepTestStep) event.getTestStep();
+                boolean isBackground = TestSourcesModelUtil.INSTANCE.getTestSourcesModel()
+                        .isBackgroundStep(currentFeatureFile, testStep.getStepLine());
+                if (isBackground) {
+                    if (!isLastStepBackground) {
+                        logger.info(" Background:");
                     }
+                    isLastStepBackground = true;
+                } else {
+                    if (isLastStepBackground) {
+                        logger.info(" Steps:");
+                    }
+                    isLastStepBackground = false;
                 }
             }
         }
     }
 
     private void handleTestStepFinished(TestStepFinished event) {
-        if (event.result.getStatus() == Result.Type.FAILED) {
+        if (event.getResult().getStatus() == Status.FAILED) {
             StringBuilder stepFailedText = new StringBuilder();
-            stepFailedText.append("STEP FAILED!!! (" + event.result.getErrorMessage() + ")");
+            Throwable error = event.getResult().getError();
+            stepFailedText.append("STEP FAILED!!! (" + (error != null ? error.getMessage() : "") + ")");
             if (StepException.INSTANCE.getException() != null) {
                 stepFailedText.append(" - ").append(StepException.INSTANCE.getException().getClass().getCanonicalName());
                 if (StepException.INSTANCE.getException().getMessage() != null) {
@@ -150,12 +149,12 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
         }
     }
 
-    public String calculateElementName(cucumber.api.TestCase testCase) {
+    public String calculateElementName(TestCase testCase) {
         String testCaseName = testCase.getName();
         if (testCaseName.equals(previousTestCaseName)) {
             exampleNumber++;
             ThreadProperty.set("dataSet", String.valueOf(exampleNumber));
-            return Utils.getUniqueTestNameForScenarioExample(testCaseName, exampleNumber);
+            return testCaseName + (testCaseName.contains(" ") ? " " : "_") + exampleNumber;
         } else {
             ThreadProperty.set("dataSet", "");
             previousTestCaseName = testCase.getName();

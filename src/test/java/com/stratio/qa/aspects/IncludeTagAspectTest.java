@@ -17,6 +17,7 @@ package com.stratio.qa.aspects;
 
 
 import com.stratio.qa.exceptions.IncludeException;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import java.util.*;
@@ -213,6 +214,73 @@ public class IncludeTagAspectTest {
         inctag.parseLines(lines, "src/test/resources/features/");
         assertThat(lines.get(1)).as("Test that Scenario line was moved to first include line").isEqualTo("Scenario: Scenario with include");
         assertThat(lines).as("Test that array doesn't contains @include tag").doesNotContain("@include");
+    }
+
+    @AfterMethod
+    public void cleanupSystemProperties() {
+        System.clearProperty("BGVAR");
+        System.clearProperty("BGVAR2");
+    }
+
+    // --- @background ---
+
+    @Test
+    public void testProcessBackgroundVarDefined() {
+        System.setProperty("BGVAR", "true");
+        List<String> lines = new ArrayList<>(Arrays.asList(
+                "  @BACKGROUND(BGVAR)",
+                "    Given I run some step",
+                "  @/BACKGROUND",
+                "  Scenario: test"));
+        inctag.processBackground(lines);
+        assertThat(lines).doesNotContain("  @BACKGROUND(BGVAR)");
+        assertThat(lines).doesNotContain("  @/BACKGROUND");
+        assertThat(lines).contains("    Given I run some step");
+    }
+
+    @Test
+    public void testProcessBackgroundVarNotDefined() {
+        List<String> lines = new ArrayList<>(Arrays.asList(
+                "  @BACKGROUND(BGVAR)",
+                "    Given I run some step",
+                "  @/BACKGROUND",
+                "  Scenario: test"));
+        inctag.processBackground(lines);
+        assertThat(lines).doesNotContain("  @BACKGROUND(BGVAR)");
+        assertThat(lines).doesNotContain("  @/BACKGROUND");
+        assertThat(lines).doesNotContain("    Given I run some step");
+        assertThat(lines).contains("  Scenario: test");
+    }
+
+    @Test
+    public void testProcessBackgroundMultipleBlocks() {
+        System.setProperty("BGVAR", "true");
+        List<String> lines = new ArrayList<>(Arrays.asList(
+                "  @BACKGROUND(BGVAR)",
+                "    Given keep this",
+                "  @/BACKGROUND",
+                "  @BACKGROUND(BGVAR2)",
+                "    Given remove this",
+                "  @/BACKGROUND",
+                "    Given always step"));
+        inctag.processBackground(lines);
+        assertThat(lines).contains("    Given keep this");
+        assertThat(lines).doesNotContain("    Given remove this");
+        assertThat(lines).contains("    Given always step");
+        assertThat(lines).doesNotContain("  @BACKGROUND(BGVAR)");
+        assertThat(lines).doesNotContain("  @BACKGROUND(BGVAR2)");
+        assertThat(lines).doesNotContain("  @/BACKGROUND");
+    }
+
+    @Test
+    public void testProcessBackgroundNoTags() {
+        List<String> lines = new ArrayList<>(Arrays.asList(
+                "Feature: Test",
+                "  Scenario: test",
+                "    Given some step"));
+        List<String> original = new ArrayList<>(lines);
+        inctag.processBackground(lines);
+        assertThat(lines).isEqualTo(original);
     }
 
     @Test

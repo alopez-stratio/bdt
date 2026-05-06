@@ -16,9 +16,6 @@
 
 package com.stratio.qa.aspects;
 
-import com.stratio.qa.cucumber.runner.Glue;
-import com.stratio.qa.cucumber.runtime.RuntimeOptions;
-import com.stratio.qa.cucumber.testng.CucumberReporter;
 import com.stratio.qa.cucumber.testng.TestSourcesModelUtil;
 import com.stratio.qa.exceptions.NonReplaceableException;
 import com.stratio.qa.specs.CommonG;
@@ -26,223 +23,423 @@ import com.stratio.qa.specs.HookGSpec;
 import com.stratio.qa.utils.ExceptionList;
 import com.stratio.qa.utils.StepException;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.PickleStepTestStep;
-import cucumber.api.Result.Type;
-import cucumber.api.Scenario;
-import cucumber.runner.AmbiguousStepDefinitionsException;
-import cucumber.runner.EventBus;
-import cucumber.runtime.Backend;
-import cucumber.runtime.CucumberException;
-import cucumber.runtime.StepDefinitionMatch;
-import gherkin.events.PickleEvent;
-import gherkin.pickles.*;
-import gherkin.pickles.Argument;
+import io.cucumber.core.gherkin.Argument;
+import io.cucumber.core.gherkin.DataTableArgument;
+import io.cucumber.core.gherkin.DocStringArgument;
+import io.cucumber.core.gherkin.Pickle;
+import io.cucumber.core.gherkin.Step;
+import io.cucumber.core.gherkin.StepType;
+import io.cucumber.core.exception.CucumberException;
+import io.cucumber.datatable.DataTable;
+import io.cucumber.plugin.event.Location;
+import io.cucumber.plugin.event.PickleStepTestStep;
+import io.cucumber.plugin.event.StepArgument;
+import io.cucumber.plugin.event.TestCase;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.*;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Pointcut;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
-
-import org.aspectj.lang.annotation.After;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Before;
-import org.aspectj.lang.annotation.Pointcut;
+import java.util.Map;
 
 @Aspect
 public class ReplacementAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
-    private Glue glue;
+    // thread-local: stepId -> ReplacedStepData (populated during matchStepToStepDefinition)
+    private final ThreadLocal<Map<String, ReplacedStepData>> replacedStepData =
+            ThreadLocal.withInitial(HashMap::new);
 
-    private List<String> undefinedSteps = new ArrayList<>();
+    // thread-locals for late-resolution of !{VAR} in step text (Cucumber 6 match-all-then-run-all)
+    private final ThreadLocal<Object> currentRunner = new ThreadLocal<>();
 
-    private String lastEchoedStep = "";
+    private final ThreadLocal<Pickle> currentPickle = new ThreadLocal<>();
 
-    @Pointcut("execution (cucumber.runner.Runner.new(..)) && "
-            + "args (bus, backends, runtimeOptions)")
-    protected void runnerInit(EventBus bus, Collection<? extends Backend> backends, RuntimeOptions runtimeOptions) {
+    private final ThreadLocal<PickleStepTestStep> currentPickleStep = new ThreadLocal<>();
+
+    // -----------------------------------------------------------------------
+    // Pointcut 1: replace scenario name before runPickle
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(void io.cucumber.core.runner.Runner.runPickle(..)) && args(pickle)")
+    protected void replacementScenarios(Pickle pickle) {
     }
 
-    @After(value = "runnerInit(bus, backends, runtimeOptions)")
-    public void runnerInitGlue(JoinPoint jp, EventBus bus, Collection<? extends Backend> backends, RuntimeOptions runtimeOptions) throws Throwable {
-        glue = new Glue(bus);
-        for (Backend backend : backends) {
-            backend.loadGlue(glue, runtimeOptions.getGlue());
-        }
-    }
-
-    @Pointcut("execution (* cucumber.runtime.formatter.DefaultSummaryPrinter.printSnippets(..))")
-    protected void print() {
-    }
-
-    @Around(value = "print()")
-    public void printSnippets(ProceedingJoinPoint pjp) throws Throwable {
-        if (!undefinedSteps.isEmpty()) {
-            logger.error("The following steps are undefined:");
-            for (String undefinedStep:undefinedSteps) {
-                logger.error("    {}", undefinedStep);
-            }
-        }
-    }
-
-    @Pointcut("execution (* cucumber.runner.Runner.runPickle(..)) && "
-            + "args (pickle)")
-    protected void replacementScenarios(PickleEvent pickle) {
-    }
-
-    @Before(value = "replacementScenarios(pickle)")
-    public void aroundScenarios(JoinPoint jp, PickleEvent pickle) throws Throwable {
-        String scenarioName = pickle.pickle.getName();
+    @Around(value = "replacementScenarios(pickle)")
+    public void aroundScenarios(ProceedingJoinPoint pjp, Pickle pickle) throws Throwable {
+        String scenarioName = pickle.getName();
         String newScenarioName;
         try {
-            newScenarioName = replacedElement(scenarioName, jp);
+            newScenarioName = replacedElement(scenarioName, pjp);
         } catch (Exception e) {
             ExceptionList.INSTANCE.getExceptions().add(e);
             newScenarioName = scenarioName + " | Placeholder not replaced -- " + e.toString();
         }
-        if (!newScenarioName.equals(pickle.pickle.getName())) {
-            Pickle pickle1 = pickle.pickle;
-            Field field = null;
-            Class current = pickle1.getClass();
-            do {
-                try {
-                    field = current.getDeclaredField("name");
-                } catch (Exception e) { }
-            } while ((current = current.getSuperclass()) != null);
-
-            field.setAccessible(true);
-            field.set(pickle1, newScenarioName);
+        if (!newScenarioName.equals(scenarioName)) {
+            pickle = new WrappedPickle(pickle, newScenarioName);
+        }
+        currentRunner.set(pjp.getTarget());
+        currentPickle.set(pickle);
+        try {
+            pjp.proceed(new Object[]{pickle});
+        } finally {
+            currentRunner.remove();
+            currentPickle.remove();
         }
     }
 
-    @Pointcut("execution (* cucumber.runner.TestStep.executeStep(..)) && "
-            + "args (scenario, skipSteps)")
-    protected void replacementStar(Scenario scenario, boolean skipSteps) {
+    // -----------------------------------------------------------------------
+    // Pointcut 2: replace step text/args before step-definition matching
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(private * io.cucumber.core.runner.Runner.matchStepToStepDefinition(..)) && args(pickle, step)")
+    protected void replacementMatch(Pickle pickle, Step step) {
     }
 
-    @Around(value = "replacementStar(scenario, skipSteps)")
-    public Type aroundReplacementStar(ProceedingJoinPoint pjp, Scenario scenario, boolean skipSteps) throws Throwable {
-        if (pjp.getTarget() instanceof PickleStepTestStep) {
-            if (StepException.INSTANCE.getException() != null) {
-                return Type.SKIPPED;
-            } else {
-                if (scenario.getSourceTagNames().contains("@error")) {
-                    for (String tag: scenario.getSourceTagNames()) {
-                        if (tag.contains("errorMessage")) {
-                            String msg = tag.substring((tag.lastIndexOf("(") + 1), (tag.length()) - 1).replaceAll("__", " ");
-                            logger.error("-> " + msg);
-                            throw new CucumberException(msg);
-                        }
-                    }
-                }
-                try {
-                    PickleStepTestStep pickleTestStep = (PickleStepTestStep) pjp.getTarget();
-                    PickleStep step = pickleTestStep.getPickleStep();
+    @Around(value = "replacementMatch(pickle, step)")
+    public Object aroundReplacementMatch(ProceedingJoinPoint pjp, Pickle pickle, Step step) throws Throwable {
+        String originalText = step.getText();
+        String newText = originalText;
+        String dataTableLog = "";
 
-                    // Replace elements in datatable and doc string
-                    StringBuilder sbDataTable = new StringBuilder();
-                    List<Argument> argumentList = new ArrayList<>(step.getArgument());
-                    for (int a = 0; a < argumentList.size(); a++) {
-                        if (argumentList.get(a) instanceof PickleTable) {
-                            PickleTable pickleTable = (PickleTable) argumentList.get(a);
-                            List<PickleRow> pickleRowList = new ArrayList<>(pickleTable.getRows());
-                            for (int r = 0; r < pickleRowList.size(); r++) {
-                                PickleRow pickleRow = pickleRowList.get(r);
-                                List<PickleCell> pickleCellList = new ArrayList<>(pickleRow.getCells());
-                                sbDataTable.append("| ");
-                                for (int c = 0; c < pickleCellList.size(); c++) {
-                                    PickleCell pickleCell = pickleCellList.get(c);
-                                    pickleCellList.set(c, new PickleCell(pickleCell.getLocation(), replacedElement(pickleCell.getValue(), pjp)));
-                                    sbDataTable.append(pickleCellList.get(c).getValue()).append(" | ");
-                                }
-                                pickleRowList.set(r, new PickleRow(pickleCellList));
-                                sbDataTable.append("\n");
-                            }
-                            pickleTable = new PickleTable(pickleRowList);
-                            argumentList.set(a, pickleTable);
-                        }
-                        if (argumentList.get(a) instanceof PickleString) {
-                            PickleString pickleString = (PickleString) argumentList.get(a);
-                            pickleString = new PickleString(pickleString.getLocation(), replacedElement(pickleString.getContent(), pjp));
-                            argumentList.set(a, pickleString);
-                            sbDataTable.append(pickleString.getContent()).append("\n");
-                        }
-                    }
+        try {
+            // Step text: only ${ENV} at match time. !{VAR} and @{CODE} are deferred to
+            // execute time (aroundReplacementExecute). !{VAR} because ThreadProperty values
+            // set by prior steps are not yet available; @{CODE} because generated files
+            // (e.g. testSOATtag.json) may not exist yet or may contain stale content.
+            newText = replacedElementSkipReflection(originalText, pjp);
+        } catch (Exception e) {
+            ExceptionList.INSTANCE.getExceptions().add(e);
+        }
 
-                    // Set new datatable in PickleStep object
-                    step = new PickleStep(step.getText(), argumentList, step.getLocations());
-
-                    // Replace elements in step
-                    String uri = pickleTestStep.getStepLocation().split(":")[0];
-                    String stepName = step.getText();
-                    String newName = replacedElement(stepName, pjp);
-                    String keyword = TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getKeywordFromSource(scenario.getUri(), pickleTestStep.getStepLine());
-                    if (!stepName.equals(newName)) {
-                        //field up to BasicStatement, from Step and ExampleStep
-                        Field field = null;
-                        Class current = step.getClass();
-                        do {
-                            try {
-                                field = current.getDeclaredField("text");
-                            } catch (Exception e) {
-                            }
-                        } while ((current = current.getSuperclass()) != null);
-
-                        field.setAccessible(true);
-                        field.set(step, newName.replaceAll("(\\r|\\n|\\r\\n)+", "\\\\n"));
-                        scenario.write(newName);
-                    }
-                    step = new PickleStep(step.getText(), argumentList, step.getLocations());
-
-                    TestSourcesModelUtil.INSTANCE.getTestSourcesModel().addReplacedStep(scenario.getUri(), pickleTestStep.getStepLine(), step);
-                    lastEchoedStep = pickleTestStep.getStepText();
-                    if (HookGSpec.loggerEnabled) {
-                        logger.info("   {}{}", keyword, newName);
-                        if (!sbDataTable.toString().isEmpty()) {
-                            logger.info("  {}", sbDataTable);
-                        }
-                    }
-
-                    // Run step
+        // Replace DataTable or DocString argument: apply only ${ENV} at match time.
+        // @{JSON/FILE.*} and !{VAR} are deferred to aroundReplacementExecute so that
+        // files created by earlier steps in the same scenario are accessible when resolved.
+        Argument newArg = step.getArgument();
+        StringBuilder sbDataTable = new StringBuilder();
+        if (newArg instanceof DataTableArgument) {
+            DataTableArgument dt = (DataTableArgument) newArg;
+            List<List<String>> originalCells = dt.cells();
+            List<List<String>> newCells = new ArrayList<>();
+            for (List<String> row : originalCells) {
+                List<String> newRow = new ArrayList<>();
+                sbDataTable.append("| ");
+                for (String cell : row) {
+                    String newCell = cell;
                     try {
-                        StepDefinitionMatch definitionMatch = glue.stepDefinitionMatch(uri, step);
-                        if (definitionMatch != null) {
-                            if (!skipSteps) {
-                                definitionMatch.runStep(scenario);
-                                return Type.PASSED;
-                            } else {
-                                definitionMatch.dryRunStep(scenario);
-                                return Type.SKIPPED;
-                            }
-                        } else {
-                            logger.error("Undefined step!! {}", newName);
-                            String undefinedStep = scenario.getUri() + " # " + newName;
-                            if (!undefinedSteps.contains(undefinedStep)) {
-                                undefinedSteps.add(undefinedStep);
-                            }
-                            return Type.UNDEFINED;
-                        }
-                    } catch (AmbiguousStepDefinitionsException asde) {
-                        return (Type) pjp.proceed();
+                        newCell = replacedElementSkipReflection(cell, pjp);
+                    } catch (Exception e) {
+                        ExceptionList.INSTANCE.getExceptions().add(e);
                     }
-                } catch (Exception e) {
-                    StepException.INSTANCE.setException(e);
-                    throw e;
+                    newRow.add(newCell);
+                    sbDataTable.append(newCell).append(" | ");
+                }
+                newCells.add(newRow);
+                sbDataTable.append("\n");
+            }
+            newArg = new ReplacedDataTableArgument(dt, newCells);
+        } else if (newArg instanceof DocStringArgument) {
+            DocStringArgument ds = (DocStringArgument) newArg;
+            String newContent = ds.getContent();
+            try {
+                newContent = replacedElementSkipReflection(newContent, pjp);
+            } catch (Exception e) {
+                ExceptionList.INSTANCE.getExceptions().add(e);
+            }
+            sbDataTable.append(newContent).append("\n");
+            newArg = new ReplacedDocStringArgument(ds, newContent);
+        }
+        dataTableLog = sbDataTable.toString();
+
+        Step replacedStep = (!newText.equals(originalText) || newArg != step.getArgument())
+                ? new ReplacedStep(step, newText, newArg)
+                : step;
+
+        // Store for logging in run()
+        ReplacedStepData data = new ReplacedStepData(newText, dataTableLog, step.getKeyword());
+        replacedStepData.get().put(step.getId(), data);
+
+        // Also store in TestSourcesModel for external use
+        TestSourcesModelUtil.INSTANCE.getTestSourcesModel().addReplacedStepText(
+                pickle.getUri().toString(), step.getLocation().getLine(), newText);
+
+        return pjp.proceed(new Object[]{pickle, replacedStep});
+    }
+
+    // -----------------------------------------------------------------------
+    // Pointcut 3a: resolve !{VAR} in step args at execute time
+    //
+    // Cucumber 6 matches all steps before running any (match-all-then-run-all).
+    // !{VAR} set by a prior step is not yet available at match time, so it
+    // survives unreplaced as a literal string in the matched argument.
+    // JavaStepDefinition.execute(Object[]) fires after prior steps have run,
+    // so ThreadProperty has the value by then.
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(* io.cucumber.java.JavaStepDefinition.execute(Object[]))")
+    protected void replacementExecute() {
+    }
+
+    @Around("replacementExecute()")
+    public Object aroundReplacementExecute(ProceedingJoinPoint pjp) throws Throwable {
+        Object[] args = (Object[]) pjp.getArgs()[0];
+        if (args != null) {
+            boolean changed = false;
+            Object[] newArgs = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                if (args[i] instanceof String) {
+                    String s = (String) args[i];
+                    if (s.contains("!{") || s.contains("@{") || s.contains("${")) {
+                        try {
+                            String replaced = replacedElement(s, pjp);
+                            // Normalize newlines to literal \n so multi-line ThreadProperty values
+                            // don't break shell commands (Cucumber 4 did this before re-matching).
+                            replaced = replaced.replaceAll("[\\r\\n]+", "\\\\n");
+                            if (!replaced.equals(s)) {
+                                newArgs[i] = replaced;
+                                changed = true;
+                            } else {
+                                newArgs[i] = args[i];
+                            }
+                        } catch (Exception e) {
+                            ExceptionList.INSTANCE.getExceptions().add(e);
+                            newArgs[i] = args[i];
+                        }
+                    } else {
+                        newArgs[i] = args[i];
+                    }
+                } else if (args[i] instanceof DataTable) {
+                    DataTable dt = (DataTable) args[i];
+                    List<List<String>> cells = dt.cells();
+                    List<List<String>> resolvedCells = new ArrayList<>(cells.size());
+                    boolean dtChanged = false;
+                    for (List<String> row : cells) {
+                        List<String> newRow = new ArrayList<>(row.size());
+                        for (String cell : row) {
+                            if (cell != null && (cell.contains("!{") || cell.contains("@{") || cell.contains("${"))) {
+                                try {
+                                    String resolved = replacedElement(cell, pjp);
+                                    newRow.add(resolved);
+                                    if (!resolved.equals(cell)) {
+                                        dtChanged = true;
+                                    }
+                                } catch (Exception e) {
+                                    ExceptionList.INSTANCE.getExceptions().add(e);
+                                    newRow.add(cell);
+                                }
+                            } else {
+                                newRow.add(cell);
+                            }
+                        }
+                        resolvedCells.add(newRow);
+                    }
+                    if (dtChanged) {
+                        newArgs[i] = DataTable.create(resolvedCells, dt.getTableConverter());
+                        changed = true;
+                    } else {
+                        newArgs[i] = args[i];
+                    }
+                } else {
+                    newArgs[i] = args[i];
+                }
+            }
+            if (changed) {
+                return pjp.proceed(new Object[]{newArgs});
+            }
+        }
+        return pjp.proceed();
+    }
+
+    // -----------------------------------------------------------------------
+    // Pointcut 3: log step, handle @error tag, handle StepException skip
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(* io.cucumber.core.runner.PickleStepTestStep.run(..))")
+    protected void replacementStar() {
+    }
+
+    @Around(value = "replacementStar()")
+    public Object aroundReplacementStar(ProceedingJoinPoint pjp) throws Throwable {
+        PickleStepTestStep pickleStep = (PickleStepTestStep) pjp.getTarget();
+
+        // Skip if a previous step already failed (bdt mechanism)
+        if (StepException.INSTANCE.getException() != null) {
+            return getSkipMode(pjp.getArgs()[3]);
+        }
+
+        // @error tag: check test case tags
+        Object testCaseArg = pjp.getArgs()[0];
+        if (testCaseArg instanceof TestCase) {
+            TestCase tc = (TestCase) testCaseArg;
+            if (tc.getTags().contains("@error")) {
+                for (String tag : tc.getTags()) {
+                    if (tag.contains("errorMessage")) {
+                        String msg = tag.substring((tag.lastIndexOf("(") + 1), (tag.length()) - 1)
+                                .replaceAll("__", " ");
+                        logger.error("-> " + msg);
+                        throw new CucumberException(msg);
+                    }
                 }
             }
         }
-        return (Type) pjp.proceed();
+
+        // Log step with replaced text
+        if (HookGSpec.loggerEnabled) {
+            Step gherkinStep = (Step) pickleStep.getStep();
+            String stepId = gherkinStep.getId();
+            ReplacedStepData data = replacedStepData.get().get(stepId);
+            String keyword = data != null ? data.keyword : pickleStep.getStep().getKeyword();
+            String displayText = data != null ? data.replacedText : pickleStep.getStepText();
+            if (displayText.contains("!{")) {
+                try {
+                    displayText = replaceReflectionPlaceholders(displayText, pjp);
+                } catch (Exception ignored) {
+                }
+            }
+            logger.info("   {}{}", keyword, displayText);
+            if (data != null && !data.dataTableLog.isEmpty()) {
+                String dataTableDisplay = data.dataTableLog;
+                if (dataTableDisplay.contains("!{")) {
+                    try {
+                        dataTableDisplay = replaceReflectionPlaceholders(dataTableDisplay, pjp);
+                    } catch (Exception ignored) {
+                    }
+                }
+                logger.info("  {}", dataTableDisplay);
+            }
+        }
+
+        currentPickleStep.set(pickleStep);
+        try {
+            return pjp.proceed();
+        } catch (Exception e) {
+            StepException.INSTANCE.setException(e);
+            throw e;
+        } finally {
+            currentPickleStep.remove();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Pointcut 3b: late-resolve !{VAR} in step text when step was Undefined
+    // because !{VAR} was unresolvable at Cucumber 6 match time.
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(* io.cucumber.core.runner.UndefinedPickleStepDefinitionMatch.runStep(..))")
+    protected void undefinedStepRun() {
+    }
+
+    @Around("undefinedStepRun()")
+    public Object aroundUndefinedStepRun(ProceedingJoinPoint pjp) throws Throwable {
+        PickleStepTestStep pickleStep = currentPickleStep.get();
+        if (pickleStep == null) {
+            return pjp.proceed();
+        }
+
+        String stepId = ((Step) pickleStep.getStep()).getId();
+        ReplacedStepData data = replacedStepData.get().get(stepId);
+
+        if (data == null || !data.replacedText.contains("!{")) {
+            return pjp.proceed();
+        }
+
+        String resolved;
+        try {
+            resolved = replaceReflectionPlaceholders(data.replacedText, pjp);
+        } catch (Exception e) {
+            return pjp.proceed();
+        }
+
+        if (resolved.contains("!{")) {
+            return pjp.proceed();
+        }
+
+        if (resolved.contains("@{")) {
+            try {
+                resolved = replaceCodePlaceholders(resolved, pjp);
+            } catch (Exception e) {
+                return pjp.proceed();
+            }
+        }
+
+        Step originalStep = (Step) pickleStep.getStep();
+        Step resolvedStep = new ReplacedStep(originalStep, resolved, originalStep.getArgument());
+
+        Object runner = currentRunner.get();
+        Pickle pickle = currentPickle.get();
+
+        if (runner == null || pickle == null) {
+            return pjp.proceed();
+        }
+
+        try {
+            Method matchMethod = runner.getClass().getDeclaredMethod(
+                    "matchStepToStepDefinition",
+                    Pickle.class,
+                    Step.class
+            );
+            matchMethod.setAccessible(true);
+            Object match = matchMethod.invoke(runner, pickle, resolvedStep);
+
+            if (match != null && !"io.cucumber.core.runner.UndefinedPickleStepDefinitionMatch".equals(
+                    match.getClass().getName())) {
+                io.cucumber.core.backend.TestCaseState state =
+                        (io.cucumber.core.backend.TestCaseState) pjp.getArgs()[0];
+                Method runStepMethod = match.getClass().getDeclaredMethod(
+                        "runStep", io.cucumber.core.backend.TestCaseState.class);
+                runStepMethod.setAccessible(true);
+                runStepMethod.invoke(match, state);
+                return null;
+            }
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause != null) {
+                throw cause;
+            }
+            throw e;
+        } catch (Exception e) {
+            logger.error("Late-resolution re-match failed for step: {}", data.replacedText, e);
+        }
+
+        return pjp.proceed();
+    }
+
+    // -----------------------------------------------------------------------
+    // Replacement helpers
+    // -----------------------------------------------------------------------
+
+    protected String replacedElementSkipReflection(String el, JoinPoint jp) throws NonReplaceableException {
+        try {
+            if (el.contains("${")) {
+                el = replaceEnvironmentPlaceholders(el, jp);
+            }
+            // !{VAR} and @{CODE} are deferred to execute time: !{} because ThreadProperty
+            // values set by prior steps are unavailable at Cucumber 6 match time; @{} because
+            // files like testSOATtag.json may not exist yet or may contain stale content.
+            return el;
+        } catch (Exception e) {
+            if (e instanceof NonReplaceableException) {
+                throw e;
+            } else {
+                throw new NonReplaceableException("Unreplaceable element: " + el + " - " + e);
+            }
+        }
     }
 
     protected String replacedElement(String el, JoinPoint jp) throws NonReplaceableException {
@@ -266,26 +463,6 @@ public class ReplacementAspect {
         }
     }
 
-    /**
-     * Replaces every placeholded element, enclosed in @{} with the
-     * corresponding attribute value in local Common class
-     * <p>
-     * If the element starts with:
-     * - IP: We expect it to be followed by '.' + interface name (i.e. IP.eth0). It can contain other replacements.
-     * <p>
-     * If the element starts with:
-     * - JSON: We expect it to be followed by '.' + path_to_json_file (relative to src/test/resources or
-     * target/test-classes). The json is read and its content is returned as a string
-     * <p>
-     * If the element starts with:
-     * - FILE: We expect it to be followed by '.' + path_to_file (relative to src/test/resources or
-     * target/test-classes). The file is read and its content is returned as a string
-     *
-     * @param element element to be replaced
-     * @param pjp JoinPoint
-     * @return String
-     * @throws NonReplaceableException exception
-     */
     protected String replaceCodePlaceholders(String element, JoinPoint pjp) throws NonReplaceableException {
         String newVal = element;
         while (newVal.contains("@{")) {
@@ -297,12 +474,8 @@ public class ReplacementAspect {
                 property = placeholder.substring(2, placeholder.indexOf(".")).toLowerCase();
                 subproperty = placeholder.substring(placeholder.indexOf(".") + 1, placeholder.length() - 1);
             } else {
-                if (pjp.getThis() instanceof CucumberReporter.TestMethod) {
-                    return newVal;
-                } else {
-                    logger.error("{} -> {} placeholded element has not been replaced previously.", element, property);
-                    throw new NonReplaceableException("Unreplaceable placeholder: " + placeholder);
-                }
+                logger.error("{} -> {} placeholded element has not been replaced previously.", element, property);
+                throw new NonReplaceableException("Unreplaceable placeholder: " + placeholder);
             }
 
             switch (property) {
@@ -342,16 +515,6 @@ public class ReplacementAspect {
         return newVal;
     }
 
-
-    /**
-     * Replaces every placeholded element, enclosed in !{} with the
-     * corresponding attribute value in local Common class
-     *
-     * @param element element to be replaced
-     * @param pjp JoinPoint
-     * @return String
-     * @throws NonReplaceableException exception
-     */
     protected String replaceReflectionPlaceholders(String element, JoinPoint pjp) throws NonReplaceableException {
         String newVal = element;
         while (newVal.contains("!{")) {
@@ -373,9 +536,7 @@ public class ReplacementAspect {
                     prop = ThreadProperty.get(attribute);
             }
 
-            if (prop == null && (pjp.getThis() instanceof CucumberReporter.TestMethod)) {
-                return element;
-            } else if (prop == null) {
+            if (prop == null) {
                 logger.error("{} -> {} local var has not been saved correctly previously.", element, attribute);
                 throw new NonReplaceableException("Un-replaceable placeholder: " + placeholder);
             } else {
@@ -385,16 +546,6 @@ public class ReplacementAspect {
         return newVal;
     }
 
-
-    /**
-     * Replaces every placeholded element, enclosed in ${} with the
-     * corresponding java property
-     *
-     * @param element element to be replaced
-     * @param jp JoinPoint
-     * @return String
-     * @throws NonReplaceableException exception
-     */
     protected String replaceEnvironmentPlaceholders(String element, JoinPoint jp) throws NonReplaceableException {
         String newVal = element;
         while (newVal.contains("${")) {
@@ -443,14 +594,11 @@ public class ReplacementAspect {
                 } else {
                     prop = System.getProperty(sysProp);
                 }
-
             } else {
                 prop = System.getProperty(sysProp, defaultValue);
             }
 
-            if (prop == null && (jp.getThis() instanceof CucumberReporter.TestMethod)) {
-                return element;
-            } else if (prop == null) {
+            if (prop == null) {
                 logger.error("{} -> {} env var has not been defined.", element, sysProp);
                 throw new NonReplaceableException("Unreplaceable placeholder: " + placeholder);
             }
@@ -463,11 +611,206 @@ public class ReplacementAspect {
             newVal = newVal.replace(placeholder, prop);
         }
 
-        // Allow setting empty string as default value
         if (newVal.equalsIgnoreCase("\"\"")) {
             newVal = "";
         }
         return newVal;
     }
-}
 
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    private Object getSkipMode(Object incomingMode) {
+        try {
+            return Enum.valueOf((Class<Enum>) incomingMode.getClass(), "SKIP");
+        } catch (Exception e) {
+            return incomingMode;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Inner classes
+    // -----------------------------------------------------------------------
+
+    private static class ReplacedStepData {
+
+        final String replacedText;
+
+        final String dataTableLog;
+
+        final String keyword;
+
+        ReplacedStepData(String replacedText, String dataTableLog, String keyword) {
+            this.replacedText = replacedText;
+            this.dataTableLog = dataTableLog;
+            this.keyword = keyword;
+        }
+    }
+
+    private static class WrappedPickle implements Pickle {
+
+        private final Pickle delegate;
+
+        private final String name;
+
+        WrappedPickle(Pickle delegate, String name) {
+            this.delegate = delegate;
+            this.name = name;
+        }
+
+        @Override
+        public String getKeyword() {
+            return delegate.getKeyword();
+        }
+
+        @Override
+        public String getLanguage() {
+            return delegate.getLanguage();
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public Location getLocation() {
+            return delegate.getLocation();
+        }
+
+        @Override
+        public Location getScenarioLocation() {
+            return delegate.getScenarioLocation();
+        }
+
+        @Override
+        public List<Step> getSteps() {
+            return delegate.getSteps();
+        }
+
+        @Override
+        public List<String> getTags() {
+            return delegate.getTags();
+        }
+
+        @Override
+        public URI getUri() {
+            return delegate.getUri();
+        }
+
+        @Override
+        public String getId() {
+            return delegate.getId();
+        }
+    }
+
+    private static class ReplacedStep implements Step {
+
+        private final Step delegate;
+
+        private final String text;
+
+        private final Argument argument;
+
+        ReplacedStep(Step delegate, String text, Argument argument) {
+            this.delegate = delegate;
+            this.text = text;
+            this.argument = argument;
+        }
+
+        @Override
+        public StepType getType() {
+            return delegate.getType();
+        }
+
+        @Override
+        public String getPreviousGivenWhenThenKeyword() {
+            return delegate.getPreviousGivenWhenThenKeyword();
+        }
+
+        @Override
+        public String getId() {
+            return delegate.getId();
+        }
+
+        @Override
+        public Argument getArgument() {
+            return argument;
+        }
+
+        @Override
+        public String getText() {
+            return text;
+        }
+
+        @Override
+        public String getKeyword() {
+            return delegate.getKeyword();
+        }
+
+        @Override
+        public int getLine() {
+            return delegate.getLine();
+        }
+
+        @Override
+        public Location getLocation() {
+            return delegate.getLocation();
+        }
+    }
+
+    private static class ReplacedDataTableArgument implements DataTableArgument {
+
+        private final DataTableArgument delegate;
+
+        private final List<List<String>> cells;
+
+        ReplacedDataTableArgument(DataTableArgument delegate, List<List<String>> cells) {
+            this.delegate = delegate;
+            this.cells = cells;
+        }
+
+        @Override
+        public List<List<String>> cells() {
+            return cells;
+        }
+
+        @Override
+        public int getLine() {
+            return delegate.getLine();
+        }
+    }
+
+    private static class ReplacedDocStringArgument implements DocStringArgument {
+
+        private final DocStringArgument delegate;
+
+        private final String content;
+
+        ReplacedDocStringArgument(DocStringArgument delegate, String content) {
+            this.delegate = delegate;
+            this.content = content;
+        }
+
+        @Override
+        public String getContent() {
+            return content;
+        }
+
+        @Override
+        public String getContentType() {
+            return delegate.getContentType();
+        }
+
+        @Override
+        public String getMediaType() {
+            return delegate.getMediaType();
+        }
+
+        @Override
+        public int getLine() {
+            return delegate.getLine();
+        }
+    }
+}

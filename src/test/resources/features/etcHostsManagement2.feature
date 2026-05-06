@@ -27,7 +27,7 @@ Feature: /etc/hosts management tests without restoring file and releasing lock
   Scenario: Set /etc/hosts variable
     Given I save '~/.hosts' in variable 'etchosts'
     Given I save '~' in variable 'hostsfolderpath'
-    Given I run 'if [ ! -f ~/.hosts ]; then echo "127.0.0.1  localhost" >> ~/.hosts; fi' locally
+    Given I run 'if [ ! -f ~/.hosts ] || [ ! -s ~/.hosts ]; then echo "127.0.0.1  localhost" > ~/.hosts; fi' locally
 
   Scenario: Modify !{etchosts} locally
     # Check we can add entry

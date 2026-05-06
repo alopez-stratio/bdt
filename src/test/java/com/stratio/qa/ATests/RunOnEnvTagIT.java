@@ -21,7 +21,7 @@ import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {
+@CucumberOptions(plugin = "json:target/cucumber-run-on-env-tag.json", features = {
         "src/test/resources/features/runOnEnvTag.feature"
 })
 public class RunOnEnvTagIT extends BaseGTest {

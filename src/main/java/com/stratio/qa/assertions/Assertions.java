@@ -19,7 +19,7 @@ package com.stratio.qa.assertions;
 import com.mongodb.DBObject;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.PreviousWebElements;
-import cucumber.api.Scenario;
+import io.cucumber.java.Scenario;
 import io.cucumber.datatable.DataTable;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;

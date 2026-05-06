@@ -18,11 +18,11 @@ package com.stratio.qa.specs;
 
 import com.jayway.jsonpath.PathNotFoundException;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.Scenario;
-import cucumber.api.java.Before;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.Scenario;
+import io.cucumber.java.Before;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import io.cucumber.datatable.DataTable;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
@@ -958,7 +958,7 @@ public class MiscSpec extends BaseGSpec {
     public void logIntoScenario(String msg) {
         commonspec.getLogger().info(msg);
         if (scenario != null) {
-            scenario.write(msg);
+            scenario.log(msg);
         }
     }
 

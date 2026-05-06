@@ -18,7 +18,7 @@ package com.stratio.qa.assertions;
 
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.utils.PreviousWebElements;
-import cucumber.api.Scenario;
+import io.cucumber.java.Scenario;
 import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Condition;
 import org.assertj.core.internal.Booleans;

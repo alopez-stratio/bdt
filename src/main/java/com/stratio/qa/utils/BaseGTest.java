@@ -18,7 +18,7 @@ package com.stratio.qa.utils;
 
 import com.stratio.qa.cucumber.api.FeatureExecutionOrder;
 import com.stratio.qa.cucumber.api.FeatureExecutionParams;
-import com.stratio.qa.cucumber.runtime.model.FeatureBuilder;
+import com.stratio.qa.cucumber.runtime.FeaturePathFeatureSupplier;
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.CucumberRunner;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
@@ -74,8 +74,8 @@ public abstract class BaseGTest {
 
         FeatureExecutionOrder annotationOrder =  this.getClass().getAnnotation(FeatureExecutionOrder.class);
         FeatureExecutionParams annotationParams  =  this.getClass().getAnnotation(FeatureExecutionParams.class);
-        System.setProperty(FeatureBuilder.DUPLICATED_FEATURES_KEY, annotationParams != null ? annotationParams.allowDuplicates() : "");
-        System.setProperty(FeatureBuilder.FEATURE_EXECUTION_ORDER_KEY, annotationParams != null ? annotationParams.order() : (annotationOrder != null ? annotationOrder.order() : ""));
+        System.setProperty(FeaturePathFeatureSupplier.DUPLICATED_FEATURES_KEY, annotationParams != null ? annotationParams.allowDuplicates() : "");
+        System.setProperty(FeaturePathFeatureSupplier.FEATURE_EXECUTION_ORDER_KEY, annotationParams != null ? annotationParams.order() : (annotationOrder != null ? annotationOrder.order() : ""));
 
         cucumberRunner = new CucumberRunner(this.getClass());
     }

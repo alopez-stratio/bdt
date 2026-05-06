@@ -18,9 +18,7 @@ package com.stratio.qa.aspects;
 
 import com.auth0.jwt.internal.org.apache.commons.codec.binary.Base64;
 import com.stratio.qa.specs.CommonG;
-import cucumber.runner.Runner;
-import gherkin.events.PickleEvent;
-import gherkin.pickles.PickleTag;
+import io.cucumber.core.gherkin.Pickle;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -28,8 +26,6 @@ import org.aspectj.lang.annotation.Pointcut;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,9 +35,9 @@ public class IgnoreTagAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
-    @Pointcut("execution (* cucumber.runner.Runner.runPickle(..)) && "
+    @Pointcut("execution (* io.cucumber.core.runner.Runner.runPickle(..)) && "
             + "args (pickle)")
-    protected void addIgnoreTagPointcutScenario(PickleEvent pickle) {
+    protected void addIgnoreTagPointcutScenario(Pickle pickle) {
     }
 
     /**
@@ -50,20 +46,9 @@ public class IgnoreTagAspect {
      * @throws Throwable exception
      */
     @Around(value = "addIgnoreTagPointcutScenario(pickle)")
-    public void aroundAddIgnoreTagPointcut(ProceedingJoinPoint pjp, PickleEvent pickle) throws Throwable {
-        Runner runner = (Runner) pjp.getThis();
-
-        Class<?> sc = runner.getClass();
-        Method tt = sc.getDeclaredMethod("buildBackendWorlds");
-        tt.setAccessible(true);
-        tt.invoke(runner);
-
-        String scenarioName = pickle.pickle.getName();
-        List<PickleTag> pickleTagList = pickle.pickle.getTags();
-        List<String> tagList = new ArrayList<>();
-        for (PickleTag pt : pickleTagList) {
-            tagList.add(pt.getName());
-        }
+    public void aroundAddIgnoreTagPointcut(ProceedingJoinPoint pjp, Pickle pickle) throws Throwable {
+        String scenarioName = pickle.getName();
+        List<String> tagList = pickle.getTags();
 
         ignoreReasons exitReason = manageTags(tagList, scenarioName);
         if (exitReason.equals(ignoreReasons.NOREASON)) {
@@ -71,9 +56,8 @@ public class IgnoreTagAspect {
         }
 
         if ((!(exitReason.equals(ignoreReasons.NOTIGNORED))) && (!(exitReason.equals(ignoreReasons.NOREASON)))) {
-            tt = sc.getDeclaredMethod("disposeBackendWorlds");
-            tt.setAccessible(true);
-            tt.invoke(runner);
+            // Scenario is ignored — do not proceed
+            return;
         } else {
             pjp.proceed();
         }

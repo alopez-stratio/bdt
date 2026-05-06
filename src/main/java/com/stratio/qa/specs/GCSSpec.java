@@ -7,7 +7,7 @@ import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.When;
 import org.json.JSONObject;
 
 import java.io.File;

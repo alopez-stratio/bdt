@@ -1,7 +1,7 @@
 package com.stratio.qa.specs;
 
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.When;
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.regions.Region;

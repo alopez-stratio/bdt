@@ -14,50 +14,149 @@
  * limitations under the License.
  */
 
+// STRATIO-FORK of io.cucumber.core.runtime.FeaturePathFeatureSupplier (Cucumber 6.11.0)
+// Changes: (1) preprocesses feature source via LoopIncludeTagAspect before Gherkin parsing;
+//          (2) honours FEATURES_EXECUTION_ORDER/PRESERVE_ORDER system property for sort order;
+//          (3) honours DUPLICATED_FEATURES/ALLOW_DUPLICATED system property for dedup.
 
 package com.stratio.qa.cucumber.runtime;
 
-import com.stratio.qa.cucumber.runtime.model.CucumberFeature;
-import com.stratio.qa.cucumber.runtime.model.FeatureLoader;
-import cucumber.util.FixJava;
+import com.stratio.qa.aspects.LoopIncludeTagAspect;
+import com.stratio.qa.exceptions.IncludeException;
+import io.cucumber.core.exception.CucumberException;
+import io.cucumber.core.feature.FeatureParser;
+import io.cucumber.core.feature.Options;
+import io.cucumber.core.gherkin.Feature;
 import io.cucumber.core.logging.Logger;
 import io.cucumber.core.logging.LoggerFactory;
-import io.cucumber.core.options.FeatureOptions;
+import io.cucumber.core.resource.Resource;
+import io.cucumber.core.resource.ResourceScanner;
+import io.cucumber.core.runtime.FeatureSupplier;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Supplier;
 
-/**
- * Supplies a list of features found on the the feature path provided to RuntimeOptions.
- */
 public class FeaturePathFeatureSupplier implements FeatureSupplier {
 
-    private static final Logger log = LoggerFactory.getLogger(cucumber.runtime.FeaturePathFeatureSupplier.class);
+    private static final Logger log = LoggerFactory.getLogger(FeaturePathFeatureSupplier.class);
 
-    private final FeatureLoader featureLoader;
+    public static final String FEATURE_EXECUTION_ORDER_KEY = "FEATURES_EXECUTION_ORDER";
 
-    private final FeatureOptions featureOptions;
+    public static final String PRESERVE_ORDER = "PRESERVE_ORDER";
 
-    public FeaturePathFeatureSupplier(FeatureLoader featureLoader, FeatureOptions featureOptions) {
-        this.featureLoader = featureLoader;
+    public static final String DUPLICATED_FEATURES_KEY = "DUPLICATED_FEATURES";
+
+    public static final String ALLOW_DUPLICATED_FEATURES = "ALLOW_DUPLICATED";
+
+    private final ResourceScanner<Feature> featureScanner;
+
+    private final Options featureOptions;
+
+    private final List<URI> explicitPaths;
+
+    public FeaturePathFeatureSupplier(Supplier<ClassLoader> classLoaderSupplier, Options featureOptions, Supplier<UUID> idGenerator) {
+        this(classLoaderSupplier, featureOptions, idGenerator, null);
+    }
+
+    public FeaturePathFeatureSupplier(Supplier<ClassLoader> classLoaderSupplier, Options featureOptions, Supplier<UUID> idGenerator, List<URI> explicitPaths) {
+        FeatureParser baseParser = new FeatureParser(idGenerator);
+        this.featureScanner = new ResourceScanner<>(
+            classLoaderSupplier,
+            path -> isFeatureFile(path),
+            resource -> baseParser.parseResource(preprocess(resource))
+        );
         this.featureOptions = featureOptions;
+        this.explicitPaths = explicitPaths;
     }
 
     @Override
-    public List<CucumberFeature> get() {
-        List<URI> featurePaths = featureOptions.getFeaturePaths();
+    public List<Feature> get() {
+        List<URI> featurePaths = (explicitPaths != null && !explicitPaths.isEmpty())
+                ? explicitPaths
+                : featureOptions.getFeaturePaths();
+        if (featurePaths.isEmpty()) {
+            log.warn(() -> "Got no path to feature directory or feature file");
+            return Collections.emptyList();
+        }
 
-        log.debug("Loading features from " + FixJava.join(featurePaths, ", "));
-        List<CucumberFeature> cucumberFeatures = featureLoader.load(featurePaths);
+        Map<URI, Feature> uriToFeature = new HashMap<>();
+        List<Feature> features = new ArrayList<>();
+        boolean allowDuplicated = ALLOW_DUPLICATED_FEATURES.equals(System.getProperty(DUPLICATED_FEATURES_KEY, ""));
 
-        if (cucumberFeatures.isEmpty()) {
-            if (featurePaths.isEmpty()) {
-                log.warn("Got no path to feature directory or feature file");
-            } else {
-                log.warn("No features found at " + FixJava.join(featurePaths, ", "));
+        for (URI uri : featurePaths) {
+            List<Feature> loaded = featureScanner.scanForResourcesUri(uri);
+            for (Feature feature : loaded) {
+                if (!allowDuplicated) {
+                    Feature existing = uriToFeature.get(feature.getUri());
+                    if (existing != null) {
+                        log.warn(() -> "Duplicate feature ignored: " + feature.getUri());
+                        continue;
+                    }
+                }
+                uriToFeature.put(feature.getUri(), feature);
+                features.add(feature);
             }
         }
 
-        return cucumberFeatures;
+        if (!PRESERVE_ORDER.equals(System.getProperty(FEATURE_EXECUTION_ORDER_KEY, ""))) {
+            features.sort((a, b) -> a.getUri().compareTo(b.getUri()));
+        }
+
+        return features;
+    }
+
+    private static boolean isFeatureFile(Path path) {
+        return path.getFileName().toString().endsWith(".feature");
+    }
+
+    private static Resource preprocess(Resource resource) {
+        try {
+            byte[] bytes;
+            try (InputStream is = resource.getInputStream()) {
+                bytes = is.readAllBytes();
+            }
+            String content = new String(bytes, StandardCharsets.UTF_8);
+
+            List<String> lines = new ArrayList<>(Arrays.asList(content.split("\n")));
+
+            String rawPath = resource.getUri().getRawSchemeSpecificPart();
+            String dir = rawPath.contains("/") ? rawPath.substring(0, rawPath.lastIndexOf('/') + 1) : "";
+
+            LoopIncludeTagAspect preprocessor = new LoopIncludeTagAspect();
+            preprocessor.processBackground(lines);
+            preprocessor.parseLines(lines, dir);
+
+            final byte[] processed = String.join("\n", lines).getBytes(StandardCharsets.UTF_8);
+            URI uri = resource.getUri();
+
+            return new Resource() {
+                @Override
+                public URI getUri() {
+                    return uri;
+                }
+
+                @Override
+                public InputStream getInputStream() {
+                    return new ByteArrayInputStream(processed);
+                }
+            };
+        } catch (IncludeException e) {
+            throw new CucumberException("Failed to preprocess feature: " + resource.getUri(), e);
+        } catch (IOException e) {
+            throw new CucumberException("Failed to read feature: " + resource.getUri(), e);
+        }
     }
 }

@@ -21,8 +21,8 @@ import com.stratio.qa.clients.mesos.MesosApiClient;
 import com.stratio.qa.models.mesos.MesosConstants;
 import com.stratio.qa.models.mesos.MesosTask;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 
 import java.util.List;
 

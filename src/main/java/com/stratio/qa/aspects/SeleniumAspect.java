@@ -21,7 +21,7 @@ import com.stratio.qa.specs.BaseGSpec;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.specs.SeleniumSpec;
 import com.stratio.qa.utils.PreviousWebElements;
-import cucumber.api.Scenario;
+import io.cucumber.java.Scenario;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;

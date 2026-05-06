@@ -46,7 +46,7 @@ import com.stratio.qa.clients.mesos.MesosUtils;
 import com.stratio.qa.conditions.Conditions;
 import com.stratio.qa.utils.*;
 import io.cucumber.datatable.DataTable;
-import cucumber.api.Scenario;
+import io.cucumber.java.Scenario;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.tools.tar.TarEntry;
@@ -653,7 +653,7 @@ public class CommonG {
                 BufferedImage bImage = ImageIO.read(pngFile);
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 ImageIO.write(bImage, "png", bos);
-                scenario.embed(bos.toByteArray(), "image/png");
+                scenario.attach(bos.toByteArray(), "image/png", null);
             } catch (IOException e) {
                 logger.error("Error adding screenshot in cucumber report", e);
             }

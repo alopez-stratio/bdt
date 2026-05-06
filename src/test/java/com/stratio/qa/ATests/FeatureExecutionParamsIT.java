@@ -16,7 +16,7 @@
 package com.stratio.qa.ATests;
 
 import com.stratio.qa.cucumber.api.FeatureExecutionParams;
-import com.stratio.qa.cucumber.runtime.model.FeatureBuilder;
+import com.stratio.qa.cucumber.runtime.FeaturePathFeatureSupplier;
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
 import com.stratio.qa.utils.BaseGTest;
@@ -24,6 +24,7 @@ import cucumber.api.CucumberOptions;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,18 +39,22 @@ import static org.assertj.core.api.Assertions.assertThat;
         "src/test/resources/features/Test1.feature"
 })
 @FeatureExecutionParams(
-        order = FeatureBuilder.PRESERVE_ORDER,
-        allowDuplicates = FeatureBuilder.ALLOW_DUPLICATED_FEATURES
+        order = FeaturePathFeatureSupplier.PRESERVE_ORDER,
+        allowDuplicates = FeaturePathFeatureSupplier.ALLOW_DUPLICATED_FEATURES
 )
 public class FeatureExecutionParamsIT extends BaseGTest {
 
     @Test
     public void checkExecutionOrderAndRepeatedFeatures() {
-        List<String> reference = Arrays.asList("file:src/test/resources/features/Test.feature", "file:src/test/resources/features/Test3.feature",
-                "file:src/test/resources/features/Test1.feature", "file:src/test/resources/features/Test2.feature", "file:src/test/resources/features/Test1.feature");
+        List<String> reference = Arrays.asList(
+                Paths.get("src/test/resources/features/Test.feature").toAbsolutePath().toUri().toString(),
+                Paths.get("src/test/resources/features/Test3.feature").toAbsolutePath().toUri().toString(),
+                Paths.get("src/test/resources/features/Test1.feature").toAbsolutePath().toUri().toString(),
+                Paths.get("src/test/resources/features/Test2.feature").toAbsolutePath().toUri().toString(),
+                Paths.get("src/test/resources/features/Test1.feature").toAbsolutePath().toUri().toString());
 
         Object[][] scenarios = cucumberRunner.provideScenarios();
-        List<String> uris = Arrays.stream(scenarios).map(scenario -> ((PickleEventWrapper)scenario[0]).getPickleEvent().uri).collect(Collectors.toList());
+        List<String> uris = Arrays.stream(scenarios).map(scenario -> ((PickleEventWrapper)scenario[0]).getPickleEvent().getUri().toString()).collect(Collectors.toList());
 
         assertThat(reference.equals(uris)).as("Executed features do not match with the expected.").isTrue();
     }

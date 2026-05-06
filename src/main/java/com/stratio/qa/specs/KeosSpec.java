@@ -18,11 +18,11 @@ package com.stratio.qa.specs;
 
 import com.stratio.qa.aspects.RunOnTagAspect;
 import com.stratio.qa.utils.CookiesUtils;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.When;
 import io.netty.handler.codec.http.cookie.Cookie;
 import com.stratio.qa.utils.GosecSSOUtils;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.Given;
+import io.cucumber.java.en.Given;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.json.JSONObject;

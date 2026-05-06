@@ -20,11 +20,11 @@ import com.stratio.qa.cucumber.converter.NullableString;
 import com.stratio.qa.cucumber.converter.Strokes;
 import com.stratio.qa.utils.PreviousWebElements;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.Scenario;
-import cucumber.api.java.Before;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.Scenario;
+import io.cucumber.java.Before;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import org.assertj.core.api.Assertions;
 import org.openqa.selenium.*;
 

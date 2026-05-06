@@ -21,7 +21,7 @@ import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {"src/test/resources/features/jsonReplacements.feature"})
+@CucumberOptions(plugin = "json:target/cucumber-json-replacements.json", features = {"src/test/resources/features/jsonReplacements.feature"})
 public class JsonReplacementsIT extends BaseGTest {
     @Test(dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {

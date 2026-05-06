@@ -16,49 +16,44 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import cucumber.api.Result;
-import cucumber.api.event.EventHandler;
-import cucumber.api.event.TestCaseFinished;
-import cucumber.runner.EventBus;
-import cucumber.runtime.CucumberException;
+import io.cucumber.core.exception.CucumberException;
+import io.cucumber.plugin.event.EventHandler;
+import io.cucumber.plugin.event.EventPublisher;
+import io.cucumber.plugin.event.Result;
+import io.cucumber.plugin.event.Status;
+import io.cucumber.plugin.event.TestCaseFinished;
 import org.testng.SkipException;
 
-public class TestCaseResultListener {
+class TestCaseResultListener {
 
     static final String UNDEFINED_MESSAGE = "There are undefined steps";
 
     static final String SKIPPED_MESSAGE = "This scenario is skipped";
 
-    private final EventBus bus;
+    private final EventPublisher bus;
 
-    private boolean strict;
+    private final boolean strict;
 
     private Result result;
 
-    private final EventHandler<TestCaseFinished> testCaseFinishedHandler = new EventHandler<TestCaseFinished>() {
-        @Override
-        public void receive(TestCaseFinished event) {
-            receiveResult(event.result);
-        }
-    };
+    private final EventHandler<TestCaseFinished> handler = event -> receiveResult(event.getResult());
 
-    TestCaseResultListener(EventBus bus, boolean strict) {
+    TestCaseResultListener(EventPublisher bus, boolean strict) {
         this.strict = strict;
         this.bus = bus;
-        bus.registerHandlerFor(TestCaseFinished.class, testCaseFinishedHandler);
+        bus.registerHandlerFor(TestCaseFinished.class, handler);
     }
 
     void finishExecutionUnit() {
-        bus.removeHandlerFor(TestCaseFinished.class, testCaseFinishedHandler);
+        bus.removeHandlerFor(TestCaseFinished.class, handler);
     }
 
-
-    void receiveResult(Result result) {
-        this.result = result;
+    private void receiveResult(Result r) {
+        this.result = r;
     }
 
     boolean isPassed() {
-        return result == null || result.is(Result.Type.PASSED);
+        return result == null || result.getStatus() == Status.PASSED;
     }
 
     Throwable getError() {
@@ -73,7 +68,7 @@ public class TestCaseResultListener {
                 if (strict) {
                     return result.getError();
                 } else {
-                    return new SkipException(result.getErrorMessage(), result.getError());
+                    return new SkipException("Pending step", result.getError());
                 }
             case UNDEFINED:
                 if (strict) {
@@ -84,11 +79,7 @@ public class TestCaseResultListener {
             case SKIPPED:
                 Throwable error = result.getError();
                 if (error != null) {
-                    if (error instanceof SkipException) {
-                        return error;
-                    } else {
-                        return new SkipException(result.getErrorMessage(), error);
-                    }
+                    return error instanceof SkipException ? error : new SkipException("Skipped step", error);
                 } else {
                     return new SkipException(SKIPPED_MESSAGE);
                 }

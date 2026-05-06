@@ -17,7 +17,7 @@
 package com.stratio.qa.specs;
 
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.Given;
+import io.cucumber.java.en.Given;
 import org.apache.commons.io.IOUtils;
 import org.assertj.core.api.Assertions;
 

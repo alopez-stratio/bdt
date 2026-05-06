@@ -16,9 +16,7 @@
 
 package com.stratio.qa.aspects;
 
-import cucumber.runner.Runner;
-import gherkin.events.PickleEvent;
-import gherkin.pickles.PickleTag;
+import io.cucumber.core.gherkin.Pickle;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -26,8 +24,6 @@ import org.aspectj.lang.annotation.Pointcut;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,9 +33,9 @@ public class MandatoryAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
-    @Pointcut("execution (* cucumber.runner.Runner.runPickle(..)) && "
+    @Pointcut("execution (* io.cucumber.core.runner.Runner.runPickle(..)) && "
             + "args (pickle)")
-    protected void addMandatoryPointcutScenario(PickleEvent pickle) {
+    protected void addMandatoryPointcutScenario(Pickle pickle) {
     }
 
     /**
@@ -48,27 +44,16 @@ public class MandatoryAspect {
      * @throws Throwable exception
      */
     @Around(value = "addMandatoryPointcutScenario(pickle)")
-    public void aroundAddMandatoryPointcut(ProceedingJoinPoint pjp, PickleEvent pickle) throws Throwable {
-        Runner runner = (Runner) pjp.getThis();
-
-        Class<?> sc = runner.getClass();
-        Method tt = sc.getDeclaredMethod("buildBackendWorlds");
-        tt.setAccessible(true);
-        tt.invoke(runner);
-
-        String scenarioName = pickle.pickle.getName();
-        List<PickleTag> pickleTagList = pickle.pickle.getTags();
-        List<String> tagList = new ArrayList<>();
-        for (PickleTag pt:pickleTagList) {
-            tagList.add(pt.getName());
-        }
+    public void aroundAddMandatoryPointcut(ProceedingJoinPoint pjp, Pickle pickle) throws Throwable {
+        List<String> tagList = pickle.getTags();
 
         boolean exec = manageTags(tagList);
         if (!exec) {
             logger.error("Feature will not be executed. Mandatory variables not defined.");
-        } else {
-            pjp.proceed();
+            // Do not proceed — scenario skipped
+            return;
         }
+        pjp.proceed();
     }
 
     public boolean manageTags(List<String> tagList) {

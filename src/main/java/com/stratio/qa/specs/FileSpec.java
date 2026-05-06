@@ -18,7 +18,7 @@ package com.stratio.qa.specs;
 
 import com.csvreader.CsvReader;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.When;
 import io.cucumber.datatable.DataTable;
 
 import java.io.*;

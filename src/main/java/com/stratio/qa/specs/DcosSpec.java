@@ -26,9 +26,9 @@ import com.stratio.qa.utils.RemoteSSHConnection;
 import com.stratio.qa.utils.RemoteSSHConnectionsUtil;
 import com.stratio.qa.utils.ThreadProperty;
 import com.stratio.qa.utils.vaultansible.VaultAnsible;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;

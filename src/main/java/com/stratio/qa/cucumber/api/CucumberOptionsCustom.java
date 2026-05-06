@@ -16,7 +16,7 @@
 
 package com.stratio.qa.cucumber.api;
 
-import cucumber.api.SnippetType;
+import io.cucumber.core.snippets.SnippetType;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

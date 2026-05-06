@@ -23,16 +23,16 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;
-import cucumber.api.Scenario;
-import cucumber.api.java.Before;
+import io.cucumber.java.Scenario;
+import io.cucumber.java.Before;
 import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.DBObjectsAssert;
 import com.stratio.qa.exceptions.DBException;
 import com.stratio.qa.utils.JDBCConnection;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import io.cucumber.datatable.DataTable;
 import org.assertj.core.api.Assertions;
 import org.elasticsearch.common.settings.Settings;
@@ -1925,7 +1925,7 @@ public class DatabaseSpec extends BaseGSpec {
         for (int i = 0; i < filterValues.size(); i++) {
             if (filterValue.equals(filterValues.get(i))) {
                 ThreadProperty.set(variableName, targetValues.get(i));
-                scenario.write("Variable: " + variableName + "\n" + "Value: " + targetValues.get(i));
+                scenario.log("Variable: " + variableName + "\n" + "Value: " + targetValues.get(i));
                 return;
             }
         }
@@ -1961,7 +1961,7 @@ public class DatabaseSpec extends BaseGSpec {
             if (filterValue.equals(filterValues.get(i))) {
 
                 String actualValue = targetValues.get(i);
-                scenario.write("Actual value: " + actualValue);
+                scenario.log("Actual value: " + actualValue);
 
                 Assertions.assertThat(actualValue)
                         .as("Value of column '" + targetColumn + "' where column '" + filterColumn + "' is '" + filterValue + "'")
@@ -2012,7 +2012,7 @@ public class DatabaseSpec extends BaseGSpec {
             }
 
             String value = columnValues.get(rowIndex);
-            scenario.write("EnvVar " + prefix + "." + columnName + " = " + value);
+            scenario.log("EnvVar " + prefix + "." + columnName + " = " + value);
             ThreadProperty.set(prefix + "." + columnName, value);
         }
     }

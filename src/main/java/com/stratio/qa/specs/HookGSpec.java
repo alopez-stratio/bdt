@@ -19,10 +19,10 @@ package com.stratio.qa.specs;
 import com.stratio.qa.exceptions.SuppressableException;
 import com.stratio.qa.utils.StepException;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.Result;
-import cucumber.api.Scenario;
-import cucumber.api.java.After;
-import cucumber.api.java.Before;
+import io.cucumber.java.Scenario;
+import io.cucumber.java.Status;
+import io.cucumber.java.After;
+import io.cucumber.java.Before;
 import java.io.File;
 
 import org.asynchttpclient.AsyncHttpClient;
@@ -41,6 +41,7 @@ import org.openqa.selenium.remote.internal.HttpClientFactory;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.util.Collection;
 import java.util.HashMap;
@@ -82,7 +83,7 @@ public class HookGSpec extends BaseGSpec {
 
     public static final int ORDER_30 = 30;
 
-    public static String featureUri = "";
+    public static URI featureUri = null;
 
     /**
      * Default constructor.
@@ -152,7 +153,7 @@ public class HookGSpec extends BaseGSpec {
 
     @Before
     public void quit_if_tagged_scenario_failed(Scenario scenario) throws Throwable {
-        if (!featureUri.equals(scenario.getUri())) { // the Scenario is in a new Feature
+        if (!scenario.getUri().equals(featureUri)) { // the Scenario is in a new Feature
             if (importantScenarioHasFail) {
                 prevScenarioFailed = true;
             }
@@ -177,7 +178,7 @@ public class HookGSpec extends BaseGSpec {
      *
      * @throws MalformedURLException
      */
-    @Before(order = ORDER_10, value = {"@mobile or @web"})
+    @Before(order = ORDER_10, value = "@mobile or @web")
     public void seleniumSetup() throws MalformedURLException {
         String grid = System.getProperty("SELENIUM_GRID");
         String b = ThreadProperty.get("browser");
@@ -281,7 +282,7 @@ public class HookGSpec extends BaseGSpec {
     /**
      * Close selenium web driver.
      */
-    @After(order = ORDER_20, value = {"@mobile or @web"})
+    @After(order = ORDER_20, value = "@mobile or @web")
     public void seleniumTeardown() {
         if (commonspec.getDriver() != null) {
             commonspec.getLogger().debug("Shutdown Selenium client");
@@ -299,9 +300,9 @@ public class HookGSpec extends BaseGSpec {
 
     @After
     public void afterScenario(Scenario scenario) throws Throwable {
-        if (scenario.getStatus() == Result.Type.UNDEFINED) {
+        if (scenario.getStatus() == Status.UNDEFINED) {
             if (!commonspec.getExceptions().isEmpty()) {
-                scenario.write(commonspec.getExceptions().get(commonspec.getExceptions().size() - 1).toString());
+                scenario.log(commonspec.getExceptions().get(commonspec.getExceptions().size() - 1).toString());
             }
         }
     }

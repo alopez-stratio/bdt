@@ -31,7 +31,7 @@ public class CommandExecutionTest {
         CommonG commong = new CommonG();
         CommandExecutionSpec cmdExec = new CommandExecutionSpec(commong);
 
-        commong.runLocalCommand("echo blabla 2$>1");
+        commong.runLocalCommand("echo blabla >/dev/null");
         try {
             cmdExec.emptyShellOutput();
          } catch (AssertionError error) {

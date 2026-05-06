@@ -16,25 +16,23 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import cucumber.runtime.CucumberException;
-import gherkin.events.PickleEvent;
+import io.cucumber.core.exception.CucumberException;
 
 /**
- * The only purpose of this class is to move parse errors from the DataProvider
- * to the test execution of the TestNG tests.
+ * Moves parse errors from the DataProvider to test execution of TestNG tests.
  *
  * @see CucumberRunner#provideScenarios()
  */
 class CucumberExceptionWrapper implements PickleEventWrapper {
-    private CucumberException exception;
+
+    private final CucumberException exception;
 
     CucumberExceptionWrapper(CucumberException e) {
         this.exception = e;
     }
 
     @Override
-    public PickleEvent getPickleEvent() {
+    public io.cucumber.core.gherkin.Pickle getPickleEvent() {
         throw this.exception;
     }
-
 }

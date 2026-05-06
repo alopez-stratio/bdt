@@ -20,9 +20,9 @@ import com.jcraft.jsch.Session;
 import com.stratio.qa.utils.RemoteSSHConnection;
 import com.stratio.qa.utils.RemoteSSHConnectionsUtil;
 import com.stratio.qa.utils.ThreadProperty;
-import cucumber.api.java.en.Given;
-import cucumber.api.java.en.Then;
-import cucumber.api.java.en.When;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
 import org.assertj.core.api.Assertions;
 
 import java.io.BufferedWriter;

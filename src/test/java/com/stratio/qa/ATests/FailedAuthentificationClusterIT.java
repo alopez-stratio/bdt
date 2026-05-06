@@ -21,7 +21,7 @@ import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {"src/test/resources/features/failedAuthentificationClusterIT.feature"})
+@CucumberOptions(plugin = "json:target/cucumber-failed-authentification-cluster.json", features = {"src/test/resources/features/failedAuthentificationClusterIT.feature"})
 public class FailedAuthentificationClusterIT extends BaseGTest {
     @Test(dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {

@@ -14,293 +14,216 @@
  * limitations under the License.
  */
 
+// STRATIO-FORK: Stratio-written options factory (no direct upstream equivalent in Cucumber 6).
+// Changes vs standard: (1) supports @CucumberOptionsCustom with extraGlue() and environments();
+// (2) supports compatibility @cucumber.api.CucumberOptions shim annotation;
+// (3) getEnvironmentFeatures() + checkConditions() enable conditional feature execution.
+
 package com.stratio.qa.cucumber.runtime;
 
 import com.stratio.qa.cucumber.api.Condition;
 import com.stratio.qa.cucumber.api.CucumberOptionsCustom;
 import com.stratio.qa.cucumber.api.FeatureEnvironment;
-import cucumber.api.CucumberOptions;
-import cucumber.api.SnippetType;
-import cucumber.runtime.CucumberException;
+import io.cucumber.core.backend.ObjectFactory;
+import io.cucumber.core.feature.FeatureWithLines;
+import io.cucumber.core.feature.GluePath;
+import io.cucumber.core.options.CucumberOptionsAnnotationParser;
+import io.cucumber.core.options.RuntimeOptionsBuilder;
+import io.cucumber.core.snippets.SnippetType;
 
-import java.lang.annotation.Annotation;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class RuntimeOptionsFactoryCustom {
-    private final Class clazz;
 
-    private boolean featuresSpecified = false;
+    private final Class<?> clazz;
 
-    private boolean overridingGlueSpecified = false;
-
-    public RuntimeOptionsFactoryCustom(Class clazz) {
+    public RuntimeOptionsFactoryCustom(Class<?> clazz) {
         this.clazz = clazz;
     }
 
-    public RuntimeOptions create() {
-        List<String> args = this.buildArgsFromOptions();
-        return new RuntimeOptions(args);
+    public RuntimeOptionsBuilder buildOptions() {
+        RuntimeOptionsBuilder builder = new CucumberOptionsAnnotationParser()
+                .withOptionsProvider(new StratioOptionsProvider())
+                .parse(clazz);
+        return builder;
     }
 
-    private List<String> buildArgsFromOptions() {
-        List<String> args = new ArrayList();
-
-        for (Class classWithOptions = this.clazz; this.hasSuperClass(classWithOptions); classWithOptions = classWithOptions.getSuperclass()) {
-            CucumberOptions options = this.getOptions(classWithOptions);
-            if (options != null) {
-                this.addDryRun(options, args);
-                this.addMonochrome(options, args);
-                this.addTags(options, args);
-                this.addPlugins(options, args);
-                this.addStrict(options, args);
-                this.addName(options, args);
-                this.addSnippets(options, args);
-                this.addGlue(options, args);
-                this.addFeatures(options, args);
-                this.addJunitOptions(options, args);
+    private class StratioOptionsProvider implements CucumberOptionsAnnotationParser.OptionsProvider {
+        @Override
+        public CucumberOptionsAnnotationParser.CucumberOptions getOptions(Class<?> c) {
+            CucumberOptionsCustom custom = c.getAnnotation(CucumberOptionsCustom.class);
+            if (custom != null) {
+                return new CustomOptionsAdapter(custom);
             }
-        }
-
-        this.addDefaultFeaturePathIfNoFeaturePathIsSpecified(args, this.clazz);
-        this.addDefaultGlueIfNoOverridingGlueIsSpecified(args, this.clazz);
-        return args;
-    }
-
-    private void addName(CucumberOptions options, List<String> args) {
-        String[] var3 = options.name();
-        int var4 = var3.length;
-
-        for (int var5 = 0; var5 < var4; ++var5) {
-            String name = var3[var5];
-            args.add("--name");
-            args.add(name);
-        }
-
-    }
-
-    private void addSnippets(CucumberOptions options, List<String> args) {
-        args.add("--snippets");
-        args.add(options.snippets().toString());
-    }
-
-    private void addDryRun(CucumberOptions options, List<String> args) {
-        if (options.dryRun()) {
-            args.add("--dry-run");
-        }
-
-    }
-
-    private void addMonochrome(CucumberOptions options, List<String> args) {
-        if (options.monochrome() || this.runningInEnvironmentWithoutAnsiSupport()) {
-            args.add("--monochrome");
-        }
-
-    }
-
-    private void addTags(CucumberOptions options, List<String> args) {
-        String[] var3 = options.tags();
-        int var4 = var3.length;
-
-        for (int var5 = 0; var5 < var4; ++var5) {
-            String tags = var3[var5];
-            args.add("--tags");
-            args.add(tags);
-        }
-
-    }
-
-    private void addPlugins(CucumberOptions options, List<String> args) {
-        List<String> plugins = new ArrayList();
-        plugins.addAll(Arrays.asList(options.plugin()));
-        Iterator var4 = plugins.iterator();
-
-        while (var4.hasNext()) {
-            String plugin = (String) var4.next();
-            args.add("--plugin");
-            args.add(plugin);
-        }
-
-    }
-
-    private void addFeatures(CucumberOptions options, List<String> args) {
-        if (options != null && options.features().length != 0) {
-            Collections.addAll(args, options.features());
-            this.featuresSpecified = true;
-        }
-
-    }
-
-    private void addDefaultFeaturePathIfNoFeaturePathIsSpecified(List<String> args, Class clazz) {
-        if (!this.featuresSpecified) {
-            args.add(packagePath(clazz));
-        }
-
-    }
-
-    private void addGlue(CucumberOptions options, List<String> args) {
-        boolean hasExtraGlue = options.extraGlue().length > 0;
-        boolean hasGlue = options.glue().length > 0;
-        if (hasExtraGlue && hasGlue) {
-            throw new CucumberException("glue and extraGlue cannot be specified at the same time");
-        } else {
-            String[] gluePaths = new String[0];
-            if (hasExtraGlue) {
-                gluePaths = options.extraGlue();
+            cucumber.api.CucumberOptions standard = c.getAnnotation(cucumber.api.CucumberOptions.class);
+            if (standard != null) {
+                return new StandardOptionsAdapter(standard);
             }
+            return null;
+        }
+    }
 
-            if (hasGlue) {
-                gluePaths = options.glue();
-                this.overridingGlueSpecified = true;
+    private class CustomOptionsAdapter implements CucumberOptionsAnnotationParser.CucumberOptions {
+        private final CucumberOptionsCustom custom;
+
+        CustomOptionsAdapter(CucumberOptionsCustom custom) {
+            this.custom = custom;
+        }
+
+        @Override
+        public boolean dryRun() {
+            return custom.dryRun();
+        }
+
+        @Override
+        public String[] features() {
+            return getEnvironmentFeatures(custom.environments());
+        }
+
+        @Override
+        public String[] glue() {
+            return new String[0];
+        }
+
+        @Override
+        public String[] extraGlue() {
+            return new String[0];
+        }
+
+        @Override
+        public String tags() {
+            String[] tags = custom.tags();
+            if (tags.length == 0) {
+                return "";
             }
-
-            String[] var6 = gluePaths;
-            int var7 = gluePaths.length;
-
-            for (int var8 = 0; var8 < var7; ++var8) {
-                String glue = var6[var8];
-                args.add("--glue");
-                args.add(glue);
+            if (tags.length == 1) {
+                return tags[0];
             }
+            return "(" + String.join(") and (", tags) + ")";
+        }
 
+        @Override
+        public String[] plugin() {
+            return custom.plugin();
+        }
+
+        @Override
+        public boolean publish() {
+            return false;
+        }
+
+        @Override
+        public boolean monochrome() {
+            return custom.monochrome();
+        }
+
+        @Override
+        public String[] name() {
+            return custom.name();
+        }
+
+        @Override
+        public SnippetType snippets() {
+            return custom.snippets();
+        }
+
+        @Override
+        public Class<? extends ObjectFactory> objectFactory() {
+            return null;
+        }
+
+        @Override
+        public Class<? extends io.cucumber.core.eventbus.UuidGenerator> uuidGenerator() {
+            return null;
         }
     }
 
-    private void addDefaultGlueIfNoOverridingGlueIsSpecified(List<String> args, Class clazz) {
-        if (!this.overridingGlueSpecified) {
-            args.add("--glue");
-            args.add(packageName(clazz));
+    private class StandardOptionsAdapter implements CucumberOptionsAnnotationParser.CucumberOptions {
+        private final cucumber.api.CucumberOptions opts;
+
+        StandardOptionsAdapter(cucumber.api.CucumberOptions opts) {
+            this.opts = opts;
         }
 
-    }
-
-    private void addStrict(CucumberOptions options, List<String> args) {
-        if (options.strict()) {
-            args.add("--strict");
+        @Override
+        public boolean dryRun() {
+            return opts.dryRun();
         }
 
-    }
-
-    private void addJunitOptions(CucumberOptions options, List<String> args) {
-        String[] var3 = options.junit();
-        int var4 = var3.length;
-
-        for (int var5 = 0; var5 < var4; ++var5) {
-            String junitOption = var3[var5];
-            args.add("--junit," + junitOption);
+        @Override
+        public String[] features() {
+            return opts.features();
         }
 
-    }
+        @Override
+        public String[] glue() {
+            return new String[0];
+        }
 
-    private static String packagePath(Class clazz) {
-        String packageName = packageName(clazz);
-        return packageName.isEmpty() ? "classpath:/" : "classpath:" + packageName.replace('.', '/');
-    }
+        @Override
+        public String[] extraGlue() {
+            return new String[0];
+        }
 
-    static String packageName(Class clazz) {
-        String className = clazz.getName();
-        return className.substring(0, Math.max(0, className.lastIndexOf(46)));
-    }
+        @Override
+        public String tags() {
+            return opts.tags();
+        }
 
-    private boolean runningInEnvironmentWithoutAnsiSupport() {
-        boolean intelliJidea = System.getProperty("idea.launcher.bin.path") != null;
-        return intelliJidea;
-    }
+        @Override
+        public String[] plugin() {
+            return opts.plugin();
+        }
 
-    private boolean hasSuperClass(Class classWithOptions) {
-        return classWithOptions != Object.class;
-    }
+        @Override
+        public boolean publish() {
+            return false;
+        }
 
-    private CucumberOptions getOptions(Class<?> clazz) {
-        return clazz.getAnnotation(CucumberOptions.class) != null ? clazz.getAnnotation(CucumberOptions.class) :
-                customOptionsToOptions(clazz.getAnnotation(CucumberOptionsCustom.class));
-    }
+        @Override
+        public boolean monochrome() {
+            return opts.monochrome();
+        }
 
-    private CucumberOptions customOptionsToOptions(CucumberOptionsCustom custom) {
-        return custom == null ? null :
-                new CucumberOptions()
-            {
-                @Override
-                public boolean dryRun() {
-                    return custom.dryRun();
-                }
+        @Override
+        public String[] name() {
+            return opts.name();
+        }
 
-                @Override
-                public boolean strict() {
-                    return custom.strict();
-                }
+        @Override
+        public SnippetType snippets() {
+            return opts.snippets();
+        }
 
-                @Override
-                public String[] features() {
-                    return getEnvironmentFeatures(custom.environments());
-                }
+        @Override
+        public Class<? extends ObjectFactory> objectFactory() {
+            return null;
+        }
 
-                @Override
-                public String[] glue() {
-                    return custom.glue();
-                }
-
-                @Override
-                public String[] extraGlue() {
-                    return custom.extraGlue();
-                }
-
-                @Override
-                public String[] tags() {
-                    return custom.tags();
-                }
-
-                @Override
-                public String[] plugin() {
-                    return custom.plugin();
-                }
-
-                @Override
-                public boolean monochrome() {
-                    return custom.monochrome();
-                }
-
-                @Override
-                public String[] name() {
-                    return custom.name();
-                }
-
-                @Override
-                public SnippetType snippets() {
-                    return custom.snippets();
-                }
-
-                @Override
-                public String[] junit() {
-                    return custom.junit();
-                }
-
-                @Override
-                public Class<? extends Annotation> annotationType() {
-                    return CucumberOptions.class;
-                }
-            };
+        @Override
+        public Class<? extends io.cucumber.core.eventbus.UuidGenerator> uuidGenerator() {
+            return null;
+        }
     }
 
     private String[] getEnvironmentFeatures(FeatureEnvironment[] environments) {
-
+        if (environments == null || environments.length == 0) {
+            return new String[0];
+        }
         List<String> features = new ArrayList<>();
-
         for (FeatureEnvironment env : environments) {
             if (checkConditions(env.conditions())) {
                 features.addAll(Arrays.asList(env.features()));
             }
         }
-
-        String[] featuresArray = new String[features.size()];
-        return features.toArray(featuresArray);
+        return features.toArray(new String[0]);
     }
 
     private boolean checkConditions(Condition[] conditions) {
-
         for (Condition c : conditions) {
             try {
                 if (c.key().equals("*")) {

@@ -101,3 +101,5 @@ Feature: Feature used in testing multiloop tag aspect
     Given I run 'cat testMultiloopOutputLocal.txt | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g'' locally
     Then the command output contains '0,a\n0,b\n0,c\n1,a\n1,b\n1,c'
 
+  Scenario: Clean
+    Given I run 'rm -f testMultiloopOutput*' locally

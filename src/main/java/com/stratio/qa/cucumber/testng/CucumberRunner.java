@@ -14,214 +14,327 @@
  * limitations under the License.
  */
 
+// STRATIO-FORK: Stratio-written TestNG runner (no direct upstream equivalent in Cucumber 6).
+// Changes vs standard Cucumber TestNG runner: (1) injects 44 Stratio spec glue paths;
+//         (2) applies LoopConverter.transformPickleEventWithLoopTags() for @loop/@progloop/@multiloop;
+//         (3) integrates RuntimeOptionsFactoryCustom for extraGlue and conditional feature support;
+//         (4) uses custom FeaturePathFeatureSupplier for @include/@background preprocessing and
+//             PRESERVE_ORDER / ALLOW_DUPLICATED system properties.
+
 package com.stratio.qa.cucumber.testng;
 
 import com.stratio.qa.cucumber.converter.LoopConverter;
 import com.stratio.qa.cucumber.runtime.FeaturePathFeatureSupplier;
 import com.stratio.qa.cucumber.runtime.RuntimeOptionsFactoryCustom;
-import com.stratio.qa.cucumber.runtime.RuntimeOptions;
-import com.stratio.qa.cucumber.runtime.model.CucumberFeature;
-import com.stratio.qa.cucumber.runtime.model.FeatureLoader;
-import cucumber.api.event.ConcurrentEventListener;
-import cucumber.api.event.TestRunFinished;
-import cucumber.api.event.TestRunStarted;
-import cucumber.runner.Runner;
-import cucumber.runner.TimeServiceEventBus;
-import cucumber.runner.EventBus;
-import cucumber.runner.TimeService;
-import cucumber.runtime.BackendModuleBackendSupplier;
-import cucumber.runtime.ClassFinder;
-import cucumber.runtime.CucumberException;
-import cucumber.runtime.filter.Filters;
-import cucumber.runtime.formatter.Plugins;
-import cucumber.runtime.formatter.PluginFactory;
-import cucumber.runner.ThreadLocalRunnerSupplier;
-import cucumber.runtime.io.MultiLoader;
-import cucumber.runtime.io.ResourceLoader;
-import cucumber.runtime.io.ResourceLoaderClassFinder;
-import gherkin.events.PickleEvent;
+import io.cucumber.core.eventbus.EventBus;
+import io.cucumber.core.exception.CucumberException;
+import io.cucumber.core.feature.Options;
+import io.cucumber.core.filter.Filters;
+import io.cucumber.core.gherkin.Feature;
+import io.cucumber.core.gherkin.Pickle;
+import io.cucumber.core.gherkin.Step;
+import io.cucumber.core.gherkin.StepType;
+import io.cucumber.core.options.RuntimeOptions;
+import io.cucumber.core.options.RuntimeOptionsBuilder;
+import io.cucumber.core.plugin.PluginFactory;
+import io.cucumber.core.plugin.Plugins;
+import io.cucumber.core.runner.Runner;
+import io.cucumber.core.runtime.BackendServiceLoader;
+import io.cucumber.core.runtime.ObjectFactoryServiceLoader;
+import io.cucumber.core.runtime.ThreadLocalObjectFactorySupplier;
+import io.cucumber.core.runtime.ThreadLocalRunnerSupplier;
+import io.cucumber.core.runtime.TimeServiceEventBus;
+import io.cucumber.plugin.ConcurrentEventListener;
+import io.cucumber.messages.types.Envelope;
+import io.cucumber.messages.types.Timestamp;
+import io.cucumber.plugin.event.Result;
+import io.cucumber.plugin.event.Status;
+import io.cucumber.plugin.event.TestRunFinished;
+import io.cucumber.plugin.event.TestRunStarted;
+import io.cucumber.plugin.event.TestSourceRead;
 import org.reflections.Reflections;
 
-import java.io.File;
-import java.io.IOException;
+import io.cucumber.core.feature.FeaturePath;
+
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.net.URISyntaxException;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class CucumberRunner {
 
-    private final EventBus bus;
-
-    private final Filters filters;
-
-    private final FeaturePathFeatureSupplier featureSupplier;
-
-    private final ThreadLocalRunnerSupplier runnerSupplier;
-
     private final RuntimeOptions runtimeOptions;
+
+    private final TimeServiceEventBus bus;
 
     private final Plugins plugins;
 
-    /**
-     * Bootstrap the cucumber runtime
-     *
-     * @param clazz Which has the cucumber.api.CucumberOptions and org.testng.annotations.Test annotations
-     */
-    public CucumberRunner(Class clazz) throws IOException, NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException, URISyntaxException {
-        ClassLoader classLoader = clazz.getClassLoader();
-        ResourceLoader resourceLoader = new MultiLoader(classLoader);
+    private final Filters filters;
 
-        RuntimeOptionsFactoryCustom runtimeOptionsFactory = new RuntimeOptionsFactoryCustom(clazz);
-        runtimeOptions = runtimeOptionsFactory.create();
+    private final ThreadLocalRunnerSupplier runnerSupplier;
 
-        String testSuffix = System.getProperty("TESTSUFFIX");
-        String targetExecutionsPath = "target/executions/";
-        if (testSuffix != null) {
-            targetExecutionsPath = targetExecutionsPath + testSuffix + "/";
-        }
-        new File(targetExecutionsPath).mkdirs();
-        CucumberReporter reporterTestNG = new CucumberReporter(targetExecutionsPath, clazz.getCanonicalName());
+    private final ClassLoader classLoader;
 
-        addGlue();
+    private final List<URI> originalFeaturePaths;
 
-        ClassFinder classFinder = new ResourceLoaderClassFinder(resourceLoader, classLoader);
-        BackendModuleBackendSupplier backendSupplier = new BackendModuleBackendSupplier(resourceLoader, classFinder, runtimeOptions);
-        bus = new TimeServiceEventBus(TimeService.SYSTEM);
+    private final Map<String, io.cucumber.messages.types.Pickle> originalPickleMessages = new HashMap<>();
 
-        plugins = new Plugins(classLoader, new PluginFactory(), runtimeOptions);
-        plugins.addPlugin(reporterTestNG);
+    private URI currentFeatureUri = null;
 
-        Set<Class<? extends ConcurrentEventListener>> implementers = new Reflections("com.stratio.qa.utils").getSubTypesOf(ConcurrentEventListener.class);
-        for (Class<? extends ConcurrentEventListener> implementerClazz : implementers) {
-            Constructor<?> ctor = implementerClazz.getConstructor();
-            ctor.setAccessible(true);
-            Object newPlugin = ctor.newInstance();
-            plugins.addPlugin((ConcurrentEventListener) newPlugin);
-        }
+    public CucumberRunner(Class<?> clazz) throws Exception {
+        this.classLoader = clazz.getClassLoader();
+        this.originalFeaturePaths = extractAnnotationFeaturePaths(clazz);
 
-        FeatureLoader featureLoader = new FeatureLoader(resourceLoader);
-        filters = new Filters(runtimeOptions);
-        this.runnerSupplier = new ThreadLocalRunnerSupplier(runtimeOptions, bus, backendSupplier);
-        featureSupplier = new FeaturePathFeatureSupplier(featureLoader, runtimeOptions);
-    }
+        RuntimeOptionsBuilder builder = new RuntimeOptionsFactoryCustom(clazz).buildOptions();
+        addStratioGlue(builder, clazz);
+        this.runtimeOptions = builder
+                .addDefaultSummaryPrinterIfNotDisabled()
+                .build();
 
-    private void addGlue() throws URISyntaxException {
-        List<URI> uniqueGlue = new ArrayList<>();
-        uniqueGlue.add(new URI("classpath:com/stratio/cct/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/qa/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/sparta/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/gosecsso/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/gosecmanagement/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/dcos/crossdata/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/cct/configuration/api/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/crossdata/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/streaming/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/ingestion/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/datavis/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/connectors/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/admin/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/explorer/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/manager/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/viewer/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/decision/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/paas/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/cassandra/lucene/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/analytic/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/exhibitor/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/intelligence/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/postgresbd/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/postgresql/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/zookeeper/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/universe/testsAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/paas/dgDatadictionaryAT/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/paas/dgtests/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/elastic/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/kafka/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/hdfs/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/kibana/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/cassandra/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/schema_registry/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/rest_proxy/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/spark/tests/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/schema/discovery/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/pgbouncer/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/ignite/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/qa/cucumber/converter"));
-        uniqueGlue.add(new URI("classpath:com/stratio/logs_solution/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/marathonlbsec/specs"));
-        uniqueGlue.add(new URI("classpath:com/stratio/grafana/specs"));
+        this.bus = new TimeServiceEventBus(Clock.systemUTC(), UUID::randomUUID);
+        this.plugins = new Plugins(new PluginFactory(), runtimeOptions);
 
-        runtimeOptions.getGlue().clear();
-        runtimeOptions.getGlue().addAll(uniqueGlue);
-    }
-
-    public void runScenario(PickleEvent pickle) throws Throwable {
-        //Possibly invoked in a multi-threaded context
-        Throwable e = null;
-        Runner runner = runnerSupplier.get();
-        List<PickleEvent> pickleEventList = getPickleEventListFromTags(pickle);
-        for (PickleEvent pickleEvent : pickleEventList) {
+        Set<Class<? extends ConcurrentEventListener>> listenerTypes =
+                new Reflections("com.stratio.qa.utils").getSubTypesOf(ConcurrentEventListener.class);
+        for (Class<? extends ConcurrentEventListener> type : listenerTypes) {
             try {
-                TestCaseResultListener testCaseResultListener = new TestCaseResultListener(runner.getBus(), runtimeOptions.isStrict());
-                runner.runPickle(pickleEvent);
-                testCaseResultListener.finishExecutionUnit();
-
-                if (!testCaseResultListener.isPassed()) {
-                    throw testCaseResultListener.getError();
-                }
-            } catch (Throwable e1) {
-                e = e1;
+                Constructor<?> ctor = type.getConstructor();
+                ctor.setAccessible(true);
+                plugins.addPlugin((ConcurrentEventListener) ctor.newInstance());
+            } catch (Exception ignored) {
             }
         }
-        if (e != null) {
-            throw e;
-        }
+
+        this.filters = new Filters(runtimeOptions);
+
+        ObjectFactoryServiceLoader objectFactoryLoader = new ObjectFactoryServiceLoader(() -> classLoader, runtimeOptions);
+        ThreadLocalObjectFactorySupplier objectFactory = new ThreadLocalObjectFactorySupplier(objectFactoryLoader);
+        BackendServiceLoader backendSupplier = new BackendServiceLoader(() -> classLoader, objectFactory);
+
+        this.runnerSupplier = new ThreadLocalRunnerSupplier(runtimeOptions, bus, backendSupplier, objectFactory);
     }
 
-    public void finish() {
-        bus.send(new TestRunFinished(bus.getTime(), bus.getTimeMillis()));
-    }
-
-    /**
-     * @return returns the cucumber scenarios as a two dimensional array of {@link PickleEventWrapper}
-     * scenarios combined with their {@link CucumberFeatureWrapper} feature.
-     */
     public Object[][] provideScenarios() {
         try {
-            List<Object[]> scenarios = new ArrayList<>();
-            List<CucumberFeature> features = getFeatures();
-            for (CucumberFeature feature : features) {
-                for (PickleEvent pickle : feature.getPickles()) {
-                    if (filters.matchesFilters(pickle)) {
-                        scenarios.add(new Object[]{new PickleEventWrapperImpl(pickle), new CucumberFeatureWrapperImpl(feature)});
+            plugins.setEventBusOnEventListenerPlugins(bus);
+
+            List<URI> pathsForSupplier = originalFeaturePaths.isEmpty() ? null : originalFeaturePaths;
+            FeaturePathFeatureSupplier featureSupplier = new FeaturePathFeatureSupplier(
+                () -> classLoader, runtimeOptions, UUID::randomUUID, pathsForSupplier);
+
+            List<Feature> features = featureSupplier.get();
+            bus.send(new TestRunStarted(bus.getInstant()));
+            for (Feature feature : features) {
+                bus.send(new TestSourceRead(bus.getInstant(), feature.getUri(), feature.getSource()));
+                Iterable<?> parseEvents = feature.getParseEvents();
+                bus.sendAll(parseEvents);
+                for (Object event : parseEvents) {
+                    if (event instanceof Envelope) {
+                        ((Envelope) event).getPickle().ifPresent(
+                            p -> originalPickleMessages.put(p.getId(), p));
                     }
                 }
             }
-            return scenarios.toArray(new Object[][]{});
+
+            List<Object[]> scenarios = new ArrayList<>();
+            for (Feature feature : features) {
+                for (Pickle pickle : feature.getPickles()) {
+                    if (filters.test(pickle)) {
+                        scenarios.add(new Object[]{
+                            new PickleEventWrapperImpl(pickle),
+                            new CucumberFeatureWrapperImpl(feature)
+                        });
+                    }
+                }
+            }
+            return scenarios.toArray(new Object[0][0]);
         } catch (CucumberException e) {
-            return new Object[][]{new Object[]{new CucumberExceptionWrapper(e), null}};
+            return new Object[][]{{new CucumberExceptionWrapper(e), null}};
         }
     }
 
-    List<CucumberFeature> getFeatures() {
-        plugins.setSerialEventBusOnEventListenerPlugins(bus);
-
-        List<CucumberFeature> features = featureSupplier.get();
-        bus.send(new TestRunStarted(bus.getTime(), bus.getTimeMillis()));
-        for (CucumberFeature feature : features) {
-            feature.sendTestSourceRead(bus);
+    public void runScenario(Pickle pickle) throws Throwable {
+        Runner runner = runnerSupplier.get();
+        URI pickleUri = pickle.getUri();
+        if (!pickleUri.equals(currentFeatureUri)) {
+            if (currentFeatureUri != null) {
+                runner.runAfterAllHooks();
+            }
+            runner.runBeforeAllHooks();
+            currentFeatureUri = pickleUri;
         }
-        return features;
+        List<Pickle> expanded = LoopConverter.transformPickleEventWithLoopTags(pickle);
+
+        Throwable lastError = null;
+        for (Pickle p : expanded) {
+            if (!p.getId().equals(pickle.getId())) {
+                sendPickleEnvelope(p);
+            }
+            try {
+                TestCaseResultListener listener = new TestCaseResultListener(runner.getBus(), false);
+                runner.runPickle(p);
+                listener.finishExecutionUnit();
+                if (!listener.isPassed()) {
+                    Throwable error = listener.getError();
+                    if (error != null) {
+                        throw error;
+                    }
+                }
+            } catch (Throwable t) {
+                lastError = t;
+            }
+        }
+        if (lastError != null) {
+            throw lastError;
+        }
     }
 
-    private List<PickleEvent> getPickleEventListFromTags(PickleEvent pe) {
-        List<PickleEvent> pickleEventList = new ArrayList<>();
-        //pickleEventList.add(pe);
-        pickleEventList = LoopConverter.transformPickleEventWithLoopTags(pe);
-        return pickleEventList;
+    private void sendPickleEnvelope(Pickle pickle) {
+        String originalPickleId = LoopConverter.getDelegatePickleId(pickle);
+        io.cucumber.messages.types.Pickle originalMsg = originalPickleMessages.get(originalPickleId);
+
+        Map<String, List<String>> originalStepAstIds = new HashMap<>();
+        List<String> pickleAstNodeIds = Collections.emptyList();
+        if (originalMsg != null) {
+            pickleAstNodeIds = originalMsg.getAstNodeIds();
+            for (io.cucumber.messages.types.PickleStep ps : originalMsg.getSteps()) {
+                originalStepAstIds.put(ps.getId(), ps.getAstNodeIds());
+            }
+        }
+
+        List<io.cucumber.messages.types.PickleStep> msgSteps = new ArrayList<>();
+        for (Step step : pickle.getSteps()) {
+            io.cucumber.messages.types.PickleStepType type;
+            switch (step.getType()) {
+                case GIVEN:
+                    type = io.cucumber.messages.types.PickleStepType.CONTEXT;
+                    break;
+                case WHEN:
+                    type = io.cucumber.messages.types.PickleStepType.ACTION;
+                    break;
+                case THEN:
+                    type = io.cucumber.messages.types.PickleStepType.OUTCOME;
+                    break;
+                default:
+                    type = io.cucumber.messages.types.PickleStepType.UNKNOWN;
+                    break;
+            }
+            String origStepId = LoopConverter.getDelegateStepId(step);
+            List<String> astNodeIds = originalStepAstIds.getOrDefault(
+                    origStepId, Collections.emptyList());
+            msgSteps.add(new io.cucumber.messages.types.PickleStep(
+                    null, astNodeIds, step.getId(), type, step.getText()));
+        }
+        List<io.cucumber.messages.types.PickleTag> msgTags = new ArrayList<>();
+        for (String tag : pickle.getTags()) {
+            msgTags.add(new io.cucumber.messages.types.PickleTag(tag, ""));
+        }
+        io.cucumber.messages.types.Pickle msgPickle = new io.cucumber.messages.types.Pickle(
+                pickle.getId(),
+                pickle.getUri().toString(),
+                pickle.getName(),
+                pickle.getLanguage(),
+                msgSteps,
+                msgTags,
+                pickleAstNodeIds);
+        bus.send(Envelope.of(msgPickle));
+    }
+
+    public void finish() {
+        if (currentFeatureUri != null) {
+            runnerSupplier.get().runAfterAllHooks();
+        }
+        bus.send(new TestRunFinished(bus.getInstant(), new Result(Status.PASSED, Duration.ZERO, null)));
+        // Flush Cucumber 7 message-based formatters (e.g. JsonFormatter uses MessagesToJsonWriter
+        // which buffers all events and only writes to disk when it receives this Envelope).
+        io.cucumber.messages.types.TestRunFinished msgFinished =
+                new io.cucumber.messages.types.TestRunFinished(
+                        null, true,
+                        new Timestamp(bus.getInstant().getEpochSecond(),
+                                      (long) bus.getInstant().getNano()),
+                        null, null);
+        bus.send(Envelope.of(msgFinished));
+    }
+
+    private static void addStratioGlue(RuntimeOptionsBuilder builder, Class<?> runnerClass) throws Exception {
+        // CucumberOptionsAnnotationParser auto-adds the runner class's package as default glue
+        // when glue() returns an empty array. Compute that path so we can skip it below and
+        // avoid DuplicateStepDefinitionException from scanning the same package twice.
+        Package pkg = runnerClass.getPackage();
+        String runnerPkgPath = pkg != null ? pkg.getName().replace('.', '/') : "";
+
+        List<URI> glue = new ArrayList<>();
+        glue.add(new URI("classpath:com/stratio/cct/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/qa/specs"));
+        glue.add(new URI("classpath:com/stratio/sparta/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/gosecsso/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/gosecmanagement/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/dcos/crossdata/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/cct/configuration/api/specs"));
+        glue.add(new URI("classpath:com/stratio/crossdata/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/streaming/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/ingestion/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/datavis/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/connectors/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/admin/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/explorer/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/manager/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/viewer/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/decision/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/paas/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/cassandra/lucene/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/analytic/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/exhibitor/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/intelligence/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/postgresbd/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/postgresql/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/zookeeper/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/universe/testsAT/specs"));
+        glue.add(new URI("classpath:com/stratio/paas/dgDatadictionaryAT/specs"));
+        glue.add(new URI("classpath:com/stratio/paas/dgtests/specs"));
+        glue.add(new URI("classpath:com/stratio/elastic/specs"));
+        glue.add(new URI("classpath:com/stratio/kafka/specs"));
+        glue.add(new URI("classpath:com/stratio/hdfs/specs"));
+        glue.add(new URI("classpath:com/stratio/kibana/specs"));
+        glue.add(new URI("classpath:com/stratio/cassandra/specs"));
+        glue.add(new URI("classpath:com/stratio/schema_registry/specs"));
+        glue.add(new URI("classpath:com/stratio/rest_proxy/specs"));
+        glue.add(new URI("classpath:com/stratio/spark/tests/specs"));
+        glue.add(new URI("classpath:com/stratio/schema/discovery/specs"));
+        glue.add(new URI("classpath:com/stratio/pgbouncer/specs"));
+        glue.add(new URI("classpath:com/stratio/ignite/specs"));
+        glue.add(new URI("classpath:com/stratio/qa/cucumber/converter"));
+        glue.add(new URI("classpath:com/stratio/logs_solution/specs"));
+        glue.add(new URI("classpath:com/stratio/marathonlbsec/specs"));
+        glue.add(new URI("classpath:com/stratio/grafana/specs"));
+        for (URI g : glue) {
+            // Skip if this URI corresponds to the runner class's package: the annotation parser
+            // already added it as the default glue (classpath:/<pkg>). Adding it again causes
+            // DuplicateStepDefinitionException in Cucumber 6.
+            String ssp = g.getSchemeSpecificPart().replaceFirst("^/", "");
+            if (!runnerPkgPath.isEmpty() && ssp.equals(runnerPkgPath)) {
+                continue;
+            }
+            builder.addGlue(g);
+        }
+    }
+
+    private static List<URI> extractAnnotationFeaturePaths(Class<?> clazz) {
+        cucumber.api.CucumberOptions opts = clazz.getAnnotation(cucumber.api.CucumberOptions.class);
+        if (opts == null || opts.features().length == 0) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(opts.features())
+                .map(FeaturePath::parse)
+                .collect(Collectors.toList());
     }
 }

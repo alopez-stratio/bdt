@@ -20,3 +20,9 @@ testMultiloopOutput*.txt
 .npmrc
 package-lock.json
 node_modules
+/META-INF/
+/cucumber/
+# Claude Code — user-specific, generated at runtime
+.claude/qa-path.local
+.claude/skills/
+.claude/settings.local.json

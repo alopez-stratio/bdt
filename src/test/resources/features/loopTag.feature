@@ -76,3 +76,6 @@ Feature: Feature used in testing loop tag aspect
     Given I run 'cat target/test-classes/testDatatableReplace<VAR_NAME>.json' locally
     Then the command output contains '{"a":"<VAR_NAME>"}'
     And I run 'rm -Rf target/test-classes/testDatatableReplace<VAR_NAME>.json' locally
+
+  Scenario: Clean
+    Given I run 'rm -f testOutput*' locally

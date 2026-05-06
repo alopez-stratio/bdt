@@ -21,7 +21,7 @@ import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {
+@CucumberOptions(plugin = "json:target/cucumber-mongo-steps.json", features = {
         "src/test/resources/features/mongoSteps.feature"
 })
 public class MongoStepsIT extends BaseGTest {

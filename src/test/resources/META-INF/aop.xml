@@ -19,7 +19,6 @@
 <aspectj>
     <aspects>
         <aspect name="com.stratio.qa.aspects.RunOnTagAspect"/>
-        <aspect name="com.stratio.qa.aspects.LoopIncludeTagAspect"/>
         <aspect name="com.stratio.qa.aspects.ReplacementAspect"/>
         <aspect name="com.stratio.qa.aspects.IgnoreTagAspect"/>
         <aspect name="com.stratio.qa.aspects.MandatoryAspect"/>

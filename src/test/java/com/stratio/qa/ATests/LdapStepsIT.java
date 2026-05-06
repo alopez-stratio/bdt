@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.stratio.qa.specs;
+package com.stratio.qa.ATests;
 
 import com.stratio.qa.cucumber.testng.CucumberFeatureWrapper;
 import com.stratio.qa.cucumber.testng.PickleEventWrapper;
@@ -21,11 +21,8 @@ import com.stratio.qa.utils.BaseGTest;
 import cucumber.api.CucumberOptions;
 import org.testng.annotations.Test;
 
-@CucumberOptions(plugin = "json:target/cucumber.json", features = {
-        "src/test/resources/features/createJSONFile.feature",
-        "src/test/resources/features/readFileToVariable.feature",
-        "src/test/resources/features/checkValue.feature"})
-public class MiscIT extends BaseGTest {
+@CucumberOptions(plugin = "json:target/cucumber-ldap-steps.json", features = {"src/test/resources/features/ldapSteps.feature"})
+public class LdapStepsIT extends BaseGTest {
 
     @Test(dataProvider = "scenarios")
     public void run(PickleEventWrapper pickleWrapper, CucumberFeatureWrapper featureWrapper) throws Throwable {
