@@ -391,7 +391,7 @@ public class SeleniumSpec extends BaseGSpec {
      * @param nullableSelector example: div #id_div a .a_class
      * @param envVar
      */
-    @Given("I retrieve value from element '(.+?)' and save the value in environment variable '(.+?)'$")
+    @Given("^I retrieve value from element '(.+?)' and save the value in environment variable '(.+?)'$")
     public void seleniumRetrieve(String nullableSelector, String envVar) {
         String jsSelector = NullableString.transform(nullableSelector);
         WebDriver driver = commonspec.getDriver();

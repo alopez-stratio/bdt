@@ -22,7 +22,9 @@ import org.testng.annotations.Test;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -1098,6 +1100,80 @@ public class MiscTest {
         assertThat(result).isNotNull();
         assertThat(result.length()).isEqualTo(10);
         assertThat(result).matches("^[a-zA-Z0-9]+$");
+    }
+
+    // --- Cucumber 7 DataTable regression tests ---
+
+    /**
+     * Regression: Cucumber 7 empty DataTable cells (| equal | |) arrive as null after
+     * ReplacementAspect processing. matchWithExpresion must treat null expected value
+     * the same as empty string "" to preserve Cucumber 4 behaviour.
+     *
+     * FAILS before fix: assertThat("").isEqualTo(null) → AssertionError
+     * PASSES after fix in MiscSpec.matchWithExpresion (null → "")
+     */
+    @Test
+    public void testMatchWithExpressionNullCellTreatedAsEmptyString() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        String envVar = "testNullCell";
+        ThreadProperty.set(envVar, "{\"field\": \"\"}");
+
+        // null in position 2 simulates a Gherkin empty cell (| equal | |)
+        List<String> row = Arrays.asList("$.field", "equal", null);
+        DataTable table = DataTable.create(Collections.singletonList(row));
+
+        misc.matchWithExpresion(envVar, table);
+    }
+
+    /**
+     * Regression: DataTable.create() without TypeRegistry produces a DataTable where
+     * asList() throws CucumberDataTableException in Cucumber 7. K8SSpec uses this
+     * internally (e.g. runCommandInPodDatatable) to build command arrays.
+     *
+     * FAILS before fix: dt.asList() throws CucumberDataTableException
+     * PASSES after fix in K8SSpec: use cells().stream().flatMap() instead
+     *
+     * NOTE: after the fix the line below also changes to cells().stream().flatMap()
+     */
+    @Test
+    public void testProgrammaticDataTableFlattenToStringList() {
+        List<List<String>> cmd = Arrays.asList(
+                Arrays.asList("sh"),
+                Arrays.asList("-c"),
+                Arrays.asList("echo hello")
+        );
+        DataTable dt = DataTable.create(cmd);
+
+        List<String> args = dt.cells().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+
+        assertThat(args).containsExactly("sh", "-c", "echo hello");
+    }
+
+    /**
+     * Regression: saveMultipleVariables — empty Gherkin cell (| var | |) arrives as null in Cucumber 7.
+     * Without fix: ThreadProperty.set(key, null) → NPE or null stored.
+     * After fix: null normalized to "" → ThreadProperty.set(key, "") → non-null value stored.
+     */
+    @Test
+    public void testSaveMultipleVariablesNullCellTreatedAsEmptyString() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        MiscSpec misc = new MiscSpec(commong);
+
+        List<List<String>> rows = Arrays.asList(
+                Arrays.asList("var1", null),
+                Arrays.asList("var2", "test")
+        );
+        DataTable table = DataTable.create(rows);
+        misc.saveMultipleVariables(table);
+
+        assertThat(ThreadProperty.get("var1")).isEqualTo("");
+        assertThat(ThreadProperty.get("var2")).isEqualTo("test");
     }
 
 }

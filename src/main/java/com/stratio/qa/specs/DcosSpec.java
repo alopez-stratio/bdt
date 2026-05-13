@@ -246,7 +246,7 @@ public class DcosSpec extends BaseGSpec {
      * @param discoveryCookie : Cookie for discovery
      * @throws Exception exception
      */
-    @Given("I set sso discovery token using host '(.+?)' with user '(.+?)' and password '(.+?)'( and tenant '(.+?)')?( without host name verification)? with cookie name '(.+?)'$")
+    @Given("^I set sso discovery token using host '(.+?)' with user '(.+?)' and password '(.+?)'( and tenant '(.+?)')?( without host name verification)? with cookie name '(.+?)'$")
     public void setGoSecSSOCookieforDiscovery(String ssoHost, String userName, String passWord, String tenant, String hostVerifier, String discoveryCookie) throws Exception {
         if (System.getProperty("ADFS") != null && System.getProperty("ADFS").equalsIgnoreCase("yes") && userName.contains("stratiobigdata.onmicrosoft.com")) {
 
@@ -285,7 +285,7 @@ public class DcosSpec extends BaseGSpec {
      * @param passWord : password
      * @throws Exception exception
      */
-    @Given("I set sso intelligence token using host '(.+?)' with user '(.+?)' and password '(.+?)'( and tenant '(.+?)')?( without host name verification)?( without login path)?$")
+    @Given("^I set sso intelligence token using host '(.+?)' with user '(.+?)' and password '(.+?)'( and tenant '(.+?)')?( without host name verification)?( without login path)?$")
     public void setGoSecSSOCookieForIntelligence(String ssoHost, String userName, String passWord, String tenant, String hostVerifier, String pathWithoutLogin) throws Exception {
         String[] tokenList = new String[]{"jupyterhub-session-id", "jupyterhub-hub-login"};
 

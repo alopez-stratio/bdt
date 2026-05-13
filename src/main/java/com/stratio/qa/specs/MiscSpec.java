@@ -155,7 +155,8 @@ public class MiscSpec extends BaseGSpec {
     public void saveMultipleVariables(DataTable dataTable) {
         for (List<String> row : dataTable.cells()) {
             String key = row.get(0);
-            String value = row.get(1);
+            // Cucumber 7: empty Gherkin cells arrive as null; normalize to "" to preserve Cucumber 4 behaviour.
+            String value = row.get(1) != null ? row.get(1) : "";
 
             ThreadProperty.set(key, value);
 
@@ -334,7 +335,9 @@ public class MiscSpec extends BaseGSpec {
         for (List<String> row : table.cells()) {
             String json_path = row.get(0);
             String condition = row.get(1);
-            String expected_value = row.get(2);
+            // Cucumber 7 Gherkin empty cells (| equal | |) arrive as null; normalize to ""
+            // to preserve Cucumber 4 behaviour where empty cells were empty strings.
+            String expected_value = row.get(2) != null ? row.get(2) : "";
 
             // PathNotFound
             if (condition.equals("PathNotFound")) {

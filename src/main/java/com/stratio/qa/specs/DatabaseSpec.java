@@ -1695,7 +1695,7 @@ public class DatabaseSpec extends BaseGSpec {
         }
     }
 
-    @Then(value = "The result has to have '(.*?)' rows$")
+    @Then(value = "^The result has to have '(.*?)' rows$")
     public void assertLengthResultXDDriver(String resultSize) {
         Assert.assertEquals(ThreadProperty.get("querysize"), resultSize);
         ThreadProperty.remove("querysize");

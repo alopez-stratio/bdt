@@ -40,6 +40,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -510,7 +511,9 @@ public class K8SSpec extends BaseGSpec {
 
     @When("^I execute the command defined in datatable in pod with name '(.+?)' in namespace '(.+?)'( in container '(.*?)')?( with failure reason '(.*?)')?( and save it in environment variable '(.+?)')?( and save stderr in environment variable '(.+?)')?( and save it in file '(.*?)')?( and save stderr in file '(.*?)')?( and set timeout with '(\\d+)')?( and it doesn't return an exception if timeout is reached)?:$")
     public void runCommandInPodDatatable(String name, String namespace, String container, String failureReason, String envVar, String errEnvVar, String fileName, String errFileName, Integer timeout, String avoidExceptionIfTimeout, DataTable dataTable) throws Exception {
-        Map<String, String> result = commonspec.kubernetesClient.execCommand(name, namespace, container, timeout, dataTable.asList().toArray(new String[0]), failureReason);
+        // Cucumber 7: asList() requires a TypeRegistry converter and fails on programmatically
+        // created DataTables (DataTable.create()). Use cells().stream().flatMap() instead.
+        Map<String, String> result = commonspec.kubernetesClient.execCommand(name, namespace, container, timeout, dataTable.cells().stream().flatMap(Collection::stream).toArray(String[]::new), failureReason);
         if (envVar != null) {
             ThreadProperty.set(envVar, result.get("stdout"));
         }
@@ -959,7 +962,7 @@ public class K8SSpec extends BaseGSpec {
         Assertions.assertThat(response).isEqualTo(exitStatus);
     }
 
-    @When("I create secret using keos-operator in path '(.+?)' with params:")
+    @When("^I create secret using keos-operator in path '(.+?)' with params:$")
     public void createSecretKeosOperator(String path, DataTable params) throws Exception {
         getPodsLabelSelector("pods", "app.kubernetes.io/instance=keos-operator,app.kubernetes.io/name=keos-operator", "keos-ops", "podKeosOp", null);
         StringBuilder sbCommand = new StringBuilder();
@@ -979,7 +982,7 @@ public class K8SSpec extends BaseGSpec {
         Assertions.assertThat(ThreadProperty.get("result")).contains("Success!");
     }
 
-    @When("I remove secret located in path '(.+?)' using keos-operator")
+    @When("^I remove secret located in path '(.+?)' using keos-operator$")
     public void deleteSecretKeosOperator(String path) throws Exception {
         getPodsLabelSelector("pods", "app.kubernetes.io/instance=keos-operator,app.kubernetes.io/name=keos-operator", "keos-ops", "podKeosOp", null);
         StringBuilder sbCommand = new StringBuilder();
@@ -996,7 +999,7 @@ public class K8SSpec extends BaseGSpec {
         Assertions.assertThat(ThreadProperty.get("result")).contains("Success!");
     }
 
-    @When("I create secret using Vault API in path '(.+?)' with params:")
+    @When("^I create secret using Vault API in path '(.+?)' with params:$")
     public void createSecretVault(String path, DataTable params) throws Exception {
         Exception exception = null;
         setLocalPortForward(8200, 8200, "service", "vault", "keos-core");
@@ -1022,7 +1025,7 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("I remove secret located in path '(.+?)' using Vault API")
+    @When("^I remove secret located in path '(.+?)' using Vault API$")
     public void deleteSecretVault(String path) throws Exception {
         Exception exception = null;
         setLocalPortForward(8200, 8200, "service", "vault", "keos-core");
@@ -1040,7 +1043,7 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("I check that secret exists in path '(.+?)' using Vault API")
+    @When("^I check that secret exists in path '(.+?)' using Vault API$")
     public void hasSecretVault(String path) throws Exception {
         Exception exception = null;
         setLocalPortForward(8200, 8200, "service", "vault", "keos-core");
@@ -1060,7 +1063,7 @@ public class K8SSpec extends BaseGSpec {
         }
     }
 
-    @When("I read secret located in path '(.+?)' using Vault API and save result in variable '(.+?)'")
+    @When("^I read secret located in path '(.+?)' using Vault API and save result in variable '(.+?)'$")
     public void readSecretVault(String path, String envVar) throws Exception {
         hasSecretVault(path);
 
