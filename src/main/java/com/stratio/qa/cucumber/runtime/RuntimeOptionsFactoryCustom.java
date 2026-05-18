@@ -210,7 +210,7 @@ public class RuntimeOptionsFactoryCustom {
         }
     }
 
-    private String[] getEnvironmentFeatures(FeatureEnvironment[] environments) {
+    public String[] getEnvironmentFeatures(FeatureEnvironment[] environments) {
         if (environments == null || environments.length == 0) {
             return new String[0];
         }

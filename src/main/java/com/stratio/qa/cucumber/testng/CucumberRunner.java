@@ -330,11 +330,18 @@ public class CucumberRunner {
 
     private static List<URI> extractAnnotationFeaturePaths(Class<?> clazz) {
         cucumber.api.CucumberOptions opts = clazz.getAnnotation(cucumber.api.CucumberOptions.class);
-        if (opts == null || opts.features().length == 0) {
-            return Collections.emptyList();
+        if (opts != null && opts.features().length > 0) {
+            return Arrays.stream(opts.features())
+                    .map(FeaturePath::parse)
+                    .collect(Collectors.toList());
         }
-        return Arrays.stream(opts.features())
-                .map(FeaturePath::parse)
-                .collect(Collectors.toList());
+        com.stratio.qa.cucumber.api.CucumberOptionsCustom custom = clazz.getAnnotation(com.stratio.qa.cucumber.api.CucumberOptionsCustom.class);
+        if (custom != null && custom.environments().length > 0) {
+            String[] features = new RuntimeOptionsFactoryCustom(clazz).getEnvironmentFeatures(custom.environments());
+            return Arrays.stream(features)
+                    .map(FeaturePath::parse)
+                    .collect(Collectors.toList());
+        }
+        return Collections.emptyList();
     }
 }
