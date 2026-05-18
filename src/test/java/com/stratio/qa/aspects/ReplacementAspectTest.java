@@ -17,12 +17,20 @@ package com.stratio.qa.aspects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Arrays;
+import java.util.List;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.testng.annotations.Test;
 
 import com.stratio.qa.exceptions.NonReplaceableException;
 import com.stratio.qa.utils.ThreadProperty;
+import io.cucumber.datatable.DataTable;
 
 public class ReplacementAspectTest {
 
@@ -198,6 +206,78 @@ public class ReplacementAspectTest {
         assertThat(repAspect.replacedElement("!{test/slash.toLower}", pjp)).isEqualTo("gg");
         assertThat(repAspect.replacedElement("!{test space.toLower}", pjp)).isEqualTo("hh");
         assertThat(repAspect.replacedElement("!{testUPPER.toLower}", pjp)).isEqualTo("ii");
+    }
+
+    // -----------------------------------------------------------------------
+    // QATM-55224: aroundReplacementExecute must throw instead of silently
+    // passing unresolved literals through to the step body.
+    // Tests below FAIL before the fix and PASS after it.
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void executeTimeReplacementThrowsForUndefinedThreadVar() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        Object[] stepArgs = new Object[]{"value-!{BDDTEST_EXEC_UNDEFINED_THREAD_VAR}-end"};
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getArgs()).thenReturn(new Object[]{stepArgs});
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
+
+        verify(pjp, never()).proceed();
+        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+    }
+
+    @Test
+    public void executeTimeReplacementThrowsForUndefinedEnvVar() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        System.clearProperty("BDDTEST_EXEC_UNDEFINED_ENV_VAR");
+        Object[] stepArgs = new Object[]{"value-${BDDTEST_EXEC_UNDEFINED_ENV_VAR}-end"};
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getArgs()).thenReturn(new Object[]{stepArgs});
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
+
+        verify(pjp, never()).proceed();
+        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+    }
+
+    @Test
+    public void executeTimeReplacementThrowsForUndefinedThreadVarInDataTable() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        List<List<String>> cells = Arrays.asList(
+                Arrays.asList("$.key", "ADD", "!{BDDTEST_EXEC_UNDEFINED_DT_THREAD_VAR}", "string")
+        );
+        DataTable dataTable = DataTable.create(cells);
+        Object[] stepArgs = new Object[]{dataTable};
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getArgs()).thenReturn(new Object[]{stepArgs});
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
+
+        verify(pjp, never()).proceed();
+        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+    }
+
+    @Test
+    public void executeTimeReplacementThrowsForUndefinedEnvVarInDataTable() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        System.clearProperty("BDDTEST_EXEC_UNDEFINED_DT_ENV_VAR");
+        List<List<String>> cells = Arrays.asList(
+                Arrays.asList("$.key", "ADD", "${BDDTEST_EXEC_UNDEFINED_DT_ENV_VAR}", "string")
+        );
+        DataTable dataTable = DataTable.create(cells);
+        Object[] stepArgs = new Object[]{dataTable};
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getArgs()).thenReturn(new Object[]{stepArgs});
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
+
+        verify(pjp, never()).proceed();
+        verify(pjp, never()).proceed(org.mockito.Matchers.any());
     }
 
     @Test

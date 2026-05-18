@@ -217,9 +217,10 @@ public class ReplacementAspect {
                             } else {
                                 newArgs[i] = args[i];
                             }
+                        } catch (NonReplaceableException e) {
+                            throw e;
                         } catch (Exception e) {
-                            ExceptionList.INSTANCE.getExceptions().add(e);
-                            newArgs[i] = args[i];
+                            throw new NonReplaceableException(e.getMessage());
                         }
                     } else {
                         newArgs[i] = args[i];
@@ -239,9 +240,10 @@ public class ReplacementAspect {
                                     if (!resolved.equals(cell)) {
                                         dtChanged = true;
                                     }
+                                } catch (NonReplaceableException e) {
+                                    throw e;
                                 } catch (Exception e) {
-                                    ExceptionList.INSTANCE.getExceptions().add(e);
-                                    newRow.add(cell);
+                                    throw new NonReplaceableException(e.getMessage());
                                 }
                             } else {
                                 newRow.add(cell);

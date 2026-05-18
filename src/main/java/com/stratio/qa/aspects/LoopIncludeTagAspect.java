@@ -17,6 +17,7 @@
 package com.stratio.qa.aspects;
 
 import com.stratio.qa.exceptions.IncludeException;
+import org.aspectj.lang.annotation.Aspect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,6 +27,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.List;
 
+// TODO: rename to FeaturePreprocessor and remove @Aspect once all consumer repos drop this class from their aop.xml.
+// @Aspect is kept solely for backward compat: external repos still list this class in their aop.xml and AspectJ
+// errors on registration if the type is not an aspect. No pointcuts are defined — this class does no weaving.
+@Aspect
 public class LoopIncludeTagAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
