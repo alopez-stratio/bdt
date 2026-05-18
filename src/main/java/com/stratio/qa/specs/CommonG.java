@@ -2233,16 +2233,16 @@ public class CommonG {
                     assertThat(value).as("Value does not match regex.").matches(result);
                     break;
                 case "lower than":
-                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is lower than expected value").isLessThan(Integer.parseInt(result));
+                    assertThat(Long.parseLong(value)).as("Evaluate JSONPath is lower than expected value").isLessThan(Long.parseLong(result));
                     break;
                 case "higher than":
-                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is higher than expected value").isGreaterThan(Integer.parseInt(result));
+                    assertThat(Long.parseLong(value)).as("Evaluate JSONPath is higher than expected value").isGreaterThan(Long.parseLong(result));
                     break;
                 case "lower than or equal to":
-                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is lower or equal than expected value").isLessThanOrEqualTo(Integer.parseInt(result));
+                    assertThat(Long.parseLong(value)).as("Evaluate JSONPath is lower or equal than expected value").isLessThanOrEqualTo(Long.parseLong(result));
                     break;
                 case "higher than or equal to":
-                    assertThat(Integer.parseInt(value)).as("Evaluate JSONPath is higher or equal than expected value").isGreaterThanOrEqualTo(Integer.parseInt(result));
+                    assertThat(Long.parseLong(value)).as("Evaluate JSONPath is higher or equal than expected value").isGreaterThanOrEqualTo(Long.parseLong(result));
                     break;
                 case "equals in any order": // Check that a JSON array contains the same elements as the expected JSON array
                     JsonValue jsonArray = JsonValue.readHjson(value);
