@@ -29,12 +29,17 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Aspect
 public class RunOnTagAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
+
+    // Matches X.Y.Z-(m|rc).N or X.Y.Z-U.V.W-(m|rc).N (new semver qualifier formats)
+    private static final Pattern SEMVER_QUALIFIER_PATTERN =
+            Pattern.compile("^(.+)-(m|rc)\\.(\\d+)$");
 
     @Pointcut("execution (* cucumber.runner.Runner.runPickle(..)) && "
             + "args (pickleEvent)")
@@ -285,69 +290,218 @@ public class RunOnTagAspect {
     private boolean checkVersion(char operador, String param, String value) throws Exception {
         boolean result = true;
         String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
+        String property = System.getProperty(param) != null ? System.getProperty(param, "") : ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
 
-        // Obtener la propiedad del sistema o ThreadProperty
-        String property = System.getProperty(param) != null ? System.getProperty(param) :
-                ThreadProperty.get(param) != null ? ThreadProperty.get(param) : "";
-
-        // Limpiar qualifiers antiguos
-        String envVarValue = property
-                .replaceAll("-SNAPSHOT+[0-9a-zA-Z]", "error")
-                .replaceAll("-([a-zA-Z0-9]{7}[0-9]|M[1-9]*[0-9][a-zA-Z]|RC[1-9]*[0-9][a-zA-Z])", "error")
-                .replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]*[0-9]|RC[1-9]*[0-9])", "");
-
-        // Normalizar qualifiers modernos
-        envVarValue = normalizeModernQualifier(envVarValue);
-        value = normalizeModernQualifier(value);
-
-        // Validar formato
-        if (!Pattern.matches(regexp, envVarValue) || !Pattern.matches(regexp, value)) {
-            throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
+        if (hasSemverQualifier(property) || hasSemverQualifier(value)) {
+            return checkVersionSemver(operador, property, value);
         }
 
-        // Split por "-"
-        String[] paramParts = envVarValue.split("-");
-        String[] valueParts = value.split("-");
-
-        int size = Math.min(paramParts.length, valueParts.length);
-
-        for (int j = 0; j < size; j++) {
-            String[] parVer = paramParts[j].split("\\.");
-            String[] valVer = valueParts[j].split("\\.");
-
-            if (parVer.length != valVer.length) {
-                throw new Exception("Error while parsing params. The versions must have the same number of elements");
+        String envVarValue = property.replaceAll("-SNAPSHOT+[0-9a-zA-Z]", "error").replaceAll("-([a-zA-Z0-9]{7}[0-9]|M[1-9]*[0-9][a-zA-Z]|RC[1-9]*[0-9][a-zA-Z])", "error").replaceAll("-(SNAPSHOT|[a-zA-Z0-9]{7}|M[1-9]*[0-9]|RC[1-9]*[0-9]|m.[1-9]*[0-9]|rc.[1-9]*[0-9])", "");
+        if (!Pattern.matches(regexp, envVarValue) || !Pattern.matches(regexp, value)) {
+            throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
+        } else if (operador == '=') {
+            if (value.contains("-") || envVarValue.contains("-")) {
+                String[] paramversion = envVarValue.split("-");
+                String[] valueversion = value.split("-");
+                if (paramversion.length != valueversion.length) {
+                    result = false;
+                } else {
+                    int j = 0;
+                    while (j < paramversion.length && result) {
+                        String[] parver = paramversion[j].split("\\.");
+                        String[] valver = valueversion[j].split("\\.");
+                        if (parver.length != valver.length) {
+                            result = false;
+                        } else {
+                            int z = 0;
+                            while (z < parver.length && result) {
+                                if (Integer.parseInt(parver[z]) != Integer.parseInt(valver[z])) {
+                                    result = false;
+                                }
+                                z++;
+                            }
+                        }
+                        j++;
+                    }
+                }
+            } else {
+                String[] parver = envVarValue.split("\\.");
+                String[] valver = value.split("\\.");
+                if (parver.length != valver.length) {
+                    result = false;
+                } else {
+                    int z = 0;
+                    while (z < parver.length && result) {
+                        if (Integer.parseInt(parver[z]) != Integer.parseInt(valver[z])) {
+                            result = false;
+                        }
+                        z++;
+                    }
+                }
             }
-
-            for (int z = 0; z < parVer.length; z++) {
-                int p = Integer.parseInt(parVer[z]);
-                int v = Integer.parseInt(valVer[z]);
-
-                if (operador == '=' && p != v) {
-                    return false;
-                } else if (operador == '>' && p < v) {
-                    return false;
-                } else if (operador == '<' && p > v) {
-                    return false;
+        } else {
+            if ((value.contains("-") || envVarValue.contains("-"))) {
+                String[] paramversion = envVarValue.split("-");
+                String[] valueversion = value.split("-");
+                if (operador == '>' && paramversion.length < valueversion.length) {
+                    result = false;
+                } else if (operador == '<' && paramversion.length > valueversion.length) {
+                    result = false;
+                } else {
+                    int size = paramversion.length;
+                    if (valueversion.length < size) {
+                        size = valueversion.length;
+                    }
+                    int countversion = 0;
+                    int j = 0;
+                    while (j < size && result) {
+                        String[] parver = paramversion[j].split("\\.");
+                        String[] valver = valueversion[j].split("\\.");
+                        if (parver.length != valver.length) {
+                            throw new Exception("Error while parsing params. The versions must have the same number of elements");
+                        } else {
+                            int count = 0;
+                            int z = 0;
+                            while (z < parver.length && result) {
+                                if (operador == '>' && Integer.parseInt(parver[z]) < Integer.parseInt(valver[z])) {
+                                    result = false;
+                                } else if (operador == '<' && Integer.parseInt(parver[z]) > Integer.parseInt(valver[z])) {
+                                    result = false;
+                                } else if (Integer.parseInt(parver[z]) == Integer.parseInt(valver[z])) {
+                                    count = count + 1;
+                                } else {
+                                    z = parver.length;
+                                    j = size;
+                                }
+                                z++;
+                            }
+                            if (count == parver.length) {
+                                countversion = countversion + 1;
+                            }
+                        }
+                        j++;
+                    }
+                    if (countversion == size && paramversion.length == valueversion.length) {
+                        result = false;
+                    }
+                }
+            } else {
+                String[] parver = envVarValue.split("\\.");
+                String[] valver = value.split("\\.");
+                if (parver.length != valver.length) {
+                    throw new Exception("Error while parsing params. The versions must have the same number of elements");
+                }
+                int count = 0;
+                int z = 0;
+                while (z < parver.length && result) {
+                    if (operador == '>' && Integer.parseInt(parver[z]) < Integer.parseInt(valver[z])) {
+                        result = false;
+                    } else if (operador == '<' && Integer.parseInt(parver[z]) > Integer.parseInt(valver[z])) {
+                        result = false;
+                    } else if (Integer.parseInt(parver[z]) == Integer.parseInt(valver[z])) {
+                        count = count + 1;
+                    } else {
+                        z = parver.length;
+                    }
+                    z++;
+                }
+                if (count == parver.length) {
+                    result = false;
                 }
             }
         }
+        return result;
+    }
 
-        // Si son iguales en la parte numérica, comparar qualifiers
-        if (paramParts.length != valueParts.length) {
-            boolean paramHasQualifier = envVarValue.contains("-");
-            boolean valueHasQualifier = value.contains("-");
+    private boolean hasSemverQualifier(String version) {
+        return version != null && SEMVER_QUALIFIER_PATTERN.matcher(version).matches();
+    }
 
-            if (operador == '>') {
-                result = !paramHasQualifier && valueHasQualifier; // release > qualifier
-            } else if (operador == '<') {
-                result = paramHasQualifier && !valueHasQualifier; // qualifier < release
-            } else {
-                result = false; // '=' pero tienen diferente qualifier
-            }
+    /**
+     * Compares two version strings that may include new semver qualifiers (m.N, rc.N).
+     * Qualifier ordering: m.N < rc.N < release (no qualifier).
+     * Supports base versions like X.Y.Z or X.Y.Z-U.V.W.
+     */
+    private boolean checkVersionSemver(char operador, String property, String value) throws Exception {
+        String regexp = "^[[[0-9]+.]+[0-9]+][-[[0-9]+.]+[0-9]+]*";
+
+        String propBase;
+        int propRank;
+        int propQualNum;
+        Matcher propMatcher = SEMVER_QUALIFIER_PATTERN.matcher(property);
+        if (propMatcher.matches()) {
+            propBase = propMatcher.group(1);
+            propRank = "m".equals(propMatcher.group(2)) ? 0 : 1;
+            propQualNum = Integer.parseInt(propMatcher.group(3));
+        } else {
+            propBase = property;
+            propRank = 2;
+            propQualNum = 0;
         }
 
-        return result;
+        String valBase;
+        int valRank;
+        int valQualNum;
+        Matcher valMatcher = SEMVER_QUALIFIER_PATTERN.matcher(value);
+        if (valMatcher.matches()) {
+            valBase = valMatcher.group(1);
+            valRank = "m".equals(valMatcher.group(2)) ? 0 : 1;
+            valQualNum = Integer.parseInt(valMatcher.group(3));
+        } else {
+            valBase = value;
+            valRank = 2;
+            valQualNum = 0;
+        }
+
+        if (!Pattern.matches(regexp, propBase) || !Pattern.matches(regexp, valBase)) {
+            throw new Exception("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
+        }
+
+        int baseCmp = compareNumericVersionParts(propBase, valBase);
+        if (baseCmp != 0) {
+            if (operador == '=') return false;
+            if (operador == '>') return baseCmp > 0;
+            return baseCmp < 0;
+        }
+
+        if (propRank != valRank) {
+            if (operador == '=') return false;
+            if (operador == '>') return propRank > valRank;
+            return propRank < valRank;
+        }
+
+        if (propQualNum != valQualNum) {
+            if (operador == '=') return false;
+            if (operador == '>') return propQualNum > valQualNum;
+            return propQualNum < valQualNum;
+        }
+
+        return operador == '=';
+    }
+
+    /**
+     * Numerically compares two base version strings (e.g. "1.0.0" or "1.0.0-1.2.3").
+     * Returns negative if v1 < v2, zero if equal, positive if v1 > v2.
+     */
+    private int compareNumericVersionParts(String v1, String v2) throws Exception {
+        String[] segments1 = v1.split("-");
+        String[] segments2 = v2.split("-");
+        int minSegs = Math.min(segments1.length, segments2.length);
+        for (int i = 0; i < minSegs; i++) {
+            String[] nums1 = segments1[i].split("\\.");
+            String[] nums2 = segments2[i].split("\\.");
+            if (nums1.length != nums2.length) {
+                throw new Exception("Error while parsing params. The versions must have the same number of elements");
+            }
+            for (int j = 0; j < nums1.length; j++) {
+                int n1 = Integer.parseInt(nums1[j]);
+                int n2 = Integer.parseInt(nums2[j]);
+                if (n1 != n2) {
+                    return n1 - n2;
+                }
+            }
+        }
+        return segments1.length - segments2.length;
     }
 
     private boolean isNumeric(String value) {
@@ -361,21 +515,6 @@ public class RunOnTagAspect {
                 return false;
             }
         }
-    }
-
-    private String normalizeModernQualifier(String version) {
-        if (version == null) {
-            return null;
-        }
-
-        // Cambiar solo si cumple el nuevo formato m.# o rc.#
-        if (version.matches("^\\d+\\.\\d+\\.\\d+-(m|rc)\\.\\d+$")) {
-            return version
-                    .replaceAll("-m\\.(\\d+)", "-0-$1")
-                    .replaceAll("-rc\\.(\\d+)", "-1-$1");
-        }
-
-        return version;
     }
 }
 

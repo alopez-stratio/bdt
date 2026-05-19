@@ -2693,60 +2693,103 @@ public class RunOnEnvTagAspectTest {
         assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
+    // --- New semver qualifier tests (m.N / rc.N) ---
+    // Ordering: m.N < rc.N < release
+    // tagsIteration returns false = scenario runs; true = scenario skipped
+
     @Test
-    public void testVersionComparison_mLowerThanRc() throws Exception {
+    public void testSemver_mLessThanRc() throws Exception {
         System.setProperty("VERSION","1.0.0-m.1");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION<1.0.0-rc.1)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_mNotGreaterThanRc() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-rc.1)"));
         assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
-    public void testVersionComparison_rcLowerThanRelease() throws Exception {
+    public void testSemver_rcLessThanRelease() throws Exception {
         System.setProperty("VERSION","1.0.0-rc.1");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION<1.0.0)"));
-        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
-    public void testVersionComparison_releaseGreaterThanRc() throws Exception {
+    public void testSemver_releaseGreaterThanRc() throws Exception {
         System.setProperty("VERSION","1.0.0");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-rc.1)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_rcNotGreaterThanRelease() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0)"));
         assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
-    public void testVersionComparison_rcNumericOrder() throws Exception {
+    public void testSemver_rcNumericOrder() throws Exception {
         System.setProperty("VERSION","1.0.0-rc.2");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-rc.1)"));
-        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
-    public void testVersionComparison_mNumericOrder() throws Exception {
+    public void testSemver_mNumericOrder() throws Exception {
         System.setProperty("VERSION","1.0.0-m.3");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-m.1)"));
-        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
-    public void testVersionComparison_rcEquality() throws Exception {
+    public void testSemver_rcEquality() throws Exception {
         System.setProperty("VERSION","1.0.0-rc.1");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-rc.1)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_mEquality() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.2");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-m.2)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_releaseNotEqualRc() throws Exception {
+        System.setProperty("VERSION","1.0.0");
         List<PickleTag> tagList = new ArrayList<>();
         tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION=1.0.0-rc.1)"));
         assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
     @Test
-    public void testVersionComparison_rcNotGreaterThanRelease() throws Exception {
-        System.setProperty("VERSION","1.0.0-rc.1");
+    public void testSemver_doubleVersionWithRc() throws Exception {
+        System.setProperty("VERSION","1.0.0-2.3.4-rc.1");
         List<PickleTag> tagList = new ArrayList<>();
-        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0)"));
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION<1.0.0-2.3.4)"));
         assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
+    @Test
+    public void testSemver_rcMultiDigitNumber() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.10");
+        List<PickleTag> tagList = new ArrayList<>();
+        tagList.add(new PickleTag(new PickleLocation(1,0),"@runOnEnv(VERSION>1.0.0-rc.9)"));
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
 }
