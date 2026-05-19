@@ -85,6 +85,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -3070,8 +3071,45 @@ public class CommonG {
                     try (OutputStream os = Files.newOutputStream(entryPath)) {
                         tis.copyEntryContents(os);
                     }
+                    applyTarPermissions(entryPath, entry.getMode());
                 }
             }
+        }
+    }
+
+    private void applyTarPermissions(Path file, int mode) {
+        try {
+            Set<PosixFilePermission> perms = EnumSet.noneOf(PosixFilePermission.class);
+            if ((mode & 0400) != 0) {
+                perms.add(PosixFilePermission.OWNER_READ);
+            }
+            if ((mode & 0200) != 0) {
+                perms.add(PosixFilePermission.OWNER_WRITE);
+            }
+            if ((mode & 0100) != 0) {
+                perms.add(PosixFilePermission.OWNER_EXECUTE);
+            }
+            if ((mode & 0040) != 0) {
+                perms.add(PosixFilePermission.GROUP_READ);
+            }
+            if ((mode & 0020) != 0) {
+                perms.add(PosixFilePermission.GROUP_WRITE);
+            }
+            if ((mode & 0010) != 0) {
+                perms.add(PosixFilePermission.GROUP_EXECUTE);
+            }
+            if ((mode & 0004) != 0) {
+                perms.add(PosixFilePermission.OTHERS_READ);
+            }
+            if ((mode & 0002) != 0) {
+                perms.add(PosixFilePermission.OTHERS_WRITE);
+            }
+            if ((mode & 0001) != 0) {
+                perms.add(PosixFilePermission.OTHERS_EXECUTE);
+            }
+            Files.setPosixFilePermissions(file, perms);
+        } catch (UnsupportedOperationException | IOException e) {
+            logger.warn("Could not set permissions on {}: {}", file, e.getMessage());
         }
     }
 }
