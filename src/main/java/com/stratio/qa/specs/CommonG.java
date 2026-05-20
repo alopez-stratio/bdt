@@ -3068,6 +3068,7 @@ public class CommonG {
                     Files.createDirectories(entryPath);
                 } else {
                     Files.createDirectories(entryPath.getParent());
+                    Files.deleteIfExists(entryPath);
                     try (OutputStream os = Files.newOutputStream(entryPath)) {
                         tis.copyEntryContents(os);
                     }
