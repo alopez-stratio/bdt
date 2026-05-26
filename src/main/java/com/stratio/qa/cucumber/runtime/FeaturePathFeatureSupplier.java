@@ -111,7 +111,11 @@ public class FeaturePathFeatureSupplier implements FeatureSupplier {
             }
         }
 
-        if (!PRESERVE_ORDER.equals(System.getProperty(FEATURE_EXECUTION_ORDER_KEY, ""))) {
+        // Preserve insertion order when paths were explicitly provided (annotation or cucumber.features).
+        // Sort alphabetically only when paths came from broad directory scanning (no explicit list).
+        boolean explicitOrder = (explicitPaths != null && !explicitPaths.isEmpty())
+                || PRESERVE_ORDER.equals(System.getProperty(FEATURE_EXECUTION_ORDER_KEY, ""));
+        if (!explicitOrder) {
             features.sort((a, b) -> a.getUri().compareTo(b.getUri()));
         }
 

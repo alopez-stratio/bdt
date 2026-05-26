@@ -60,7 +60,7 @@ public abstract class BaseGTest {
      */
     @AfterSuite(alwaysRun = true)
     public void afterGSuite(ITestContext context) {
-        logger.info("Done executing this test-run.");
+        logger.debug("Done executing this test-run.");
     }
 
     /**

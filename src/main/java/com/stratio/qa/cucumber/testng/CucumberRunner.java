@@ -34,6 +34,8 @@ import io.cucumber.core.gherkin.Feature;
 import io.cucumber.core.gherkin.Pickle;
 import io.cucumber.core.gherkin.Step;
 import io.cucumber.core.gherkin.StepType;
+import io.cucumber.core.options.CucumberProperties;
+import io.cucumber.core.options.CucumberPropertiesParser;
 import io.cucumber.core.options.RuntimeOptions;
 import io.cucumber.core.options.RuntimeOptionsBuilder;
 import io.cucumber.core.plugin.PluginFactory;
@@ -94,11 +96,15 @@ public class CucumberRunner {
         this.classLoader = clazz.getClassLoader();
         this.originalFeaturePaths = extractAnnotationFeaturePaths(clazz);
 
-        RuntimeOptionsBuilder builder = new RuntimeOptionsFactoryCustom(clazz).buildOptions();
-        addStratioGlue(builder, clazz);
-        this.runtimeOptions = builder
+        RuntimeOptionsBuilder annotationBuilder = new RuntimeOptionsFactoryCustom(clazz).buildOptions();
+        addStratioGlue(annotationBuilder, clazz);
+        RuntimeOptions annotationOptions = annotationBuilder
                 .addDefaultSummaryPrinterIfNotDisabled()
                 .build();
+        // Apply Cucumber 7 system properties on top (cucumber.features, cucumber.filter.tags, etc.)
+        this.runtimeOptions = new CucumberPropertiesParser()
+                .parse(CucumberProperties.create())
+                .build(annotationOptions);
 
         this.bus = new TimeServiceEventBus(Clock.systemUTC(), UUID::randomUUID);
         this.plugins = new Plugins(new PluginFactory(), runtimeOptions);
@@ -127,7 +133,20 @@ public class CucumberRunner {
         try {
             plugins.setEventBusOnEventListenerPlugins(bus);
 
-            List<URI> pathsForSupplier = originalFeaturePaths.isEmpty() ? null : originalFeaturePaths;
+            List<URI> pathsForSupplier;
+            if (!originalFeaturePaths.isEmpty()) {
+                pathsForSupplier = originalFeaturePaths;
+            } else if (CucumberProperties.fromSystemProperties().containsKey("cucumber.features")) {
+                // Parse directly from the system property — runtimeOptions.getFeaturePaths()
+                // calls .sorted() internally and would destroy the user-specified order.
+                pathsForSupplier = Arrays.stream(System.getProperty("cucumber.features").split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(FeaturePath::parse)
+                        .collect(Collectors.toList());
+            } else {
+                pathsForSupplier = null;
+            }
             FeaturePathFeatureSupplier featureSupplier = new FeaturePathFeatureSupplier(
                 () -> classLoader, runtimeOptions, UUID::randomUUID, pathsForSupplier);
 
@@ -329,6 +348,10 @@ public class CucumberRunner {
     }
 
     private static List<URI> extractAnnotationFeaturePaths(Class<?> clazz) {
+        // When cucumber.features is set, defer to CucumberPropertiesParser in runtimeOptions
+        if (CucumberProperties.fromSystemProperties().containsKey("cucumber.features")) {
+            return Collections.emptyList();
+        }
         cucumber.api.CucumberOptions opts = clazz.getAnnotation(cucumber.api.CucumberOptions.class);
         if (opts != null && opts.features().length > 0) {
             return Arrays.stream(opts.features())
