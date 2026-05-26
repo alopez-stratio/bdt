@@ -54,7 +54,10 @@ import org.apache.tools.tar.TarInputStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
 import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.AsyncHandler;
 import org.asynchttpclient.BoundRequestBuilder;
+import org.asynchttpclient.HttpResponseBodyPart;
+import org.asynchttpclient.HttpResponseStatus;
 import org.asynchttpclient.Realm;
 import org.asynchttpclient.Response;
 import org.hjson.JsonObject;
@@ -715,6 +718,10 @@ public class CommonG {
         InputStream bodyStream = response.getResponseBodyAsStream();
 
         this.response = new HttpResponse(statusCode, httpResponse, cookies, headers, bodyStream);
+    }
+
+    public void setResponse(HttpResponse httpResponse) {
+        this.response = httpResponse;
     }
 
     /**
@@ -3111,6 +3118,133 @@ public class CommonG {
             Files.setPosixFilePermissions(file, perms);
         } catch (UnsupportedOperationException | IOException e) {
             logger.warn("Could not set permissions on {}: {}", file, e.getMessage());
+        }
+    }
+
+    /**
+     * Sends a GET or POST request to an SSE endpoint and collects all events until the server
+     * closes the stream. The response body accumulates the raw SSE text, which can then be
+     * parsed with {@code parseSSEEvents}. The {@code Accept: text/event-stream} header is set
+     * automatically. Total timeout is controlled by the {@code BDT_SSE_TIMEOUT} system property
+     * (default 1800 seconds).
+     *
+     * @param method    GET or POST
+     * @param endPoint  endpoint path
+     * @param data      request body (may be empty string for GET)
+     * @param type      content type identifier (json|string|textplain|gov|scim|servicegov)
+     * @param user      optional basic-auth user
+     * @param password  optional basic-auth password
+     * @throws Exception on connection or timeout error
+     */
+    public void executeSSERequest(String method, String endPoint, String data, String type,
+                                   String user, String password) throws Exception {
+        int timeoutMs = Integer.parseInt(System.getProperty("BDT_SSE_TIMEOUT", "1800")) * 1000;
+
+        String protocol = this.getRestProtocol() != null ? this.getRestProtocol() : "http://";
+        if (this.getRestHost() == null) {
+            throw new Exception("Rest host has not been set");
+        }
+        if (this.getRestPort() == null) {
+            throw new Exception("Rest port has not been set");
+        }
+        String restURL = protocol + this.getRestHost() + this.getRestPort();
+
+        String govTenant = System.getProperty("GOV_TENANT") != null ? System.getProperty("GOV_TENANT") : "NONE";
+        String govRolesID = System.getProperty("GOV_ROLESID");
+        String govUserID = Objects.requireNonNullElse(ThreadProperty.get("GOV_USER_UID"),
+                Objects.requireNonNullElse(System.getProperty("GOV_USERID"), "admin"));
+        if ("servicegov".equals(type)) {
+            govRolesID = System.getProperty("GOV_SERVICE_ROLESID") != null ? System.getProperty("GOV_SERVICE_ROLESID") : "Service";
+            govUserID = Objects.requireNonNullElse(ThreadProperty.get("GOV_SERVICE_USER_UID"),
+                    Objects.requireNonNullElse(System.getProperty("GOV_SERVICE_USERID"), "admin"));
+            type = "gov";
+        }
+
+        Realm realm = null;
+        if (user != null) {
+            realm = new Realm.Builder(user, password)
+                    .setUsePreemptiveAuth(true)
+                    .setScheme(Realm.AuthScheme.BASIC)
+                    .build();
+        }
+
+        try (AsyncHttpClient sseClient = asyncHttpClient(config()
+                .setUseInsecureTrustManager(true)
+                .setKeepAlive(true)
+                .setConnectTimeout(30000)
+                .setRequestTimeout(timeoutMs)
+                .setReadTimeout(timeoutMs)
+                .build())) {
+
+            StringBuilder body = new StringBuilder();
+            java.util.concurrent.atomic.AtomicInteger statusCode = new java.util.concurrent.atomic.AtomicInteger();
+            java.util.concurrent.atomic.AtomicReference<HttpHeaders> responseHeaders =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+
+            AsyncHandler<Void> handler = new AsyncHandler<Void>() {
+                @Override
+                public State onBodyPartReceived(HttpResponseBodyPart part) {
+                    body.append(new String(part.getBodyPartBytes(), StandardCharsets.UTF_8));
+                    return State.CONTINUE;
+                }
+
+                @Override
+                public State onStatusReceived(HttpResponseStatus status) {
+                    statusCode.set(status.getStatusCode());
+                    return State.CONTINUE;
+                }
+
+                @Override
+                public State onHeadersReceived(HttpHeaders headers) {
+                    responseHeaders.set(headers);
+                    return State.CONTINUE;
+                }
+
+                @Override
+                public Void onCompleted() {
+                    return null;
+                }
+
+                @Override
+                public void onThrowable(Throwable t) {
+                    logger.error("SSE request error: {}", t.getMessage());
+                }
+            };
+
+            BoundRequestBuilder req;
+            switch (method.toUpperCase()) {
+                case "POST":
+                    req = sseClient.preparePost(restURL + endPoint).setBody(data != null ? data : "");
+                    break;
+                case "GET":
+                    req = sseClient.prepareGet(restURL + endPoint);
+                    break;
+                default:
+                    throw new Exception("SSE step only supports GET/POST, got: " + method);
+            }
+
+            req = setHeaders(req, type, govTenant, govRolesID, govUserID);
+            req.setHeader("Accept", "text/event-stream");
+
+            if (this.getResponse() != null && this.getResponse().getCookies() != null) {
+                req.setCookies(this.getResponse().getCookies());
+            }
+            for (Cookie cook : this.getCookies()) {
+                req.addCookie(cook);
+            }
+            if (!this.headers.isEmpty()) {
+                for (Map.Entry<String, String> header : this.headers.entrySet()) {
+                    req.setHeader(header.getKey(), header.getValue());
+                }
+            }
+            if (realm != null) {
+                req.setRealm(realm);
+            }
+
+            req.execute(handler).get(timeoutMs + 30000L, TimeUnit.MILLISECONDS);
+
+            this.setResponse(new HttpResponse(statusCode.get(), body.toString(),
+                    Collections.emptyList(), responseHeaders.get()));
         }
     }
 }

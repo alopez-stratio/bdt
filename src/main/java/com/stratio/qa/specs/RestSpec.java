@@ -238,6 +238,53 @@ public class RestSpec extends BaseGSpec {
     }
 
     /**
+     * Sends a GET or POST request to an SSE endpoint, applying the given modifications to the
+     * request body. Collects all events until the server closes the stream and stores the raw
+     * SSE text as the response body. The {@code Accept: text/event-stream} header is set
+     * automatically. Timeout is configurable via {@code -DBDT_SSE_TIMEOUT=<seconds>} (default 1800).
+     *
+     * @param method        GET or POST
+     * @param endPoint      endpoint path
+     * @param loginInfo     optional basic-auth credentials in {@code user:password} format
+     * @param baseData      path to the request body template file
+     * @param type          content type (json|string|gov|scim|servicegov|textplain)
+     * @param modifications DataTable with field modifications to apply to the body
+     * @throws Exception on request or connection error
+     */
+    @When("^I send a SSE '(GET|POST)' request to '(.+?)'( with user and password '(.+:.+?)')? based on '([^:]+?)'( as '(json|string|gov|scim|servicegov|textplain)')? with:$")
+    public void sendSSERequest(String method, String endPoint, String loginInfo, String baseData, String type, DataTable modifications) throws Exception {
+        String retrievedData = commonspec.retrieveData(baseData, type);
+        String modifiedData = commonspec.modifyData(retrievedData, type, modifications);
+        String user = loginInfo != null ? loginInfo.substring(0, loginInfo.indexOf(':')) : null;
+        String password = loginInfo != null ? loginInfo.substring(loginInfo.indexOf(':') + 1) : null;
+        commonspec.getLogger().debug("Sending SSE {} request to {}", method, endPoint);
+        commonspec.executeSSERequest(method, endPoint, modifiedData, type, user, password);
+    }
+
+    /**
+     * Sends a GET or POST request to an SSE endpoint without body modifications. The request body
+     * and content type are optional. Collects all events until the server closes the stream and
+     * stores the raw SSE text as the response body. The {@code Accept: text/event-stream} header
+     * is set automatically. Timeout is configurable via {@code -DBDT_SSE_TIMEOUT=<seconds>}
+     * (default 1800).
+     *
+     * @param method    GET or POST
+     * @param endPoint  endpoint path
+     * @param loginInfo optional basic-auth credentials in {@code user:password} format
+     * @param baseData  optional path to the request body file
+     * @param type      optional content type (json|string|gov|scim|servicegov|textplain)
+     * @throws Exception on request or connection error
+     */
+    @When("^I send a SSE '(GET|POST)' request to '(.+?)'( with user and password '(.+:.+?)')?( based on '([^:]+?)')?( as '(json|string|gov|scim|servicegov|textplain)')?$")
+    public void sendSSERequestNoDataTable(String method, String endPoint, String loginInfo, String baseData, String type) throws Exception {
+        String data = baseData != null ? commonspec.retrieveData(baseData, type) : "";
+        String user = loginInfo != null ? loginInfo.substring(0, loginInfo.indexOf(':')) : null;
+        String password = loginInfo != null ? loginInfo.substring(loginInfo.indexOf(':') + 1) : null;
+        commonspec.getLogger().debug("Sending SSE {} request to {}", method, endPoint);
+        commonspec.executeSSERequest(method, endPoint, data, type, user, password);
+    }
+
+    /**
      * Same sendRequest, but in this case, we do not receive a data table with modifications.
      * Besides, the data and request header are optional as well.
      * In case we want to simulate sending a json request with empty data, we just to avoid baseData
