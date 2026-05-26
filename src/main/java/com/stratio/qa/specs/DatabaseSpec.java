@@ -49,6 +49,7 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.stratio.qa.assertions.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -1453,7 +1454,7 @@ public class DatabaseSpec extends BaseGSpec {
         //from Cucumber Datatable
         List<String> tablePattern = new ArrayList<String>();
         //comparison is by lists of string
-        tablePattern = dataTable.asList(String.class);
+        tablePattern = dataTable.cells().stream().flatMap(List::stream).collect(Collectors.toList());
 
 
         Connection myConnection = this.commonspec.getConnection();
@@ -1509,7 +1510,7 @@ public class DatabaseSpec extends BaseGSpec {
 
         //from Cucumber Datatable, the pattern to verify
         List<String> tablePattern = new ArrayList<String>();
-        tablePattern = dataTable.asList(String.class);
+        tablePattern = dataTable.cells().stream().flatMap(List::stream).collect(Collectors.toList());
 
         //the result from select
         List<String> sqlTable = new ArrayList<String>();
