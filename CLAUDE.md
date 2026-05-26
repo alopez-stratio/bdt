@@ -211,6 +211,28 @@ mvn clean verify -DskipUTs -Dmaven.javadoc.skip \
 | `@continueOnPreviousFeatureFailure` | Feature continues even if previous feature had `@important` failure |
 | `@always` | Scenario runs even if previous `@important` failed |
 
+## SonarQube
+
+Dashboard: `https://sonar.int.stratio.com/dashboard?id=bdt`
+
+The dashboard loads via JavaScript so WebFetch cannot read it. Use the REST API instead:
+
+```bash
+SONAR_TOKEN=$(cat ~/.config/sonar/token)
+curl -s -u "${SONAR_TOKEN}:" "https://sonar.int.stratio.com/api/measures/component?component=bdt&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,ncloc,alert_status,reliability_rating,security_rating,sqale_rating"
+```
+
+**Token setup** (user-specific, never committed):
+```bash
+mkdir -p ~/.config/sonar
+echo "<token>" > ~/.config/sonar/token
+chmod 600 ~/.config/sonar/token
+```
+
+If the user doesn't have a token yet: SonarQube → top-right avatar → My Account → Security → Generate Token → type **User Token**.
+
+**JaCoCo / coverage:** coverage reports land at `target/site/jacoco/jacoco.xml` (UTs) and `target/site/jacoco-it/jacoco.xml` (ITs). Sonar picks them up automatically during `doStaticAnalysis` in the Jenkins pipeline. Coverage was 0% until PR #1167 fixed the missing JaCoCo plugin executions.
+
 ## qa-unified-tests skills
 
 Skills from `qa-unified-tests` (platform ops, Cucumber results reader, etc.) can be loaded into this project automatically.
