@@ -3174,6 +3174,7 @@ public class CommonG {
                 .setConnectTimeout(30000)
                 .setRequestTimeout(timeoutMs)
                 .setReadTimeout(timeoutMs)
+                .setMaxRequestRetry(0) // Disable automatic retries on connection failures
                 .build())) {
 
             StringBuilder body = new StringBuilder();
