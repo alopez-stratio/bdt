@@ -636,13 +636,10 @@ public class RestSpec extends BaseGSpec {
                 String absolutePathFile = tempDirectory.getAbsolutePath() + "/" + fileName;
                 commonspec.getLogger().debug("Creating file {} in 'target/test-classes'", absolutePathFile);
                 // Note that this Writer will delete the file if it exists
-                Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8));
-                try {
+                try (Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(absolutePathFile), StandardCharsets.UTF_8))) {
                     out.write(value);
                 } catch (Exception e) {
                     commonspec.getLogger().error("Custom file {} hasn't been created:\n{}", absolutePathFile, e.toString());
-                } finally {
-                    out.close();
                 }
 
                 Assertions.assertThat(new File(absolutePathFile).isFile());

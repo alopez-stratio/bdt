@@ -68,4 +68,11 @@ public final class ThreadProperty {
         PROPS.get().remove(key);
     }
 
+    /**
+     * Clean up the thread-local to prevent memory leaks.
+     */
+    public static void cleanup() {
+        PROPS.remove();
+    }
+
 }

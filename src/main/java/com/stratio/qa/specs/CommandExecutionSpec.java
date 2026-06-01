@@ -473,9 +473,9 @@ public class CommandExecutionSpec extends BaseGSpec {
         finalCmd.append("wait");
 
         //Save the script and send it to the running ssh (dcos-cli) connection and execute it
-        BufferedWriter writer = new BufferedWriter(new FileWriter(finalFile));
-        writer.write(finalCmd.toString());
-        writer.close();
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(finalFile))) {
+            writer.write(finalCmd.toString());
+        }
 
         if (remotely != null) {
             commonspec.getLogger().debug("Uploading script file:" + finalFile);

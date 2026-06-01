@@ -49,8 +49,6 @@ public class AnnotationsDoclet {
             for (int j = 0; j < annotations.length; ++j) {
                 annotation = annotations[j].getAnnotationType().toString();
                 if ((annotation.endsWith("Given")) || (annotation.endsWith("When")) || (annotation.endsWith("Then"))) {
-                    FileWriter htmlAnnotationJavadoc = new FileWriter("com/stratio/qa/specs/" + className + "-annotations.html");
-                    BufferedWriter out = new BufferedWriter(htmlAnnotationJavadoc);
                     sb.append("<html>");
                     sb.append("<head>");
                     sb.append("<title>" + className + " Annotations</title>");
@@ -63,8 +61,9 @@ public class AnnotationsDoclet {
                     sb.append("</dl>");
                     sb.append("</body>");
                     sb.append("</html>");
-                    out.write(sb.toString());
-                    out.close();
+                    try (BufferedWriter out = new BufferedWriter(new FileWriter("com/stratio/qa/specs/" + className + "-annotations.html"))) {
+                        out.write(sb.toString());
+                    }
                 }
             }
         }

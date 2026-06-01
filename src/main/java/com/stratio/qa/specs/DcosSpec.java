@@ -224,8 +224,7 @@ public class DcosSpec extends BaseGSpec {
      */
     private String readOneLineFile(String fileName) throws IOException {
         StringBuilder sb = new StringBuilder();
-        try {
-            BufferedReader br = Files.newBufferedReader(Paths.get(fileName), StandardCharsets.UTF_8);
+        try (BufferedReader br = Files.newBufferedReader(Paths.get(fileName), StandardCharsets.UTF_8)) {
             String line;
             while ((line = br.readLine()) != null) {
                 sb.append(line);
@@ -1142,7 +1141,7 @@ public class DcosSpec extends BaseGSpec {
         try {
             value = commonspec.getJSONPathString(json, jqExpression, position).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", "");
         } catch (Exception e) {
-            if (envVar == "PUBLIC_NODE" || envVar == "DCOS_TENANT") {
+            if ("PUBLIC_NODE".equals(envVar) || "DCOS_TENANT".equals(envVar)) {
                 value = null;
             } else {
                 throw e;
@@ -1162,7 +1161,7 @@ public class DcosSpec extends BaseGSpec {
                 break;
         }
 
-        if (!(envVar == "PUBLIC_NODE" && value == null)) {
+        if (!("PUBLIC_NODE".equals(envVar) && value == null)) {
             ThreadProperty.set(envVar, value);
         }
     }
@@ -1573,7 +1572,7 @@ public class DcosSpec extends BaseGSpec {
         try {
             value = commonspec.getJSONPathString(json, jqExpression, position).replaceAll("\\[", "").replaceAll("\\]", "").replaceAll("\"", "");
         } catch (Exception e) {
-            if (info == "PUBLIC_NODE" || info == "TENANT") {
+            if ("PUBLIC_NODE".equals(info) || "TENANT".equals(info)) {
                 value = null;
             } else {
                 throw e;
@@ -1593,7 +1592,7 @@ public class DcosSpec extends BaseGSpec {
                 break;
         }
 
-        if (!(info == "PUBLIC_NODE" && value == null)) {
+        if (!("PUBLIC_NODE".equals(info) && value == null)) {
             ThreadProperty.set(envVar, value);
         }
 

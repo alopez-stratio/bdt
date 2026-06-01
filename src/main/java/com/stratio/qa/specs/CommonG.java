@@ -1283,7 +1283,7 @@ public class CommonG {
                 break;
 
             case "DELETE":
-                if (data == "") {
+                if (data == null || data.isEmpty()) {
                     request = this.getClient().prepareDelete(restURL + endPoint);
                     if ("gov".equals(type)) {
                         request = request.setHeader("Content-Type", "application/json; charset=UTF-8");
@@ -1328,7 +1328,7 @@ public class CommonG {
                     request = request.setRealm(realm);
                 }
 
-                if (data == "") {
+                if (data == null || data.isEmpty()) {
                     response = request.execute();
                 } else {
                     response = this.getClient().executeRequest(request.build());

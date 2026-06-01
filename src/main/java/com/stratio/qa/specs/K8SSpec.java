@@ -1017,11 +1017,11 @@ public class K8SSpec extends BaseGSpec {
         } catch (Exception e) {
             exception = e;
         } finally {
-            closePortForward();
-            if (exception != null) {
-                throw exception;
-            }
             new File(System.getProperty("user.dir") + "/target/test-classes/secret.json").delete();
+            closePortForward();
+        }
+        if (exception != null) {
+            throw exception;
         }
     }
 
@@ -1037,9 +1037,9 @@ public class K8SSpec extends BaseGSpec {
             exception = e;
         } finally {
             closePortForward();
-            if (exception != null) {
-                throw exception;
-            }
+        }
+        if (exception != null) {
+            throw exception;
         }
     }
 
@@ -1057,9 +1057,9 @@ public class K8SSpec extends BaseGSpec {
             exception = e;
         } finally {
             closePortForward();
-            if (exception != null) {
-                throw exception;
-            }
+        }
+        if (exception != null) {
+            throw exception;
         }
     }
 
@@ -1090,9 +1090,9 @@ public class K8SSpec extends BaseGSpec {
             exception = e;
         } finally {
             closePortForward();
-            if (exception != null) {
-                throw exception;
-            }
+        }
+        if (exception != null) {
+            throw exception;
         }
     }
 

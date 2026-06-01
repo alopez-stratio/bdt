@@ -490,7 +490,7 @@ public class ReplacementAspect {
                         } catch (SocketException e) {
                             this.logger.error(e.getMessage());
                         }
-                        while (ifs.hasMoreElements() && !found) {
+                        while (ifs != null && ifs.hasMoreElements() && !found) {
                             InetAddress itf = ifs.nextElement();
                             if (itf instanceof Inet4Address) {
                                 String ip = itf.getHostAddress();

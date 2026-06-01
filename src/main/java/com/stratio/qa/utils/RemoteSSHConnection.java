@@ -115,7 +115,6 @@ public class RemoteSSHConnection {
      * @param remotePath
      */
     public void copyTo(String localPath, String remotePath) throws Exception {
-        FileInputStream fis = null;
         String rfile = remotePath;
         String localfile = localPath;
         boolean ptimestamp = true;
@@ -192,17 +191,16 @@ public class RemoteSSHConnection {
             }
 
             // send a content of lfile
-            fis = new FileInputStream(lfile);
             byte[] buf = new byte[1024];
-            while (true) {
-                int len = fis.read(buf, 0, buf.length);
-                if (len <= 0) {
-                    break;
+            try (FileInputStream fis = new FileInputStream(lfile)) {
+                while (true) {
+                    int len = fis.read(buf, 0, buf.length);
+                    if (len <= 0) {
+                        break;
+                    }
+                    out.write(buf, 0, len);
                 }
-                out.write(buf, 0, len);
             }
-            fis.close();
-            fis = null;
             // send '\0'
             buf[0] = 0;
             out.write(buf, 0, 1);
@@ -303,7 +301,6 @@ public class RemoteSSHConnection {
      * @param localPath
      */
     public void copyFrom(String remotePath, String localPath) throws Exception {
-        FileOutputStream fos = null;
         String rfile = remotePath;
         String lfile = localPath;
 
@@ -377,28 +374,26 @@ public class RemoteSSHConnection {
             out.flush();
 
             // read a content of lfile
-            fos = new FileOutputStream(prefix);
-
             int foo;
-            while (true) {
-                if (buf.length < filesize) {
-                    foo = buf.length;
-                } else {
-                    foo = (int) filesize;
-                }
-                foo = in.read(buf, 0, foo);
-                if (foo < 0) {
-                    // error
-                    break;
-                }
-                fos.write(buf, 0, foo);
-                filesize -= foo;
-                if (filesize == 0L) {
-                    break;
+            try (FileOutputStream fos = new FileOutputStream(prefix)) {
+                while (true) {
+                    if (buf.length < filesize) {
+                        foo = buf.length;
+                    } else {
+                        foo = (int) filesize;
+                    }
+                    foo = in.read(buf, 0, foo);
+                    if (foo < 0) {
+                        // error
+                        break;
+                    }
+                    fos.write(buf, 0, foo);
+                    filesize -= foo;
+                    if (filesize == 0L) {
+                        break;
+                    }
                 }
             }
-            fos.close();
-            fos = null;
 
             if (checkAck(in) != 0) {
                 throw new RuntimeException("Read error on inputstream");

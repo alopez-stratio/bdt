@@ -31,6 +31,7 @@ import com.stratio.qa.assertions.Assertions;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.testng.Assert;
 
@@ -379,7 +380,7 @@ public class KeosSpec extends BaseGSpec {
             if (ThreadProperty.get("localDocker") == null) {
                 commandSpec.executeLocalCommand("ls target/test-classes | grep keos-", "0", "clusterWorkspace", -1);
                 commandSpec.executeLocalCommand("cp -R target/test-classes/" + ThreadProperty.get("clusterWorkspace") + " target/test-classes/workspaceKeosInstaller", null, null, null);
-                String randomName = ThreadProperty.get("clusterWorkspace") + "-" + new Random().nextInt(900000) + 100000;
+                String randomName = ThreadProperty.get("clusterWorkspace") + "-" + ThreadLocalRandom.current().nextInt(900000) + 100000;
                 ThreadProperty.set("localDocker", randomName);
                 commandSpec.executeLocalCommand("pwd", null, "pwd", null);
                 commonspec.getLogger().debug("Local execution detected, creating docker container");

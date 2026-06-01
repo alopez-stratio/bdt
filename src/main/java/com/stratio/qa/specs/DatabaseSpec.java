@@ -847,17 +847,14 @@ public class DatabaseSpec extends BaseGSpec {
     public void executeQuery(String query) throws Exception {
         ThreadProperty.remove("querysize");
         getCommonSpec().setPreviousSqlResult(null);
-        Statement myStatement = null;
         int result = 0;
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
 
-        try {
-            myStatement = myConnection.createStatement();
+        try (Statement myStatement = myConnection.createStatement()) {
             result = myStatement.executeUpdate(query);
-            myStatement.close();
         } catch (Exception e) {
             e.printStackTrace();
             assertThat(result).as(e.getClass().getName() + ": " + e.getMessage()).isNotEqualTo(0);
@@ -874,11 +871,10 @@ public class DatabaseSpec extends BaseGSpec {
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
-        try {
+        try (Statement myStatement = myConnection.createStatement()) {
             String warningMessage = null;
             ThreadProperty.remove("querysize");
             getCommonSpec().setPreviousSqlResult(null);
-            Statement myStatement = myConnection.createStatement();
             myStatement.execute(query);
 
             if (warningReturned != null) {
@@ -889,7 +885,6 @@ public class DatabaseSpec extends BaseGSpec {
                 }
             }
 
-            myStatement.close();
             if (exceptionReturned != null) {
                 fail("Query was executed successfully but we expected an exception");
             }
@@ -1023,7 +1018,6 @@ public class DatabaseSpec extends BaseGSpec {
      */
     @When("^I query the database with '(.+?)'$")
     public void selectData(String query) throws Exception {
-        Statement myStatement = null;
         //postgres table
         List<String> sqlTable = new ArrayList<String>();
         List<String> sqlTableAux = new ArrayList<String>();
@@ -1032,10 +1026,8 @@ public class DatabaseSpec extends BaseGSpec {
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
-        java.sql.ResultSet rs = null;
-        try {
-            myStatement = myConnection.createStatement();
-            rs = myStatement.executeQuery(query);
+        try (Statement myStatement = myConnection.createStatement();
+             java.sql.ResultSet rs = myStatement.executeQuery(query)) {
             //column names
             ResultSetMetaData resultSetMetaData = rs.getMetaData();
             int count = resultSetMetaData.getColumnCount();
@@ -1067,11 +1059,9 @@ public class DatabaseSpec extends BaseGSpec {
             }
             ThreadProperty.remove("queryresponse" + sqlTable.size());
             getCommonSpec().setPreviousSqlResult(sqlResultMap);
-            rs.close();
-            myStatement.close();
         } catch (Exception e) {
             commonspec.getLogger().error("Exception in query", e);
-            Assertions.assertThat(rs).as("There are no response from SELECT - Error message: " + e.getMessage()).isNotNull();
+            fail("There are no response from SELECT - Error message: " + e.getMessage());
         }
     }
 
@@ -1376,27 +1366,24 @@ public class DatabaseSpec extends BaseGSpec {
      */
     @Then("^table '(.+?)' exists$")
     public void checkTable(String tableName) throws Exception {
-        Statement myStatement = null;
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
 
         //query checks table existence, existence table name in system table  pg_tables
-        String query = "SELECT * FROM pg_tables WHERE tablename = " + "\'" + tableName + "\'" + ";";
-        try {
-            myStatement = myConnection.createStatement();
-            java.sql.ResultSet rs = myStatement.executeQuery(query);
-            //if there are no data row
-            if (rs.next() == false) {
-                Assertions.assertThat(rs.next()).as("there are no table " + tableName).isTrue();
-            } else {
-                //data exist
-                String resultTableName = rs.getString(2);
-                assertThat(resultTableName).as("there are incorrect table name " + tableName).contains(tableName);
+        try (PreparedStatement myStatement = myConnection.prepareStatement("SELECT * FROM pg_tables WHERE tablename = ?")) {
+            myStatement.setString(1, tableName);
+            try (java.sql.ResultSet rs = myStatement.executeQuery()) {
+                //if there are no data row
+                if (rs.next() == false) {
+                    Assertions.assertThat(rs.next()).as("there are no table " + tableName).isTrue();
+                } else {
+                    //data exist
+                    String resultTableName = rs.getString(2);
+                    assertThat(resultTableName).as("there are incorrect table name " + tableName).contains(tableName);
+                }
             }
-            rs.close();
-            myStatement.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1411,25 +1398,22 @@ public class DatabaseSpec extends BaseGSpec {
      */
     @Then("^table '(.+?)' doesn't exists$")
     public void checkTableFalse(String tableName) throws Exception {
-        Statement myStatement = null;
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
 
-        String query = "SELECT * FROM pg_tables WHERE tablename = " + "\'" + tableName + "\'" + ";";
-        try {
-            myStatement = myConnection.createStatement();
-            java.sql.ResultSet rs = myStatement.executeQuery(query);
-            //if there are no data row, table doesn't exists
-            if (rs.next() == false) {
-                Assertions.assertThat(rs.next()).as("table exists " + tableName).isFalse();
-            } else {
-                String resultTableName = rs.getString(2);
-                assertThat(resultTableName).as("table exists " + tableName).isNotEqualToIgnoringCase(tableName);
+        try (PreparedStatement myStatement = myConnection.prepareStatement("SELECT * FROM pg_tables WHERE tablename = ?")) {
+            myStatement.setString(1, tableName);
+            try (java.sql.ResultSet rs = myStatement.executeQuery()) {
+                //if there are no data row, table doesn't exists
+                if (rs.next() == false) {
+                    Assertions.assertThat(rs.next()).as("table exists " + tableName).isFalse();
+                } else {
+                    String resultTableName = rs.getString(2);
+                    assertThat(resultTableName).as("table exists " + tableName).isNotEqualToIgnoringCase(tableName);
+                }
             }
-            rs.close();
-            myStatement.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1445,27 +1429,22 @@ public class DatabaseSpec extends BaseGSpec {
      */
     @Then("^I check that table '(.+?)' is iqual to$")
     public void comparetable(String tableName, DataTable dataTable) throws Exception {
-        Statement myStatement = null;
-        java.sql.ResultSet rs = null;
-
         //from postgres table
         List<String> sqlTable = new ArrayList<String>();
         List<String> sqlTableAux = new ArrayList<String>();
         //from Cucumber Datatable
-        List<String> tablePattern = new ArrayList<String>();
-        //comparison is by lists of string
-        tablePattern = dataTable.cells().stream().flatMap(List::stream).collect(Collectors.toList());
-
+        List<String> tablePattern = dataTable.cells().stream().flatMap(List::stream).collect(Collectors.toList());
 
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
         }
-        String query = "SELECT * FROM " + tableName + " order by " + "id" + ";";
-        try {
-            myStatement = myConnection.createStatement();
-            rs = myStatement.executeQuery(query);
-
+        if (!tableName.matches("[a-zA-Z0-9_\\.]+")) {
+            throw new IllegalArgumentException("Invalid table name: " + tableName);
+        }
+        String query = "SELECT * FROM " + tableName + " order by id;";
+        try (Statement myStatement = myConnection.createStatement();
+             java.sql.ResultSet rs = myStatement.executeQuery(query)) {
             //takes column names and culumn count
             ResultSetMetaData resultSetMetaData = rs.getMetaData();
             int count = resultSetMetaData.getColumnCount();
@@ -1483,11 +1462,9 @@ public class DatabaseSpec extends BaseGSpec {
             sqlTable.addAll(sqlTableAux);
 
             assertThat(sqlTable).as("Not equal elements!").isEqualTo(tablePattern);
-            rs.close();
-            myStatement.close();
         } catch (Exception e) {
             e.printStackTrace();
-            assertThat(rs).as("There are no table " + tableName).isNotNull();
+            fail("There are no table " + tableName + ": " + e.getMessage());
         }
     }
 
@@ -1535,7 +1512,6 @@ public class DatabaseSpec extends BaseGSpec {
      */
     @Then("^'(.+?)' '(.+?)' exists$")
     public void checkObjectExists(String objetType, String objectName) throws Exception {
-        Statement myStatement = null;
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
@@ -1597,9 +1573,8 @@ public class DatabaseSpec extends BaseGSpec {
                 break;
         }
 
-        try {
-            myStatement = myConnection.createStatement();
-            ResultSet rs = myStatement.executeQuery(query);
+        try (Statement myStatement = myConnection.createStatement();
+             ResultSet rs = myStatement.executeQuery(query)) {
             //if there are no data row
             if (rs.next() == false) {
                 assertThat(rs.next()).as("there are no " + objetType + ": " + objectName).isTrue();
@@ -1608,8 +1583,6 @@ public class DatabaseSpec extends BaseGSpec {
                 String resultName = rs.getString(1);
                 assertThat(resultName).as("there are incorrect " + objetType + " name: " + objectName).contains(objectName);
             }
-            rs.close();
-            myStatement.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1617,7 +1590,6 @@ public class DatabaseSpec extends BaseGSpec {
 
     @Then("^'(.+?)' '(.+?)' doesn't exists$")
     public void checkObjectNoExists(String objetType, String objectName) throws Exception {
-        Statement myStatement = null;
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
@@ -1679,9 +1651,8 @@ public class DatabaseSpec extends BaseGSpec {
                 break;
         }
 
-        try {
-            myStatement = myConnection.createStatement();
-            ResultSet rs = myStatement.executeQuery(query);
+        try (Statement myStatement = myConnection.createStatement();
+             ResultSet rs = myStatement.executeQuery(query)) {
             //if there are no data row, table doesn't exists
             if (rs.next() == false) {
                 assertThat(rs.next()).as(objectName + " exists " + objectName).isFalse();
@@ -1689,8 +1660,6 @@ public class DatabaseSpec extends BaseGSpec {
                 String resultName = rs.getString(1);
                 assertThat(resultName).as(objectName + " exists " + objectName).isEqualToIgnoringCase(objectName);
             }
-            rs.close();
-            myStatement.close();
         } catch (Exception e) {
             e.printStackTrace();
         }

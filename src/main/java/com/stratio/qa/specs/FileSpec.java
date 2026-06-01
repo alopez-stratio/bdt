@@ -233,22 +233,19 @@ public class FileSpec extends BaseGSpec {
 
         try {
             byte[] buffer = new byte[1024];
-            FileOutputStream fos = new FileOutputStream(zipPath);
-            ZipOutputStream zos = new ZipOutputStream(fos);
-
-            for (int i = 0; i < pathList.size(); i++) {
-                File srcFile = new File(pathList.get(i));
-                FileInputStream fis = new FileInputStream(srcFile);
-
-                zos.putNextEntry(new ZipEntry(srcFile.getName()));
-                int length;
-                while ((length = fis.read(buffer)) > 0) {
-                    zos.write(buffer, 0, length);
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipPath))) {
+                for (int i = 0; i < pathList.size(); i++) {
+                    File srcFile = new File(pathList.get(i));
+                    try (FileInputStream fis = new FileInputStream(srcFile)) {
+                        zos.putNextEntry(new ZipEntry(srcFile.getName()));
+                        int length;
+                        while ((length = fis.read(buffer)) > 0) {
+                            zos.write(buffer, 0, length);
+                        }
+                        zos.closeEntry();
+                    }
                 }
-                zos.closeEntry();
-                fis.close();
             }
-            zos.close();
         } catch (IOException ioe) {
             throw new Exception("Error creating zip file: " + ioe);
         }
