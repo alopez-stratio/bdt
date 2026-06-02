@@ -423,6 +423,32 @@ public class ReplacementAspect {
     }
 
     // -----------------------------------------------------------------------
+    // Pointcut 3c: suppress "You can implement missing steps" snippets for
+    // steps whose text contains !{VAR} — these are unresolvable at Cucumber
+    // match time (the regex won't match, e.g. '(\d+)' vs '!{count}'), but
+    // aroundUndefinedStepRun resolves and re-matches them at execute time.
+    // Without this suppression Cucumber fires SnippetsSuggestedEvent inside
+    // Runner.matchStepToStepDefinition() — before runStep() is ever called —
+    // so aroundUndefinedStepRun is powerless to prevent the printed warning.
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(private void io.cucumber.core.runner.Runner.emitSnippetSuggestedEvent(..))")
+    protected void emitSnippetSuggested() {
+    }
+
+    @Around("emitSnippetSuggested()")
+    public Object suppressSnippetForRuntimeVars(ProceedingJoinPoint pjp) throws Throwable {
+        Object[] args = pjp.getArgs();
+        if (args.length >= 2 && args[1] instanceof Step) {
+            String stepText = ((Step) args[1]).getText();
+            if (stepText != null && stepText.contains("!{")) {
+                return null;
+            }
+        }
+        return pjp.proceed();
+    }
+
+    // -----------------------------------------------------------------------
     // Replacement helpers
     // -----------------------------------------------------------------------
 

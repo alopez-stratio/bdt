@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 
 import com.stratio.qa.exceptions.NonReplaceableException;
 import com.stratio.qa.utils.ThreadProperty;
+import io.cucumber.core.gherkin.Step;
 import io.cucumber.datatable.DataTable;
 
 public class ReplacementAspectTest {
@@ -340,5 +341,78 @@ public class ReplacementAspectTest {
         assertThat(repAspect.replacedElement("!{threadVar1}", pjp)).isEqualTo("Upper");
         assertThat(repAspect.replacedElement("!{threadVar1.toLower}", pjp)).isEqualTo("upper");
         assertThat(repAspect.replacedElement("!{threadVar1.toUpper}", pjp)).isEqualTo("UPPER");
+    }
+
+    // -----------------------------------------------------------------------
+    // suppressSnippetForRuntimeVars tests
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void suppressSnippet_stepWithRuntimeVar_suppressesSnippet() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        Step step = mock(Step.class);
+        when(step.getText()).thenReturn(
+                "in less than '500' seconds, checking each '10' seconds, custom resource 'pgbouncers' with name 'pool-psql' in namespace 's000001-datastores' has '!{instancesActual}' replicas ready");
+        when(pjp.getArgs()).thenReturn(new Object[]{mock(io.cucumber.core.gherkin.Pickle.class), step});
+
+        Object result = aspect.suppressSnippetForRuntimeVars(pjp);
+
+        assertThat(result).isNull();
+        verify(pjp, never()).proceed();
+    }
+
+    @Test
+    public void suppressSnippet_stepWithRuntimeVarInResourceName_suppressesSnippet() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        Step step = mock(Step.class);
+        when(step.getText()).thenReturn(
+                "in less than '500' seconds, checking each '10' seconds, we have '!{instancesActual}' pod/s with label filter 'app=foo' in namespace 'bar' having 'running' status and 'ready' state");
+        when(pjp.getArgs()).thenReturn(new Object[]{mock(io.cucumber.core.gherkin.Pickle.class), step});
+
+        Object result = aspect.suppressSnippetForRuntimeVars(pjp);
+
+        assertThat(result).isNull();
+        verify(pjp, never()).proceed();
+    }
+
+    @Test
+    public void suppressSnippet_stepWithoutRuntimeVar_proceedsNormally() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        Step step = mock(Step.class);
+        when(step.getText()).thenReturn(
+                "in less than '500' seconds, checking each '10' seconds, deployment with name 'my-deploy' in namespace 'my-ns' has '3' replicas ready");
+        when(pjp.getArgs()).thenReturn(new Object[]{mock(io.cucumber.core.gherkin.Pickle.class), step});
+
+        aspect.suppressSnippetForRuntimeVars(pjp);
+
+        verify(pjp).proceed();
+    }
+
+    @Test
+    public void suppressSnippet_stepWithEnvVarButNoRuntimeVar_proceedsNormally() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        Step step = mock(Step.class);
+        when(step.getText()).thenReturn(
+                "in less than '${TIMEOUT:-500}' seconds, checking each '10' seconds, deployment with name 'my-deploy' in namespace 'my-ns' has '3' replicas ready");
+        when(pjp.getArgs()).thenReturn(new Object[]{mock(io.cucumber.core.gherkin.Pickle.class), step});
+
+        aspect.suppressSnippetForRuntimeVars(pjp);
+
+        verify(pjp).proceed();
+    }
+
+    @Test
+    public void suppressSnippet_nullArgs_proceedsNormally() throws Throwable {
+        ReplacementAspect aspect = new ReplacementAspect();
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getArgs()).thenReturn(new Object[]{});
+
+        aspect.suppressSnippetForRuntimeVars(pjp);
+
+        verify(pjp).proceed();
     }
 }
