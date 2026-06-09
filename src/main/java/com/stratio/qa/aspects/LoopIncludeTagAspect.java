@@ -189,11 +189,12 @@ public class LoopIncludeTagAspect {
 
             bufferedFeature = new BufferedReader(new FileReader(feature));
             while ((sCurrentLine = bufferedFeature.readLine()) != null) {
-                if (sCurrentLine.contains("Scenario") && sCurrentLine.split("(Scenario:|Scenario Outline:)")[1].trim().equals(scenarioName)) {
+                String[] scenarioParts = sCurrentLine.split("(Scenario:|Scenario Outline:)");
+                if (scenarioParts.length > 1 && scenarioParts[1].trim().equals(scenarioName)) {
                     scenarioexists = true;
-                    if (sCurrentLine.toUpperCase().contains("OUTLINE") && params == null) {
+                    if (sCurrentLine.trim().toUpperCase().startsWith("SCENARIO OUTLINE:") && params == null) {
                         throw new IncludeException("->  Parameters were not given for this scenario outline.");
-                    } else if (sCurrentLine.toUpperCase().contains("OUTLINE")) {
+                    } else if (sCurrentLine.trim().toUpperCase().startsWith("SCENARIO OUTLINE:")) {
                         BufferedReader auxBufferedFeature = bufferedFeature;
                         String sParamline;
                         while ((sParamline = auxBufferedFeature.readLine()) != null && !sParamline.toUpperCase().contains("SCENARIO")) {
@@ -205,8 +206,8 @@ public class LoopIncludeTagAspect {
                                 parsedFeature = parsedFeature + sParamline + "\n";
                             }
                         }
-                    } else if (!sCurrentLine.toUpperCase().contains("OUTLINE") && sCurrentLine.toUpperCase().contains("SCENARIO:")) {
-                        while ((sCurrentLine = bufferedFeature.readLine()) != null && !sCurrentLine.toUpperCase().contains("SCENARIO:") && !sCurrentLine.toUpperCase().contains("EXAMPLES:") && !sCurrentLine.matches("\\s*@[^{].+")) {
+                    } else if (sCurrentLine.trim().toUpperCase().startsWith("SCENARIO:")) {
+                        while ((sCurrentLine = bufferedFeature.readLine()) != null && !sCurrentLine.trim().toUpperCase().startsWith("SCENARIO") && !sCurrentLine.toUpperCase().contains("EXAMPLES:") && !sCurrentLine.matches("\\s*@[^{].+")) {
                             parsedFeature = parsedFeature + sCurrentLine + "\n";
                         }
                     }

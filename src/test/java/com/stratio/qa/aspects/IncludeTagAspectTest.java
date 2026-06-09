@@ -216,6 +216,113 @@ public class IncludeTagAspectTest {
         assertThat(lines).as("Test that array doesn't contains @include tag").doesNotContain("@include");
     }
 
+    // -------------------------------------------------------------------------
+    // Bug 3: plain Scenario: whose NAME contains "outline" was misdetected as
+    // Scenario Outline: because the check used contains("OUTLINE") on the full
+    // header line instead of checking only the keyword prefix.
+    // Fix: use startsWith("SCENARIO OUTLINE:") on the trimmed line.
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testFeatureStepConverterPlainScenarioNameContainsOutline() throws IncludeException {
+        // [005] name has "outline" in it — must extract steps, not throw.
+        String extracted = inctag.featureStepConverter(
+                "src/test/resources/features/includeOutlineTest.feature",
+                "[005] Setup for outline context verification",
+                null);
+        assertThat(extracted)
+                .as("Plain Scenario: with 'outline' in name must not be treated as Scenario Outline:")
+                .contains("outline_done");
+    }
+
+    // -------------------------------------------------------------------------
+    // Bug 2: split("(Scenario:|Scenario Outline:)")[1] without a bounds check
+    // crashed with ArrayIndexOutOfBoundsException on any line that contains the
+    // word "Scenario" without the keyword+colon pattern (e.g. a Feature title
+    // whose text includes "Scenario" as a plain word, not as a Gherkin keyword).
+    // Fix: guard with scenarioParts.length > 1 before accessing index 1.
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testFeatureStepConverterDoesNotCrashOnScenarioWordInNonKeywordLine() throws IncludeException {
+        // Feature title "Scenario keyword appears in Feature title without colon"
+        // contains "Scenario" but not "Scenario:" → split returns length 1 → AIOOB without fix.
+        String extracted = inctag.featureStepConverter(
+                "src/test/resources/features/includeOutlineBug2.feature",
+                "[001] Plain scenario in bug2 fixture",
+                null);
+        assertThat(extracted)
+                .as("Must not crash when 'Scenario' appears in Feature title without keyword colon")
+                .contains("bug2_done");
+    }
+
+    // -------------------------------------------------------------------------
+    // Bug 1: featureStepConverter() stop condition used contains("SCENARIO:")
+    // which does NOT match "SCENARIO OUTLINE:", so the loop overread into the
+    // next Scenario Outline and captured its header + <param> steps.
+    // Fix: use trim().toUpperCase().startsWith("SCENARIO") as stop condition.
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testFeatureStepConverterDoesNotOverreadIntoFollowingScenarioOutline() throws IncludeException {
+        String extracted = inctag.featureStepConverter(
+                "src/test/resources/features/includeOutlineTest.feature",
+                "[001] Pre-include plain scenario",
+                null);
+        assertThat(extracted)
+                .as("Must extract [001]'s own step")
+                .contains("setup_done");
+        assertThat(extracted)
+                .as("Must NOT overread into the following Scenario Outline: header")
+                .doesNotContain("Scenario Outline:");
+        assertThat(extracted)
+                .as("Must NOT capture <testParam> from the following outline")
+                .doesNotContain("<testParam>");
+        assertThat(extracted)
+                .as("Must NOT capture steps from the following outline")
+                .doesNotContain("testParamResolved");
+    }
+
+    @Test
+    public void testParseLinesPreservesScenarioOutlineBeforeInclude() throws IncludeException {
+        // Integration path: parseLines() calls featureStepConverter() internally.
+        // The Scenario Outline that precedes the @include target must survive intact.
+        String[] originalFeature = new String[]{
+                "Feature: Include Outline Regression Test",
+                "Scenario: [001] Pre-include plain scenario",
+                "  Given I save 'setup_done' in variable 'setupDoneVar'",
+                "",
+                "Scenario Outline: [002] Outline immediately after plain scenario",
+                "  Given I save '<testParam>' in variable 'testParamResolved'",
+                "  Then '!{testParamResolved}' is '<expected>'",
+                "  Examples:",
+                "    | testParam        | expected         |",
+                "    | value_alpha      | value_alpha      |",
+                "    | value_beta       | value_beta       |",
+                "",
+                "@include(feature:includeOutlineTest.feature,scenario:[001] Pre-include plain scenario)",
+                "Scenario: [003] Include of [001]"
+        };
+        List<String> lines = new ArrayList<>(Arrays.asList(originalFeature));
+        String nwsource = inctag.parseLines(lines, "src/test/resources/features/");
+
+        assertThat(nwsource).as("Assembled source must contain Scenario Outline [002] header")
+                .contains("Scenario Outline: [002]");
+        assertThat(nwsource).as("Assembled source must contain <testParam> placeholder")
+                .contains("<testParam>");
+        assertThat(nwsource).as("Assembled source must contain Examples: table")
+                .contains("Examples:");
+        assertThat(nwsource).as("Assembled source must contain Examples data rows")
+                .contains("value_alpha");
+
+        long outlineHeaderCount = nwsource.lines()
+                .filter(l -> l.trim().startsWith("Scenario Outline:"))
+                .count();
+        assertThat(outlineHeaderCount)
+                .as("Only one Scenario Outline: [002] must exist — @include must not inject a duplicate")
+                .isEqualTo(1L);
+    }
+
     @AfterMethod
     public void cleanupSystemProperties() {
         System.clearProperty("BGVAR");
