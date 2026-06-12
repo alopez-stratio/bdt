@@ -30,6 +30,12 @@
         <Console name="Steps" target="SYSTEM_OUT">
             <PatternLayout pattern="%highlight{   %msg%n}{INFO=cyan}"/>
         </Console>
+        <!-- Crossdata JDBC driver log: the driver logs through SLF4J (its Simba ILogger
+             bridge never emits below ERROR), so its package trees are routed here.
+             createOnDemand: file only created if the driver actually logs something. -->
+        <File name="XDDriver" fileName="target/xddriver.log" append="false" createOnDemand="true">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %c{1} - %msg%n"/>
+        </File>
     </Appenders>
     <Loggers>
         <Root level="${sys:logLevel}">
@@ -55,6 +61,18 @@
         <logger name="com.ning.http.client.AsyncHttpClientAsyncHttpClient" level="ERROR"/>
         <logger name="org.ldaptive" level="ERROR"/>
         <logger name="com.stratio.crossdata.driver.actor" level="OFF"/>
+        <logger name="com.stratio.xdbc" level="DEBUG" additivity="false">
+            <appender-ref ref="XDDriver"/>
+        </logger>
+        <logger name="com.stratio.jdbc" level="DEBUG" additivity="false">
+            <appender-ref ref="XDDriver"/>
+        </logger>
+        <logger name="com.stratio.crossdata.driver" level="DEBUG" additivity="false">
+            <appender-ref ref="XDDriver"/>
+        </logger>
+        <logger name="org.apache.pekko" level="DEBUG" additivity="false">
+            <appender-ref ref="XDDriver"/>
+        </logger>
         <logger name="akka" level="WARN"/>
         <logger name="org.apache.http" level="ERROR"/>
         <logger name="com.stratio.qa.utils.GosecSSOUtils" level="INFO"/>

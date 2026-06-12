@@ -2780,7 +2780,11 @@ public class CommonG {
     }
 
     public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit, String timeout) throws Exception {
-        String jdbcConnection = "jdbc:crossdata://Server=" + host + ":" + port + ";UID=" + user + ";PAGINATION=" + pagination;
+        // Driver log capture is configured in log4j2.xml (XDDriver appender): the driver logs
+        // through SLF4J, so its package trees are routed there to a file
+        String xdDriverLogFile = "target/xddriver.log";
+
+        String jdbcConnection = "jdbc:crossdata://" + host + ":" + port + "/default?UID=" + user + ";PAGINATION=" + pagination;
 
         if (security) {
             if (!mutualTLS) {
@@ -2814,14 +2818,13 @@ public class CommonG {
         }
 
         this.getLogger().debug("Crossdata JDBC Connection: {}", jdbcConnection);
+        this.getLogger().info("Crossdata JDBC driver log: {}", xdDriverLogFile);
 
         try {
             Class.forName("com.stratio.jdbc.core.jdbc4.StratioDriver");
             JDBCConnection.setConnection(DriverManager.getConnection(jdbcConnection));
         } catch (SQLException se) {
-            // log the exception
             this.getLogger().error(se.getMessage());
-            // re-throw the exception
             throw se;
         }
     }
