@@ -235,6 +235,71 @@ public class CommonGTest {
     }
 
     @Test
+    public void modifyDataReplaceEmptyCellStringJsonTest() throws Exception {
+        // Cucumber returns an empty DataTable cell (| |) as null. A REPLACE with an empty cell
+        // must set the key to "" and KEEP it in the body, not drop the key.
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        String data = "{\"a\":\"x\"}";
+        String expectedData = "{\"a\":\"\"}";
+        String type = "json";
+        List<List<String>> rawData = new ArrayList<>();
+        rawData.add(Arrays.asList("$.a", "REPLACE", null, "string"));
+        DataTable modifications = DataTable.create(rawData);
+
+        String modifiedData = commong.modifyData(data, type, modifications);
+        JSONAssert.assertEquals(expectedData, modifiedData, true);
+        assertThat(new JSONObject(modifiedData).has("a")).as("Key must be kept").isTrue();
+    }
+
+    @Test
+    public void modifyDataReplaceEmptyStringCellStringJsonTest() throws Exception {
+        // An explicitly empty string cell ("") behaves the same as an empty (null) cell: key kept, value "".
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        String data = "{\"a\":\"x\"}";
+        String expectedData = "{\"a\":\"\"}";
+        String type = "json";
+        List<List<String>> rawData = Arrays.asList(Arrays.asList("$.a", "REPLACE", "", "string"));
+        DataTable modifications = DataTable.create(rawData);
+
+        String modifiedData = commong.modifyData(data, type, modifications);
+        JSONAssert.assertEquals(expectedData, modifiedData, true);
+    }
+
+    @Test
+    public void modifyDataReplaceToBeNullStringJsonTest() throws Exception {
+        // The TO_BE_NULL convention must still produce a real null (not affected by the empty-cell fix).
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        String data = "{\"a\":\"x\"}";
+        String expectedData = "{\"a\":null}";
+        String type = "json";
+        List<List<String>> rawData = Arrays.asList(Arrays.asList("$.a", "REPLACE", "TO_BE_NULL", "string"));
+        DataTable modifications = DataTable.create(rawData);
+
+        String modifiedData = commong.modifyData(data, type, modifications);
+        JSONAssert.assertEquals(expectedData, modifiedData, true);
+    }
+
+    @Test
+    public void modifyDataDeleteKeepsOtherKeysJsonTest() throws Exception {
+        // DELETE must still remove the key, and an untouched "" field must be preserved as "".
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        CommonG commong = new CommonG();
+        String data = "{\"a\":\"x\",\"b\":\"\"}";
+        String expectedData = "{\"b\":\"\"}";
+        String type = "json";
+        List<List<String>> rawData = new ArrayList<>();
+        rawData.add(Arrays.asList("$.a", "DELETE", null, "n/a"));
+        DataTable modifications = DataTable.create(rawData);
+
+        String modifiedData = commong.modifyData(data, type, modifications);
+        JSONAssert.assertEquals(expectedData, modifiedData, true);
+        assertThat(new JSONObject(modifiedData).has("a")).as("Deleted key must be gone").isFalse();
+    }
+
+    @Test
     public void removeNullsTest() throws Exception {
         ThreadProperty.set("class", this.getClass().getCanonicalName());
         CommonG commong = new CommonG();

@@ -880,6 +880,14 @@ public class CommonG {
                 String operation = modifications.cells().get(i).get(1);
                 String newValue = modifications.cells().get(i).get(2);
 
+                // Cucumber returns empty DataTable cells (| |) as null. An empty cell must mean
+                // an empty string "", which is kept in the body, NOT a removal of the key (which
+                // is what happens otherwise, since new JSONObject(Map) drops null-valued entries).
+                // Explicit nulls are still requested via the "null" type or the TO_BE_NULL convention.
+                if (newValue == null) {
+                    newValue = "";
+                }
+
                 if (modifications.cells().get(0).size() == 4) {
                     typeJsonObject = modifications.cells().get(i).get(3);
                 }
@@ -1083,6 +1091,12 @@ public class CommonG {
                 String value = modifications.cells().get(i).get(0);
                 String operation = modifications.cells().get(i).get(1);
                 String newValue = modifications.cells().get(i).get(2);
+
+                // Empty DataTable cells (| |) arrive as null; treat them as "" so REPLACE/UPDATE
+                // don't NPE on String.replace and ADD/APPEND/PREPEND don't inject the literal "null".
+                if (newValue == null) {
+                    newValue = "";
+                }
 
                 switch (operation.toUpperCase()) {
                     case "DELETE":
