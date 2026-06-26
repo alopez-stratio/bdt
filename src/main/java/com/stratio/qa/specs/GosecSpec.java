@@ -772,9 +772,9 @@ public class GosecSpec extends BaseGSpec {
         String managementBaasVersion = null;
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/baas/management/users";
-            endPointGetAllGroups = "/gosec/baas/management/groups";
-            endPointTenant = "/gosec/baas/management/tenant?tid=" + tenantId;
+            endPointGetAllUsers = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/users";
+            endPointGetAllGroups = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/groups";
+            endPointTenant = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/tenant?tid=" + tenantId;
             requestOp = "PUT";
             expectedStatusCode = 200;
             managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
@@ -1029,8 +1029,8 @@ public class GosecSpec extends BaseGSpec {
      */
     @When("^I include user '(.+?)' in group '(.+?)'( in tenant '(.+?)')?( with tenant user and tenant password '(.+:.+?)')?$")
     public void includeUserInGroup(String userId, String groupId, String tenantOrig, String tenantLoginInfo) throws Exception {
-        String endPointGetUser = "/gosec/baas/management/user?uid=" + userId;
-        String endPointGetGroup = "/gosec/baas/management/group?gid=" + groupId;
+        String endPointGetUser = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/user?uid=" + userId;
+        String endPointGetGroup = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/group?gid=" + groupId;
         Boolean content = false;
 
         if (tenantOrig != null) {
@@ -1388,9 +1388,9 @@ public class GosecSpec extends BaseGSpec {
         String managementBaasVersion = null;
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/baas/management/users";
-            endPointGetAllGroups = "/gosec/baas/management/groups";
-            endPointTenant = "/gosec/baas/management/tenant?tid=" + tenantId;
+            endPointGetAllUsers = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/users";
+            endPointGetAllGroups = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/groups";
+            endPointTenant = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/tenant?tid=" + tenantId;
             requestOp = "PUT";
             expectedStatusCode = 200;
             managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
@@ -2120,7 +2120,7 @@ public class GosecSpec extends BaseGSpec {
         String endPoint = "/service/gosec-management-baas/management/encryption/key";
         int expectedResponse = 200;
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPoint = "/gosec/baas/management/encryption/key";
+            endPoint = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/encryption/key";
         }
         commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
         JSONObject jsonKey = new JSONObject();
@@ -2144,9 +2144,9 @@ public class GosecSpec extends BaseGSpec {
         String endPointPostAsset = "/service/gosec-management-baas/management/encryption/asset";
         String endPointGetAsset = "/service/gosec-management-baas/management/encryption/assets?from=0&count=10000&orderBy=name&order=asc";
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetKey = "/gosec/baas/management/encryption/keys";
-            endPointPostAsset = type.equals("asset") ? "/gosec/baas/management/encryption/asset" : "/gosec/baas/management/encryption/tag";
-            endPointGetAsset = type.equals("asset") ? "/gosec/baas/management/encryption/assets?from=0&count=10000&orderBy=name&order=asc" : "/gosec/baas/management/encryption/tags?from=0&count=10000&orderBy=name&order=asc";
+            endPointGetKey = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/encryption/keys";
+            endPointPostAsset = type.equals("asset") ? ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/encryption/asset" : ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/encryption/tag";
+            endPointGetAsset = type.equals("asset") ? ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/encryption/assets?from=0&count=10000&orderBy=name&order=asc" : ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/encryption/tags?from=0&count=10000&orderBy=name&order=asc";
         }
         commonspec.setCCTConnection(tenantOrig, tenantLoginInfo);
         // Get Key ID
@@ -2190,9 +2190,9 @@ public class GosecSpec extends BaseGSpec {
         String managementBaasVersion = null;
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/baas/management/users";
-            endPointGetAllGroups = "/gosec/baas/management/groups";
-            endPointGetAllRoles = "/gosec/baas/management/profiling/roles?count=1&name=" + roleName + "&tid=" + tenantId;
+            endPointGetAllUsers = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/users";
+            endPointGetAllGroups = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/groups";
+            endPointGetAllRoles = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/roles?count=1&name=" + roleName + "&tid=" + tenantId;
             jqPathRid = "' | jq .list[0].rid | sed s/\\\"//g";
             api = "management";
             managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
@@ -2233,7 +2233,7 @@ public class GosecSpec extends BaseGSpec {
             String endPointRole = "/service/gosec-identities-daas/profiling/role/" + rid + "?select=" + select;
 
             if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-                endPointRole = "/gosec/baas/management/profiling/role?rid=" + rid;
+                endPointRole = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/role?rid=" + rid;
             }
 
             //GET user/group
@@ -2260,18 +2260,18 @@ public class GosecSpec extends BaseGSpec {
             usersOrGroups, String uidOrGid, String rid) throws Exception {
         String endPointRolePatch;
         String endPointGetName;
-        String endPointUsersWithRoles = "/gosec/baas/management/profiling/users?tid=" + tenantId;
-        String endPointGroupsWithRoles = "/gosec/baas/management/profiling/groups?tid=" + tenantId;
+        String endPointUsersWithRoles = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/users?tid=" + tenantId;
+        String endPointGroupsWithRoles = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/groups?tid=" + tenantId;
         String endPointResourceWithRoles;
         String resourceTypeKey;
 
         if (usersOrGroups.equals("users")) {
             endPointResourceWithRoles = endPointUsersWithRoles;
-            endPointRolePatch = "/gosec/baas/management/profiling/user";
+            endPointRolePatch = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/user";
             resourceTypeKey = "user";
         } else {
             endPointResourceWithRoles = endPointGroupsWithRoles;
-            endPointRolePatch = "/gosec/baas/management/profiling/group";
+            endPointRolePatch = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/group";
             resourceTypeKey = "group";
         }
 
@@ -2295,7 +2295,7 @@ public class GosecSpec extends BaseGSpec {
                 JSONObject resource = new JSONObject();
                 // Obtain resource name
                 String name;
-                endPointGetName = "/gosec/baas/management/profiling/" + resourceTypeKey + "?" + uidOrGid + "=" + resourceId + "&tid=" + tenantId;
+                endPointGetName = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/" + resourceTypeKey + "?" + uidOrGid + "=" + resourceId + "&tid=" + tenantId;
                 restSpec.sendRequestNoDataTable("GET", endPointGetName, null, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
                     JSONObject resourceNameObject = new JSONObject(commonspec.getResponse().getResponse());
@@ -2402,9 +2402,9 @@ public class GosecSpec extends BaseGSpec {
         String managementBaasVersion = null;
 
         if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-            endPointGetAllUsers = "/gosec/baas/management/users";
-            endPointGetAllGroups = "/gosec/baas/management/groups";
-            endPointGetAllRoles = "/gosec/baas/management/profiling/roles?count=1&name=" + roleName + "&tid=" + tenantId;
+            endPointGetAllUsers = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/users";
+            endPointGetAllGroups = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/groups";
+            endPointGetAllRoles = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/roles?count=1&name=" + roleName + "&tid=" + tenantId;
             jqPathRid = "' | jq .list[0].rid | sed s/\\\"//g";
             api = "management";
             managementBaasVersion = commonspec.kubernetesClient.getDeploymentVersion("gosec-management-baas", "keos-core");
@@ -2445,7 +2445,7 @@ public class GosecSpec extends BaseGSpec {
             String endPointRole = "/service/gosec-identities-daas/profiling/role/" + rid + "?select=" + select;
 
             if (ThreadProperty.get("isKeosEnv") != null && ThreadProperty.get("isKeosEnv").equals("true")) {
-                endPointRole = "/gosec/baas/management/profiling/role?rid=" + rid;
+                endPointRole = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/role?rid=" + rid;
             }
 
             //GET user/group
@@ -2472,18 +2472,18 @@ public class GosecSpec extends BaseGSpec {
             usersOrGroups, String uidOrGid, String rid) throws Exception {
         String endPointRolePatch;
         String endPointGetName;
-        String endPointUsersWithRoles = "/gosec/baas/management/profiling/users?tid=" + tenantId;
-        String endPointGroupsWithRoles = "/gosec/baas/management/profiling/groups?tid=" + tenantId;
+        String endPointUsersWithRoles = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/users?tid=" + tenantId;
+        String endPointGroupsWithRoles = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/groups?tid=" + tenantId;
         String endPointResourceWithRoles;
         String resourceTypeKey;
 
         if (usersOrGroups.equals("users")) {
             endPointResourceWithRoles = endPointUsersWithRoles;
-            endPointRolePatch = "/gosec/baas/management/profiling/user";
+            endPointRolePatch = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/user";
             resourceTypeKey = "user";
         } else {
             endPointResourceWithRoles = endPointGroupsWithRoles;
-            endPointRolePatch = "/gosec/baas/management/profiling/group";
+            endPointRolePatch = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/group";
             resourceTypeKey = "group";
         }
 
@@ -2507,7 +2507,7 @@ public class GosecSpec extends BaseGSpec {
                 JSONObject resource = new JSONObject();
                 // Obtain resource name
                 String name;
-                endPointGetName = "/gosec/baas/management/profiling/" + resourceTypeKey + "?" + uidOrGid + "=" + resourceId + "&tid=" + tenantId;
+                endPointGetName = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/" + resourceTypeKey + "?" + uidOrGid + "=" + resourceId + "&tid=" + tenantId;
                 restSpec.sendRequestNoDataTable("GET", endPointGetName, null, null, null);
                 if (commonspec.getResponse().getStatusCode() == 200) {
                     JSONObject resourceNameObject = new JSONObject(commonspec.getResponse().getResponse());
@@ -2647,7 +2647,7 @@ public class GosecSpec extends BaseGSpec {
     @When("^I get id from profile structure with name '(.+?)' and save it in environment variable '(.+?)'$")
     public void getProfilingStructureId(String name, String envVar) throws Exception {
         Boolean content = false;
-        String endPointGetAllStructures = "/gosec/baas/management/profiling/application";
+        String endPointGetAllStructures = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/application";
 
         restSpec.sendRequestNoDataTable("GET", endPointGetAllStructures, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
@@ -2676,7 +2676,7 @@ public class GosecSpec extends BaseGSpec {
     @When("^I get rid from role with name '(.+?)' and save it in environment variable '(.+?)'$")
     public void getRidRole(String roleName, String envVar) throws Exception {
         Boolean content = false;
-        String endPointGetRole = "/gosec/baas/management/profiling/roles?name=" + roleName;
+        String endPointGetRole = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/profiling/roles?name=" + roleName;
 
         restSpec.sendRequestNoDataTable("GET", endPointGetRole, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
@@ -2973,7 +2973,7 @@ public class GosecSpec extends BaseGSpec {
             name = "groupname";
             uidOrGid = "gid";
         }
-        String endPointGetStratioIdentity = "/gosec/baas/management/" + resources;
+        String endPointGetStratioIdentity = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/" + resources;
 
         restSpec.sendRequestNoDataTable("GET", endPointGetStratioIdentity, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {
@@ -3007,7 +3007,7 @@ public class GosecSpec extends BaseGSpec {
                 uid = getStratioIdentity("user", id, realm);
                 commonspec.getLogger().info("UID obtained: " + uid);
             }
-            String endPoint = "/gosec/baas/management/user?uid=";
+            String endPoint = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/user?uid=";
             restSpec.sendRequestNoDataTable("GET", endPoint + uid, null, null, null);
             if (commonspec.getResponse().getStatusCode() == 200) {
                 if (envVar != null) {
@@ -3067,7 +3067,7 @@ public class GosecSpec extends BaseGSpec {
     @When("^I get id from tag with name '(.+?)' and save it in environment variable '(.+?)'$")
     public void getIdTag(String tagName, String envVar) throws Exception {
         Boolean content = false;
-        String endPointGetTag = "/gosec/baas/management/tags";
+        String endPointGetTag = ThreadProperty.get("KEOS_BASEPATH") + "/gosec/baas/management/tags";
 
         restSpec.sendRequestNoDataTable("GET", endPointGetTag, null, null, null);
         if (commonspec.getResponse().getStatusCode() == 200) {

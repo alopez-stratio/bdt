@@ -481,6 +481,7 @@ public class KubernetesClient {
             }
 
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.admin_fqdn", "KEOS_FQDN", null);
+            obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.admin_basepath", "KEOS_BASEPATH", null);
 
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.eos.dockerRegistry", "DOCKER_REGISTRY", null);
             obtainJSONInfoAndExpose(commonspec, centralConfigJson, "$.eos.proxyAccessPointURL", "KEOS_ACCESS_POINT", null);
