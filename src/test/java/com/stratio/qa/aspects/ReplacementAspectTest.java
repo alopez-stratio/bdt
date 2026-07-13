@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.aspectj.lang.ProceedingJoinPoint;
+import org.mockito.ArgumentCaptor;
 import org.testng.annotations.Test;
 
 import com.stratio.qa.exceptions.NonReplaceableException;
@@ -414,5 +415,42 @@ public class ReplacementAspectTest {
         aspect.suppressSnippetForRuntimeVars(pjp);
 
         verify(pjp).proceed();
+    }
+
+    /**
+     * Reproduces CROSSDATA-10434: a multi-line step argument (e.g. a SQL docstring) that contains a
+     * placeholder is routed through {@link ReplacementAspect#aroundReplacementExecute} at execute time.
+     * There the resolved string has all real newlines collapsed into the literal two-char sequence
+     * backslash+n by {@code replaceAll("[\\r\\n]+", "\\\\n")}. For SQL this breaks single-line ({@code --})
+     * and block ({@code /* *}{@code /}) comments: with no real newline the {@code --} comment swallows the
+     * rest of the query and the stray backslash is an invalid token, so the engine fails to parse it.
+     * The same query typed by hand in DBeaver (no placeholder, no aspect) keeps its newlines and works.
+     */
+    @Test
+    public void docStringWithPlaceholderMustPreserveNewlinesTest() throws Throwable {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        ThreadProperty.set("ts", "12345");
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        String multilineSql =
+                "SELECT id, -- primary key\n" +
+                "       name\n" +
+                "FROM test!{ts}\n" +
+                "WHERE id > 1";
+
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        Object[] stepArgs = new Object[]{multilineSql};
+        when(pjp.getArgs()).thenReturn(new Object[]{stepArgs});
+
+        repAspect.aroundReplacementExecute(pjp);
+
+        ArgumentCaptor<Object[]> captor = ArgumentCaptor.forClass(Object[].class);
+        verify(pjp).proceed(captor.capture());
+        Object[] newArgs = (Object[]) captor.getValue()[0];
+        String resolved = (String) newArgs[0];
+
+        assertThat(resolved).as("placeholder must be resolved").contains("test12345");
+        assertThat(resolved).as("real newlines must be preserved").contains("\n");
+        assertThat(resolved).as("newlines must NOT be escaped to the literal sequence backslash+n").doesNotContain("\\n");
     }
 }

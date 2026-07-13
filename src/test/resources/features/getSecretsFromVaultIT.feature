@@ -161,18 +161,18 @@ Feature: Get secrets from Vault
     Given I get keytab 'test-qa.qa' from path 'test'
     When I save 'target/test-classes/test-qa.qa.keytab' in variable 'keytabFile'
     Then I run 'strings !{keytabFile} | grep -vE "^(>|<)"' locally and save the value in environment variable 'keytabContent'
-    And I run 'echo !{keytabContent} | grep "DEMO.STRATIO.COM"' locally
-    And I run 'echo !{keytabContent} | grep "test"' locally
-    And I run 'echo !{keytabContent} | grep "test.qa"' locally
+    And I run 'echo "!{keytabContent}" | grep "DEMO.STRATIO.COM"' locally
+    And I run 'echo "!{keytabContent}" | grep "test"' locally
+    And I run 'echo "!{keytabContent}" | grep "test.qa"' locally
     Then I run 'rm -f !{keytabFile}' locally
 
   Scenario: Get Keytab (/people)
     Given I get keytab 'test-qa.qa' from path 'test' in /people
     When I save 'target/test-classes/test-qa.qa.keytab' in variable 'keytabFile'
     Then I run 'strings !{keytabFile} | grep -vE "^(>|<)"' locally and save the value in environment variable 'keytabContent'
-    And I run 'echo !{keytabContent} | grep "DEMO.STRATIO.COM"' locally
-    And I run 'echo !{keytabContent} | grep "test"' locally
-    And I run 'echo !{keytabContent} | grep "test.qa"' locally
+    And I run 'echo "!{keytabContent}" | grep "DEMO.STRATIO.COM"' locally
+    And I run 'echo "!{keytabContent}" | grep "test"' locally
+    And I run 'echo "!{keytabContent}" | grep "test.qa"' locally
     Then I run 'rm -f !{keytabFile}' locally
 
   Scenario: Get Principal (/userland)

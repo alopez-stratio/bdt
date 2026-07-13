@@ -208,9 +208,6 @@ public class ReplacementAspect {
                     if (s.contains("!{") || s.contains("@{") || s.contains("${")) {
                         try {
                             String replaced = replacedElement(s, pjp);
-                            // Normalize newlines to literal \n so multi-line ThreadProperty values
-                            // don't break shell commands (Cucumber 4 did this before re-matching).
-                            replaced = replaced.replaceAll("[\\r\\n]+", "\\\\n");
                             if (!replaced.equals(s)) {
                                 newArgs[i] = replaced;
                                 changed = true;
