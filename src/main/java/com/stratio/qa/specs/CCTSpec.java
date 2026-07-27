@@ -1456,6 +1456,47 @@ public class CCTSpec extends BaseGSpec {
     }
 
     /**
+     * Install service
+     *
+     * @param service  : service name
+     * @param tenant   : tenant where to install service in
+     * @param namespace: namespace where to install service in
+     * @param jsonFile : marathon json to deploy
+     **/
+    @Given("^I upgrade service '(.+?)'( in tenant '(.+?)')?( in namespace '(.+?)')? using json '(.+?)'$")
+    public void upgradeServiceFromCCTKeos(String service, String tenant, String namespace, String jsonFile) throws Exception {
+        // Set REST connection
+        commonspec.setCCTConnection(null, null);
+        getCCTOrchestratorVersion();
+
+        String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v2/upgrade/" + service + "." + namespace;
+        int expectedCodeResponse = 202;
+
+        if (tenant != null) {
+            endPoint += "?tenant=" + tenant;
+        }
+        String data = this.commonspec.retrieveData(jsonFile, "json");
+        if (namespace != null) {
+            List<List<String>> rawData = Arrays.asList(
+                    Arrays.asList("$.deployment.general.k8sNamespace", "ADD", namespace, "string"),
+                    Arrays.asList("$.deployment.general.namespaces", "ADD", "{}", "object"),
+                    Arrays.asList("$.deployment.general.namespaces.k8sNamespace", "ADD", namespace, "string")
+            );
+            DataTable modifications = DataTable.create(rawData);
+            data = this.commonspec.modifyData(data, "json", modifications);
+        }
+        commonspec.getLogger().info("Endpoint to upgrade service: {}", endPoint);
+        Future<Response> response = commonspec.generateRequest("PUT", true, null, null, endPoint, data, "json");
+        commonspec.setResponse("PUT", response.get());
+
+        if (commonspec.getResponse().getStatusCode() != expectedCodeResponse) {
+            logger.error("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+            throw new Exception("Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse());
+        }
+        miscSpec.saveElementEnvironmentFile(null, "$.id", "jobId", null);
+    }
+
+    /**
      * Uninstall service from tenant
      *
      * @param service : service name

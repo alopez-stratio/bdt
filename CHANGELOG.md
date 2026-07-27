@@ -4,7 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 2.0.0 (upcoming)
 
-* Pending changelog
+* [DG-4138] Add step to upgrade a service using CCT
 
 ## Previous development
 
