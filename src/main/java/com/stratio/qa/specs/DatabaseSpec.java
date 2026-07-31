@@ -68,6 +68,16 @@ public class DatabaseSpec extends BaseGSpec {
 
     public static final int VALUE_SUBSTRING = 3;
 
+    /**
+     * Max number of query response rows detailed in a table comparison failure, to keep the message readable.
+     */
+    public static final int MAX_ROWS_IN_COMPARISON_FAILURE = 20;
+
+    /**
+     * Marker a SQL NULL is stored as, so it stays comparable against a datatable cell.
+     */
+    public static final String EMPTY_VALUE = "<EMPTY>";
+
     private Scenario scenario;
 
     /**
@@ -1021,7 +1031,8 @@ public class DatabaseSpec extends BaseGSpec {
         //postgres table
         List<String> sqlTable = new ArrayList<String>();
         List<String> sqlTableAux = new ArrayList<String>();
-        Map<String, List<String>> sqlResultMap = new HashMap<>();
+        // LinkedHashMap so the column order returned by the query is kept when the result is printed
+        Map<String, List<String>> sqlResultMap = new LinkedHashMap<>();
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
             throw new Exception("JDBC connection is not opened");
@@ -1041,12 +1052,13 @@ public class DatabaseSpec extends BaseGSpec {
                 resultSize++;
                 for (int i = 1; i <= count; i++) {
                     //aux list without column names
-                    sqlTableAux.add(rs.getObject(i) != null ? rs.getObject(i).toString() : "<EMPTY>");
+                    String value = resultSetValue(rs, i);
+                    sqlTableAux.add(value);
                     List<String> previousList = sqlResultMap.get(resultSetMetaData.getColumnName(i));
                     if (previousList == null) {
                         previousList = new ArrayList<>();
                     }
-                    previousList.add(rs.getObject(i) != null ? rs.getObject(i).toString() : "<EMPTY>");
+                    previousList.add(value);
                     sqlResultMap.put(resultSetMetaData.getColumnName(i), previousList);
                 }
             }
@@ -1433,7 +1445,7 @@ public class DatabaseSpec extends BaseGSpec {
         List<String> sqlTable = new ArrayList<String>();
         List<String> sqlTableAux = new ArrayList<String>();
         //from Cucumber Datatable
-        List<String> tablePattern = dataTable.cells().stream().flatMap(List::stream).collect(Collectors.toList());
+        List<String> tablePattern = dataTable.cells().stream().flatMap(List::stream).map(DatabaseSpec::cellValue).collect(Collectors.toList());
 
         Connection myConnection = this.commonspec.getConnection();
         if (myConnection == null) {
@@ -1456,12 +1468,21 @@ public class DatabaseSpec extends BaseGSpec {
             while (rs.next()) {
                 for (int i = 1; i <= count; i++) {
                     //aux list without column names
-                    sqlTableAux.add(rs.getObject(i).toString());
+                    sqlTableAux.add(resultSetValue(rs, i));
                 }
             }
             sqlTable.addAll(sqlTableAux);
 
-            assertThat(sqlTable).as("Not equal elements!").isEqualTo(tablePattern);
+            if (!tablePattern.equals(sqlTable)) {
+                int columns = dataTable.cells().get(0).size();
+                commonspec.getLogger().error("Expected content of table " + tableName + ":" + System.lineSeparator()
+                        + flatResultAsText(tablePattern, columns) + System.lineSeparator()
+                        + "Actual content of table " + tableName + ":" + System.lineSeparator()
+                        + flatResultAsText(sqlTable, columns));
+                fail("Error in table comparison: table " + tableName + " is not equal to the expected result."
+                        + System.lineSeparator() + sizesAsText(tablePattern, sqlTable, columns)
+                        + System.lineSeparator() + differencesAsText(tablePattern, sqlTable, normalizeCells(dataTable.cells()).get(0)));
+            }
         } catch (Exception e) {
             e.printStackTrace();
             fail("There are no table " + tableName + ": " + e.getMessage());
@@ -1487,7 +1508,7 @@ public class DatabaseSpec extends BaseGSpec {
 
         //from Cucumber Datatable, the pattern to verify
         List<String> tablePattern = new ArrayList<String>();
-        tablePattern = dataTable.cells().stream().flatMap(List::stream).collect(Collectors.toList());
+        tablePattern = dataTable.cells().stream().flatMap(List::stream).map(DatabaseSpec::cellValue).collect(Collectors.toList());
 
         //the result from select
         List<String> sqlTable = new ArrayList<String>();
@@ -1502,7 +1523,78 @@ public class DatabaseSpec extends BaseGSpec {
             ThreadProperty.remove("queryresponse" + i);
         }
 
-        assertThat(tablePattern).as("response is not equal to the expected").isEqualTo(sqlTable);
+        if (!tablePattern.equals(sqlTable)) {
+            int columns = dataTable.cells().get(0).size();
+            commonspec.getLogger().error("Expected result:" + System.lineSeparator()
+                    + flatResultAsText(tablePattern, columns) + System.lineSeparator()
+                    + "Full query response:" + System.lineSeparator() + flatResultAsText(sqlTable, columns));
+            fail("Error in table comparison: query response is not equal to the expected result."
+                    + System.lineSeparator() + sizesAsText(tablePattern, sqlTable, columns)
+                    + System.lineSeparator() + differencesAsText(tablePattern, sqlTable, normalizeCells(dataTable.cells()).get(0)));
+        }
+    }
+
+    /**
+     * Describes the size of both tables, in cells and in rows, so a shifted comparison is easy to spot.
+     */
+    private String sizesAsText(List<String> expectedCells, List<String> actualCells, int columns) {
+        String sizes = "Expected " + expectedCells.size() + " cell(s) (" + rowCount(expectedCells.size(), columns)
+                + " row(s) x " + columns + " column(s), header included), query response has "
+                + actualCells.size() + " cell(s).";
+        if (expectedCells.size() != actualCells.size()) {
+            sizes = sizes + " Sizes differ, so cells may be shifted and every position after the first missing"
+                    + " or extra cell may look wrong.";
+        }
+        return sizes;
+    }
+
+    /**
+     * Lists the cells that differ as 'row R, column C (cell N)', truncated to MAX_ROWS_IN_COMPARISON_FAILURE entries.
+     */
+    private String differencesAsText(List<String> expectedCells, List<String> actualCells, List<String> headersList) {
+        int columns = headersList.size();
+        List<String> differences = new ArrayList<>();
+        int totalDifferences = 0;
+        for (int cell = 0; cell < Math.max(expectedCells.size(), actualCells.size()); cell++) {
+            String expectedValue = cell < expectedCells.size() ? "'" + expectedCells.get(cell) + "'" : "<MISSING CELL>";
+            String actualValue = cell < actualCells.size() ? "'" + actualCells.get(cell) + "'" : "<MISSING CELL>";
+            if (!expectedValue.equals(actualValue)) {
+                totalDifferences++;
+                if (differences.size() < MAX_ROWS_IN_COMPARISON_FAILURE) {
+                    int row = columns > 0 ? cell / columns : 0;
+                    String column = columns > 0 ? "'" + headersList.get(cell % columns) + "'" : "'?'";
+                    differences.add("  row " + row + (row == 0 ? " (headers)" : "") + ", column " + column
+                            + " (cell " + cell + "): expected " + expectedValue + " but found " + actualValue);
+                }
+            }
+        }
+        return "Cells that differ (" + totalDifferences + " in total"
+                + (differences.size() < totalDifferences ? ", only first " + differences.size() + " shown" : "") + "):"
+                + System.lineSeparator() + String.join(System.lineSeparator(), differences);
+    }
+
+    /**
+     * Renders a row-major flat list of cells as one line per row, truncated to MAX_ROWS_IN_COMPARISON_FAILURE rows.
+     */
+    private String flatResultAsText(List<String> cells, int columns) {
+        if (columns <= 0) {
+            return "  " + cells;
+        }
+        List<String> lines = new ArrayList<>();
+        int rows = rowCount(cells.size(), columns);
+        int rowsToShow = Math.min(rows, MAX_ROWS_IN_COMPARISON_FAILURE);
+        for (int row = 0; row < rowsToShow; row++) {
+            List<String> values = cells.subList(row * columns, Math.min((row + 1) * columns, cells.size()));
+            lines.add("  | " + String.join(" | ", values) + " |");
+        }
+        if (rowsToShow < rows) {
+            lines.add("  ... " + (rows - rowsToShow) + " more row(s)");
+        }
+        return String.join(System.lineSeparator(), lines);
+    }
+
+    private int rowCount(int cells, int columns) {
+        return columns > 0 ? (cells + columns - 1) / columns : 0;
     }
 
     /**
@@ -1699,33 +1791,133 @@ public class DatabaseSpec extends BaseGSpec {
         if (getCommonSpec().getPreviousSqlResult() == null) {
             fail("Result not stored. Query must be executed with step 'I query the database with ...'");
         }
-        List<List<String>> datatableCells = dataTable.cells();
+        List<List<String>> datatableCells = normalizeCells(dataTable.cells());
         Map<String, List<String>> previousSqlResult = getCommonSpec().getPreviousSqlResult();
         List<String> headersList = datatableCells.get(0);
         // Check that columns exists
-        for (int col = 0; col < headersList.size(); col++) {
-            if (previousSqlResult.get(headersList.get(col)) == null) {
-                fail("Column '" + headersList.get(col) + "' doesn't appear in SQL result");
+        for (String header : headersList) {
+            if (previousSqlResult.get(header) == null) {
+                fail("Column '" + header + "' doesn't appear in SQL result. Columns returned by the query: "
+                        + previousSqlResult.keySet());
             }
+        }
+        int responseRows = previousSqlResult.get(headersList.get(0)).size();
+        if (responseRows == 0) {
+            fail("Query response is empty (0 rows), so it cannot contain the expected rows:" + System.lineSeparator()
+                    + expectedRowsAsText(headersList, datatableCells));
         }
         for (int row = 1; row < datatableCells.size(); row++) {
-            int col = 0;
-            List<String> columnResult = previousSqlResult.get(headersList.get(col));
-            Assertions.assertThat(columnResult).as("Value: " + datatableCells.get(row).get(col) + " is not returned in column: " + headersList.get(col)).contains(datatableCells.get(row).get(col));
-            int auxRow = 0;
-            while (col < datatableCells.get(row).size() && auxRow < columnResult.size()) {
-                columnResult = previousSqlResult.get(headersList.get(col));
-                if (columnResult.get(auxRow).equals(datatableCells.get(row).get(col))) {
-                    col++;
-                } else {
-                    auxRow++;
-                    col = 0;
+            List<String> expectedRow = datatableCells.get(row);
+            List<String> mismatches = new ArrayList<>();
+            // Response row matching the highest number of columns, to point at the most likely candidate
+            int closestRow = -1;
+            int closestMatchedColumns = -1;
+            String closestDetail = "";
+            boolean found = false;
+            for (int responseRow = 0; responseRow < responseRows && !found; responseRow++) {
+                found = true;
+                for (int col = 0; col < expectedRow.size(); col++) {
+                    String expectedValue = expectedRow.get(col);
+                    String actualValue = previousSqlResult.get(headersList.get(col)).get(responseRow);
+                    if (!actualValue.equals(expectedValue)) {
+                        found = false;
+                        String detail = "column '" + headersList.get(col) + "': expected '" + expectedValue
+                                + "' but found '" + actualValue + "'";
+                        if (mismatches.size() < MAX_ROWS_IN_COMPARISON_FAILURE) {
+                            mismatches.add("  response row " + responseRow + " -> " + detail);
+                        }
+                        if (col > closestMatchedColumns) {
+                            closestMatchedColumns = col;
+                            closestRow = responseRow;
+                            closestDetail = detail;
+                        }
+                        break;
+                    }
                 }
             }
-            if (auxRow >= columnResult.size()) {
-                fail("Error in table comparison: comparing table. Row " + row + " not found in query response.");
+            if (!found) {
+                commonspec.getLogger().error("Full query response:" + System.lineSeparator()
+                        + resultAsText(previousSqlResult, responseRows));
+                fail("Error in table comparison: row " + row + " of the datatable was not found in the query response."
+                        + System.lineSeparator()
+                        + "Looking for: " + rowAsText(headersList, expectedRow) + System.lineSeparator()
+                        + "Query response has " + responseRows + " row(s). First column that differs on each of them"
+                        + (mismatches.size() < responseRows ? " (only first " + mismatches.size() + " shown)" : "") + ":"
+                        + System.lineSeparator() + String.join(System.lineSeparator(), mismatches)
+                        + System.lineSeparator() + "Closest response row: " + closestRow + " (" + closestMatchedColumns
+                        + " of " + expectedRow.size() + " columns matched) -> " + closestDetail);
             }
         }
+    }
+
+    /**
+     * Value of a ResultSet column as text. A SQL NULL becomes the EMPTY_VALUE marker instead of throwing a
+     * NullPointerException, so a nullable column stays comparable against a datatable.
+     */
+    private static String resultSetValue(java.sql.ResultSet resultSet, int column) throws SQLException {
+        Object value = resultSet.getObject(column);
+        return value != null ? value.toString() : EMPTY_VALUE;
+    }
+
+    /**
+     * Cucumber returns genuinely empty DataTable cells (| |) as null, so an empty cell must be compared as the
+     * empty string "". A SQL NULL is never "" here: it is stored as the EMPTY_VALUE marker.
+     */
+    private static String cellValue(String cell) {
+        return cell == null ? "" : cell;
+    }
+
+    /**
+     * Copy of the datatable cells with every empty (null) cell turned into an empty string.
+     */
+    private static List<List<String>> normalizeCells(List<List<String>> cells) {
+        return cells.stream()
+                .map(row -> row.stream().map(DatabaseSpec::cellValue).collect(Collectors.toList()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Renders a single row as '| column=value | column=value |', using only the columns present in the row.
+     */
+    private String rowAsText(List<String> headersList, List<String> row) {
+        StringBuilder sb = new StringBuilder();
+        for (int col = 0; col < row.size() && col < headersList.size(); col++) {
+            sb.append("| ").append(headersList.get(col)).append("=").append(row.get(col)).append(" ");
+        }
+        return sb.append("|").toString();
+    }
+
+    /**
+     * Renders every data row of a datatable (row 0 holds the headers), one per line.
+     */
+    private String expectedRowsAsText(List<String> headersList, List<List<String>> datatableCells) {
+        List<String> rows = new ArrayList<>();
+        for (int row = 1; row < datatableCells.size(); row++) {
+            rows.add("  " + rowAsText(headersList, datatableCells.get(row)));
+        }
+        return String.join(System.lineSeparator(), rows);
+    }
+
+    /**
+     * Renders the stored query response as a header line plus one line per row, truncated to
+     * MAX_ROWS_IN_COMPARISON_FAILURE rows.
+     */
+    private String resultAsText(Map<String, List<String>> sqlResult, int responseRows) {
+        List<String> columns = new ArrayList<>(sqlResult.keySet());
+        List<String> lines = new ArrayList<>();
+        lines.add("  | " + String.join(" | ", columns) + " |");
+        int rowsToShow = Math.min(responseRows, MAX_ROWS_IN_COMPARISON_FAILURE);
+        for (int row = 0; row < rowsToShow; row++) {
+            List<String> values = new ArrayList<>();
+            for (String column : columns) {
+                values.add(sqlResult.get(column).get(row));
+            }
+            lines.add("  | " + String.join(" | ", values) + " |");
+        }
+        if (rowsToShow < responseRows) {
+            lines.add("  ... " + (responseRows - rowsToShow) + " more row(s)");
+        }
+        return String.join(System.lineSeparator(), lines);
     }
 
     @Then("^I wait for '(\\d+)' seconds, checking every '(\\d+)' seconds for users existance:$")
