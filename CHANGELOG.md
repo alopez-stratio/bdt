@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 2.0.0 (upcoming)
 
+* Skip the LDAP synchronizer when the user/group already exists and its creation is skipped
 * [DG-4138] Add step to upgrade a service using CCT
 
 ## Previous development

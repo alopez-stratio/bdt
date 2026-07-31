@@ -2608,6 +2608,11 @@ public class GosecSpec extends BaseGSpec {
 
     }
 
+    /**
+     * Runs the LDAP synchronizer, propagating LDAP users/groups to Gosec.
+     *
+     * @param type: partial/total
+     */
     @When("^I run '(partial|total)' ldap synchronizer$")
     public void runLdapSynchronizer(String type) throws Exception {
         String basePath = "/service/gosec-management-baas";
@@ -2730,8 +2735,9 @@ public class GosecSpec extends BaseGSpec {
 
         // Check if the user already exists on LDAP
         boolean alreadyExists = resourceExistsInLdap("user", user, ldapPod);
-        if (skipIfExists != null && alreadyExists) {
-            logger.info("The user already exists, skipping creation...");
+        boolean skippedCreation = skipIfExists != null && alreadyExists;
+        if (skippedCreation) {
+            logger.info("The user already exists, skipping creation and sync...");
         } else {
             Assert.assertFalse(alreadyExists, "The user already exists and can't be created again.");
 
@@ -2760,12 +2766,17 @@ public class GosecSpec extends BaseGSpec {
             logger.info("User created in LDAP");
         }
         if (noSync == null) {
-            Thread.sleep(5 * 1000L);
-            runLdapSynchronizerWithRetries("total", 5, 10);
-            if (!resourceExistsInLdap("user", user, ldapPod)) {
-                logger.warn("User not found in LDAP after sync, waiting 60 seconds and trying again...");
-                Thread.sleep(60 * 1000L);
+            if (skippedCreation) {
+                // The sync is not needed, but the REST connection it sets up is still expected by subsequent steps
+                commonspec.setCCTConnection(null, null);
+            } else {
+                Thread.sleep(5 * 1000L);
                 runLdapSynchronizerWithRetries("total", 5, 10);
+                if (!resourceExistsInLdap("user", user, ldapPod)) {
+                    logger.warn("User not found in LDAP after sync, waiting 60 seconds and trying again...");
+                    Thread.sleep(60 * 1000L);
+                    runLdapSynchronizerWithRetries("total", 5, 10);
+                }
             }
         }
     }
@@ -2859,8 +2870,9 @@ public class GosecSpec extends BaseGSpec {
 
         // Check if the group already exists on LDAP
         boolean alreadyExists = resourceExistsInLdap("group", group, ldapPod);
-        if (skipIfExists != null && alreadyExists) {
-            logger.info("The group already exists, skipping creation...");
+        boolean skippedCreation = skipIfExists != null && alreadyExists;
+        if (skippedCreation) {
+            logger.info("The group already exists, skipping creation and sync...");
         } else {
             Assert.assertFalse(alreadyExists, "The group already exists and can't be created again.");
 
@@ -2889,12 +2901,17 @@ public class GosecSpec extends BaseGSpec {
             logger.info("Group created in LDAP");
         }
         if (noSync == null) {
-            Thread.sleep(5 * 1000L);
-            runLdapSynchronizerWithRetries("total", 5, 10);
-            if (!resourceExistsInLdap("group", group, ldapPod)) {
-                logger.warn("Group not found in LDAP after sync, waiting 60 seconds and trying again...");
-                Thread.sleep(60 * 1000L);
+            if (skippedCreation) {
+                // The sync is not needed, but the REST connection it sets up is still expected by subsequent steps
+                commonspec.setCCTConnection(null, null);
+            } else {
+                Thread.sleep(5 * 1000L);
                 runLdapSynchronizerWithRetries("total", 5, 10);
+                if (!resourceExistsInLdap("group", group, ldapPod)) {
+                    logger.warn("Group not found in LDAP after sync, waiting 60 seconds and trying again...");
+                    Thread.sleep(60 * 1000L);
+                    runLdapSynchronizerWithRetries("total", 5, 10);
+                }
             }
         }
     }
