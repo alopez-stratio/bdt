@@ -211,7 +211,7 @@ public class CucumberRunner {
             } catch (Throwable t) {
                 lastError = t;
             } finally {
-                sendReplacedScenarioNameEnvelope(p);
+                sendReplacedPickleEnvelope(p);
             }
         }
         if (lastError != null) {
@@ -220,34 +220,63 @@ public class CucumberRunner {
     }
 
     /**
-     * Re-emits the Pickle message carrying the scenario name that ReplacementAspect
-     * resolved while the scenario ran.
+     * Re-emits the Pickle message with the scenario name and the step texts that
+     * ReplacementAspect resolved while the scenario ran.
      * <p>
      * The aspect wraps the runtime pickle, which fixes logs and TestCase.getName(),
-     * but message-based formatters (json, html) take the name from the Pickle message
-     * emitted when the feature was parsed — so without this the report keeps showing
-     * the raw ${}/!{}/@{} placeholders. io.cucumber.query.Repository keys pickles by
-     * id, so re-sending the same id overwrites the entry, and the report is only
-     * rendered once TestRunFinished arrives.
+     * but message-based formatters (json, html) take both the scenario name and the
+     * step names from the Pickle message emitted when the feature was parsed.
+     * <p>
+     * Step texts must be re-emitted as the text the match was computed against —
+     * ${ENV} resolved, !{VAR}/@{CODE} untouched. The match arguments carry offsets
+     * into that text, and renderers use them to index the step name: if the two come
+     * from different strings the offsets fall outside the name. net.masterthought
+     * cucumber-reporting then does chars[offset + val.length() - 1] with no bounds
+     * check, throws inside a Velocity #set and prints the raw template reference
+     * "$_noescape_stepName" instead of the step (QATM-55258).
+     * <p>
+     * io.cucumber.query.Repository keys pickles by id, so re-sending the same id
+     * overwrites the entry, and the report is only rendered once TestRunFinished
+     * arrives.
      *
      * @param pickle pickle that has just been run
      */
-    private void sendReplacedScenarioNameEnvelope(Pickle pickle) {
-        String replacedName = TestSourcesModelUtil.INSTANCE.getTestSourcesModel()
-                .getReplacedScenarioName(pickle.getId());
-        if (replacedName == null) {
+    private void sendReplacedPickleEnvelope(Pickle pickle) {
+        io.cucumber.messages.types.Pickle msgPickle = originalPickleMessages.get(pickle.getId());
+        if (msgPickle == null) {
             return;
         }
-        io.cucumber.messages.types.Pickle msgPickle = originalPickleMessages.get(pickle.getId());
-        if (msgPickle == null || replacedName.equals(msgPickle.getName())) {
+        TestSourcesModel model = TestSourcesModelUtil.INSTANCE.getTestSourcesModel();
+
+        String replacedName = model.getReplacedScenarioName(pickle.getId());
+        String newName = replacedName != null ? replacedName : msgPickle.getName();
+
+        boolean stepChanged = false;
+        List<io.cucumber.messages.types.PickleStep> newSteps = new ArrayList<>();
+        for (io.cucumber.messages.types.PickleStep msgStep : msgPickle.getSteps()) {
+            String replacedText = model.getReplacedStepText(msgStep.getId());
+            if (replacedText == null || replacedText.equals(msgStep.getText())) {
+                newSteps.add(msgStep);
+            } else {
+                newSteps.add(new io.cucumber.messages.types.PickleStep(
+                        msgStep.getArgument().orElse(null),
+                        msgStep.getAstNodeIds(),
+                        msgStep.getId(),
+                        msgStep.getType().orElse(null),
+                        replacedText));
+                stepChanged = true;
+            }
+        }
+
+        if (!stepChanged && newName.equals(msgPickle.getName())) {
             return;
         }
         bus.send(Envelope.of(new io.cucumber.messages.types.Pickle(
                 msgPickle.getId(),
                 msgPickle.getUri(),
-                replacedName,
+                newName,
                 msgPickle.getLanguage(),
-                msgPickle.getSteps(),
+                newSteps,
                 msgPickle.getTags(),
                 msgPickle.getAstNodeIds())));
     }

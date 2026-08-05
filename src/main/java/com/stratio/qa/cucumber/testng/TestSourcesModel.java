@@ -33,7 +33,11 @@ public class TestSourcesModel {
 
     private final Map<String, Set<Integer>> pathToBackgroundLinesMap = new HashMap<>();
 
-    private final Map<String, Map<Integer, String>> replacedStepTextsMap = new HashMap<>();
+    // stepId -> step text as it was matched (${ENV} resolved, !{VAR}/@{CODE} still raw).
+    // Written by ReplacementAspect while matching, read by CucumberRunner to re-emit the
+    // Pickle message: the report must show the very text the match was computed against,
+    // otherwise the argument offsets do not point inside the step name any more.
+    private final Map<String, String> replacedStepTextsMap = new ConcurrentHashMap<>();
 
     // pickleId -> scenario name with ${}/!{}/@{} already resolved. Written by
     // ReplacementAspect while the scenario runs, read by CucumberRunner to re-emit
@@ -60,13 +64,12 @@ public class TestSourcesModel {
         return bgLines != null && bgLines.contains(stepLine);
     }
 
-    public void addReplacedStepText(String feature, int stepLine, String replacedText) {
-        replacedStepTextsMap.computeIfAbsent(feature, k -> new HashMap<>()).put(stepLine, replacedText);
+    public void addReplacedStepText(String stepId, String replacedText) {
+        replacedStepTextsMap.put(stepId, replacedText);
     }
 
-    public String getReplacedStepText(String feature, int stepLine) {
-        Map<Integer, String> m = replacedStepTextsMap.get(feature);
-        return m != null ? m.get(stepLine) : null;
+    public String getReplacedStepText(String stepId) {
+        return replacedStepTextsMap.get(stepId);
     }
 
     public void addReplacedScenarioName(String pickleId, String replacedName) {

@@ -181,9 +181,10 @@ public class ReplacementAspect {
         ReplacedStepData data = new ReplacedStepData(newText, dataTableLog, step.getKeyword());
         replacedStepData.get().put(step.getId(), data);
 
-        // Also store in TestSourcesModel for external use
-        TestSourcesModelUtil.INSTANCE.getTestSourcesModel().addReplacedStepText(
-                pickle.getUri().toString(), step.getLocation().getLine(), newText);
+        // Keyed by step id so CucumberRunner can re-emit the Pickle message with this
+        // very text: the report must show what the match was computed against, or the
+        // argument offsets stop pointing inside the step name.
+        TestSourcesModelUtil.INSTANCE.getTestSourcesModel().addReplacedStepText(step.getId(), newText);
 
         return pjp.proceed(new Object[]{pickle, replacedStep});
     }
@@ -446,11 +447,16 @@ public class ReplacementAspect {
     }
 
     // -----------------------------------------------------------------------
-    // Pointcut 3d: write the resolved step text into the scenario output so the
-    // Cucumber report shows the actual values under the original step. The step
-    // name in the report keeps the placeholders because PickleStepTestStep is
-    // built from the unreplaced gherkin Step, so without this the report is
-    // unreadable for steps like "I execute '!{query}' in '${DB}'".
+    // Pointcut 3d: write the step text into the scenario output, so the report
+    // shows what cannot be read off the step name.
+    //
+    // The name shown by the report is the matched text (${ENV} resolved, !{VAR}
+    // and @{CODE} still raw), because it has to be the exact string the match
+    // was computed against. So two things can be missing from it, and each gets
+    // its own output line, only when it actually adds information:
+    //
+    //   1. the raw gherkin text, when ${ENV} was resolved  -> shows it was a variable
+    //   2. the fully resolved text, when !{VAR}/@{CODE} were used -> shows the values
     //
     // Weaved on PickleStepDefinitionMatch.runStep instead of
     // PickleStepTestStep.run because TestCaseState.log() requires an active
@@ -469,14 +475,19 @@ public class ReplacementAspect {
         if (pickleStep == null) {
             return;
         }
-        String replacedText = resolveStepDisplayText(pickleStep, jp);
-        if (replacedText.equals(pickleStep.getStepText())) {
-            return;
-        }
+        String rawText = pickleStep.getStepText();
+        ReplacedStepData data = replacedStepData.get().get(((Step) pickleStep.getStep()).getId());
+        String shownAsName = data != null ? data.replacedText : rawText;
+        String resolvedText = resolveStepDisplayText(pickleStep, jp);
         try {
-            state.log(replacedText);
+            if (!rawText.equals(shownAsName)) {
+                state.log(rawText);
+            }
+            if (!resolvedText.equals(shownAsName)) {
+                state.log(resolvedText);
+            }
         } catch (Exception e) {
-            logger.debug("Replaced step text could not be written to the report: {}", e.getMessage());
+            logger.debug("Step text could not be written to the report: {}", e.getMessage());
         }
     }
 
