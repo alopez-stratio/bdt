@@ -63,6 +63,12 @@ public class ReplacementAspect {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
+    // Child logger for the "Background:" / "Steps:" headers, so they can be given their
+    // own colour in log4j2.xml. Left unconfigured it inherits this class' logger, which
+    // is what used to happen when CukesGHooks printed them.
+    private final Logger sectionLogger =
+            LoggerFactory.getLogger(this.getClass().getCanonicalName() + ".section");
+
     // thread-local: stepId -> ReplacedStepData (populated during matchStepToStepDefinition)
     private final ThreadLocal<Map<String, ReplacedStepData>> replacedStepData =
             ThreadLocal.withInitial(HashMap::new);
@@ -73,6 +79,10 @@ public class ReplacementAspect {
     private final ThreadLocal<Pickle> currentPickle = new ThreadLocal<>();
 
     private final ThreadLocal<PickleStepTestStep> currentPickleStep = new ThreadLocal<>();
+
+    // whether the previously logged step belonged to the Background, so that the
+    // "Background:" / "Steps:" headers are only printed when the section changes
+    private final ThreadLocal<Boolean> lastLoggedStepWasBackground = ThreadLocal.withInitial(() -> false);
 
     // -----------------------------------------------------------------------
     // Pointcut 1: replace scenario name before runPickle
@@ -102,11 +112,13 @@ public class ReplacementAspect {
         }
         currentRunner.set(pjp.getTarget());
         currentPickle.set(pickle);
+        lastLoggedStepWasBackground.set(false);
         try {
             pjp.proceed(new Object[]{pickle});
         } finally {
             currentRunner.remove();
             currentPickle.remove();
+            lastLoggedStepWasBackground.remove();
         }
     }
 
@@ -312,6 +324,7 @@ public class ReplacementAspect {
             ReplacedStepData data = replacedStepData.get().get(stepId);
             String keyword = data != null ? data.keyword : pickleStep.getStep().getKeyword();
             String displayText = resolveStepDisplayText(pickleStep, pjp);
+            logSectionHeaderFor(pickleStep);
             logger.info("   {}{}", keyword, displayText);
             if (data != null && !data.dataTableLog.isEmpty()) {
                 String dataTableDisplay = data.dataTableLog;
@@ -494,6 +507,28 @@ public class ReplacementAspect {
     // -----------------------------------------------------------------------
     // Replacement helpers
     // -----------------------------------------------------------------------
+
+    /**
+     * Prints the "Background:" / "Steps:" header when the step being logged starts a
+     * different section than the previous one.
+     * <p>
+     * This used to live in CukesGHooks, driven by the TestStepStarted event, but that
+     * event is emitted by TestStep.run — which PickleStepTestStep.run only reaches
+     * after the before-step hooks, i.e. after this aspect has already logged the step
+     * text. The headers therefore trailed the step they belonged to by one position
+     * (QATM-55256). Printing them here keeps header and step text together by
+     * construction, and covers skipped steps just like the step text does.
+     *
+     * @param pickleStep step about to be logged
+     */
+    private void logSectionHeaderFor(PickleStepTestStep pickleStep) {
+        boolean isBackground = TestSourcesModelUtil.INSTANCE.getTestSourcesModel()
+                .isBackgroundStep(pickleStep.getUri().toString(), pickleStep.getStepLine());
+        if (isBackground != lastLoggedStepWasBackground.get()) {
+            sectionLogger.info(" {}", isBackground ? "Background:" : "Steps:");
+        }
+        lastLoggedStepWasBackground.set(isBackground);
+    }
 
     /**
      * Resolves the text of a step as it should be shown to the user: ${ENV} was

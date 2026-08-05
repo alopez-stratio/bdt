@@ -32,8 +32,6 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
 
     private String currentFeatureFile = null;
 
-    private boolean isLastStepBackground = false;
-
     private int exampleNumber = 1;
 
     private String previousTestCaseName = "";
@@ -52,13 +50,6 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
         @Override
         public void receive(TestCaseStarted event) {
             handleTestCaseStarted(event);
-        }
-    };
-
-    private EventHandler<TestStepStarted> stepStartedHandler = new EventHandler<TestStepStarted>() {
-        @Override
-        public void receive(TestStepStarted event) {
-            handleTestStepStarted(event);
         }
     };
 
@@ -81,7 +72,6 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
         publisher.registerHandlerFor(TestSourceRead.class, testSourceReadHandler);
         publisher.registerHandlerFor(TestCaseStarted.class, caseStartedHandler);
         publisher.registerHandlerFor(TestCaseFinished.class, caseFinishedHandler);
-        publisher.registerHandlerFor(TestStepStarted.class, stepStartedHandler);
         publisher.registerHandlerFor(TestStepFinished.class, stepFinishedHandler);
     }
 
@@ -98,27 +88,6 @@ public class CukesGHooks extends BaseGSpec implements ConcurrentEventListener {
         logger.info("Feature/Scenario: {}/{} ", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile), tc.getName());
         ThreadProperty.set("feature", TestSourcesModelUtil.INSTANCE.getTestSourcesModel().getFeatureName(currentFeatureFile));
         ThreadProperty.set("scenario", calculateElementName(tc));
-    }
-
-    private void handleTestStepStarted(TestStepStarted event) {
-        if (HookGSpec.loggerEnabled) {
-            if (event.getTestStep() instanceof PickleStepTestStep) {
-                PickleStepTestStep testStep = (PickleStepTestStep) event.getTestStep();
-                boolean isBackground = TestSourcesModelUtil.INSTANCE.getTestSourcesModel()
-                        .isBackgroundStep(currentFeatureFile, testStep.getStepLine());
-                if (isBackground) {
-                    if (!isLastStepBackground) {
-                        logger.info(" Background:");
-                    }
-                    isLastStepBackground = true;
-                } else {
-                    if (isLastStepBackground) {
-                        logger.info(" Steps:");
-                    }
-                    isLastStepBackground = false;
-                }
-            }
-        }
     }
 
     private void handleTestStepFinished(TestStepFinished event) {

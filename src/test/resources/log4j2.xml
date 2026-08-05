@@ -45,6 +45,12 @@
         <logger name="com.stratio.qa.aspects.ReplacementAspect" level="INFO" additivity="false">
             <appender-ref ref="Steps"/>
         </logger>
+        <!-- "Background:" / "Steps:" headers. Kept on the Hooks appender so they stay
+             visually distinct from the steps they group, as they were when CukesGHooks
+             printed them. Remove this logger and they fall back to the Steps colour. -->
+        <logger name="com.stratio.qa.aspects.ReplacementAspect.section" level="INFO" additivity="false">
+            <appender-ref ref="Hooks"/>
+        </logger>
         <logger name="com.stratio.qa.utils.CukesGHooks" level="INFO" additivity="false">
             <appender-ref ref="Hooks"/>
         </logger>
