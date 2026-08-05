@@ -23,6 +23,7 @@ import com.stratio.qa.specs.HookGSpec;
 import com.stratio.qa.utils.ExceptionList;
 import com.stratio.qa.utils.StepException;
 import com.stratio.qa.utils.ThreadProperty;
+import io.cucumber.core.backend.TestCaseState;
 import io.cucumber.core.gherkin.Argument;
 import io.cucumber.core.gherkin.DataTableArgument;
 import io.cucumber.core.gherkin.DocStringArgument;
@@ -93,6 +94,11 @@ public class ReplacementAspect {
         }
         if (!newScenarioName.equals(scenarioName)) {
             pickle = new WrappedPickle(pickle, newScenarioName);
+            // WrappedPickle only fixes the runtime name (logs, TestCase.getName()). The
+            // report reads the name from the Pickle *message* emitted at parse time, so
+            // CucumberRunner has to re-emit it once the scenario is done.
+            TestSourcesModelUtil.INSTANCE.getTestSourcesModel()
+                    .addReplacedScenarioName(pickle.getId(), newScenarioName);
         }
         currentRunner.set(pjp.getTarget());
         currentPickle.set(pickle);
@@ -304,13 +310,7 @@ public class ReplacementAspect {
             String stepId = gherkinStep.getId();
             ReplacedStepData data = replacedStepData.get().get(stepId);
             String keyword = data != null ? data.keyword : pickleStep.getStep().getKeyword();
-            String displayText = data != null ? data.replacedText : pickleStep.getStepText();
-            if (displayText.contains("!{")) {
-                try {
-                    displayText = replaceReflectionPlaceholders(displayText, pjp);
-                } catch (Exception ignored) {
-                }
-            }
+            String displayText = resolveStepDisplayText(pickleStep, pjp);
             logger.info("   {}{}", keyword, displayText);
             if (data != null && !data.dataTableLog.isEmpty()) {
                 String dataTableDisplay = data.dataTableLog;
@@ -446,8 +446,71 @@ public class ReplacementAspect {
     }
 
     // -----------------------------------------------------------------------
+    // Pointcut 3d: write the resolved step text into the scenario output so the
+    // Cucumber report shows the actual values under the original step. The step
+    // name in the report keeps the placeholders because PickleStepTestStep is
+    // built from the unreplaced gherkin Step, so without this the report is
+    // unreadable for steps like "I execute '!{query}' in '${DB}'".
+    //
+    // Weaved on PickleStepDefinitionMatch.runStep instead of
+    // PickleStepTestStep.run because TestCaseState.log() requires an active
+    // test step, and TestStep.executeStep only sets it right before delegating
+    // to the match. Also fires for steps re-matched by aroundUndefinedStepRun,
+    // which invokes runStep reflectively.
+    // -----------------------------------------------------------------------
+
+    @Pointcut("execution(* io.cucumber.core.runner.PickleStepDefinitionMatch.runStep(..)) && args(state)")
+    protected void pickleStepRunStep(TestCaseState state) {
+    }
+
+    @Before(value = "pickleStepRunStep(state)")
+    public void writeReplacedStepToReport(JoinPoint jp, TestCaseState state) {
+        PickleStepTestStep pickleStep = currentPickleStep.get();
+        if (pickleStep == null) {
+            return;
+        }
+        String replacedText = resolveStepDisplayText(pickleStep, jp);
+        if (replacedText.equals(pickleStep.getStepText())) {
+            return;
+        }
+        try {
+            state.log(replacedText);
+        } catch (Exception e) {
+            logger.debug("Replaced step text could not be written to the report: {}", e.getMessage());
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Replacement helpers
     // -----------------------------------------------------------------------
+
+    /**
+     * Resolves the text of a step as it should be shown to the user: ${ENV} was
+     * already applied at match time, !{VAR} and @{CODE} are resolved here because
+     * they only become available once the previous steps of the scenario have run.
+     * Placeholders that still cannot be resolved are left untouched.
+     *
+     * @param pickleStep step being executed
+     * @param jp JoinPoint
+     * @return resolved step text, or the step text as-is when nothing can be resolved
+     */
+    private String resolveStepDisplayText(PickleStepTestStep pickleStep, JoinPoint jp) {
+        ReplacedStepData data = replacedStepData.get().get(((Step) pickleStep.getStep()).getId());
+        String text = data != null ? data.replacedText : pickleStep.getStepText();
+        if (text.contains("!{")) {
+            try {
+                text = replaceReflectionPlaceholders(text, jp);
+            } catch (Exception ignored) {
+            }
+        }
+        if (text.contains("@{")) {
+            try {
+                text = replaceCodePlaceholders(text, jp);
+            } catch (Exception ignored) {
+            }
+        }
+        return text;
+    }
 
     protected String replacedElementSkipReflection(String el, JoinPoint jp) throws NonReplaceableException {
         try {

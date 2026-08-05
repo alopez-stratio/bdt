@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TestSourcesModel {
 
@@ -33,6 +34,12 @@ public class TestSourcesModel {
     private final Map<String, Set<Integer>> pathToBackgroundLinesMap = new HashMap<>();
 
     private final Map<String, Map<Integer, String>> replacedStepTextsMap = new HashMap<>();
+
+    // pickleId -> scenario name with ${}/!{}/@{} already resolved. Written by
+    // ReplacementAspect while the scenario runs, read by CucumberRunner to re-emit
+    // the Pickle message so the report shows the resolved name. Concurrent because
+    // this model is a process-wide singleton and scenarios may run in parallel.
+    private final Map<String, String> replacedScenarioNamesMap = new ConcurrentHashMap<>();
 
     public void addTestSourceReadEvent(String path, TestSourceRead event) {
         pathToReadEventMap.put(path, event);
@@ -60,6 +67,14 @@ public class TestSourcesModel {
     public String getReplacedStepText(String feature, int stepLine) {
         Map<Integer, String> m = replacedStepTextsMap.get(feature);
         return m != null ? m.get(stepLine) : null;
+    }
+
+    public void addReplacedScenarioName(String pickleId, String replacedName) {
+        replacedScenarioNamesMap.put(pickleId, replacedName);
+    }
+
+    public String getReplacedScenarioName(String pickleId) {
+        return replacedScenarioNamesMap.get(pickleId);
     }
 
     private void parseSource(String path) {

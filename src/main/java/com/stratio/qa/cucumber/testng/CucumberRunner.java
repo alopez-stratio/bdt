@@ -210,11 +210,46 @@ public class CucumberRunner {
                 }
             } catch (Throwable t) {
                 lastError = t;
+            } finally {
+                sendReplacedScenarioNameEnvelope(p);
             }
         }
         if (lastError != null) {
             throw lastError;
         }
+    }
+
+    /**
+     * Re-emits the Pickle message carrying the scenario name that ReplacementAspect
+     * resolved while the scenario ran.
+     * <p>
+     * The aspect wraps the runtime pickle, which fixes logs and TestCase.getName(),
+     * but message-based formatters (json, html) take the name from the Pickle message
+     * emitted when the feature was parsed — so without this the report keeps showing
+     * the raw ${}/!{}/@{} placeholders. io.cucumber.query.Repository keys pickles by
+     * id, so re-sending the same id overwrites the entry, and the report is only
+     * rendered once TestRunFinished arrives.
+     *
+     * @param pickle pickle that has just been run
+     */
+    private void sendReplacedScenarioNameEnvelope(Pickle pickle) {
+        String replacedName = TestSourcesModelUtil.INSTANCE.getTestSourcesModel()
+                .getReplacedScenarioName(pickle.getId());
+        if (replacedName == null) {
+            return;
+        }
+        io.cucumber.messages.types.Pickle msgPickle = originalPickleMessages.get(pickle.getId());
+        if (msgPickle == null || replacedName.equals(msgPickle.getName())) {
+            return;
+        }
+        bus.send(Envelope.of(new io.cucumber.messages.types.Pickle(
+                msgPickle.getId(),
+                msgPickle.getUri(),
+                replacedName,
+                msgPickle.getLanguage(),
+                msgPickle.getSteps(),
+                msgPickle.getTags(),
+                msgPickle.getAstNodeIds())));
     }
 
     private void sendPickleEnvelope(Pickle pickle) {
@@ -265,6 +300,9 @@ public class CucumberRunner {
                 msgSteps,
                 msgTags,
                 pickleAstNodeIds);
+        // Cache it under its own id so sendReplacedScenarioNameEnvelope can rebuild
+        // from it: @loop-expanded pickles get a fresh id that is not in the parse events.
+        originalPickleMessages.put(msgPickle.getId(), msgPickle);
         bus.send(Envelope.of(msgPickle));
     }
 
