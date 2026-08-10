@@ -118,7 +118,16 @@ hose {
         doPackage(config)
     
         parallel(QC: {
-            doStaticAnalysis(config)
+            // Without these, the scanner treats src/test as production source: its ~8.4k lines count
+            // as ncloc with no coverage data attached, which drags the project coverage down and adds
+            // test-only code smells to the quality gate.
+            doStaticAnalysis(
+                conf: config,
+                sonarAdditionalProperties: [
+                    "sonar.sources": "src/main/java",
+                    "sonar.tests": "src/test/java"
+                ]
+            )
         }, DEPLOY: {
             doDeploy(config)
         }, failFast: config.FAILFAST)
