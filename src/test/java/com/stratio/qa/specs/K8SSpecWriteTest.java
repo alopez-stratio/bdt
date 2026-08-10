@@ -124,6 +124,65 @@ public class K8SSpecWriteTest extends K8sMockServerTestBase {
     }
 
     @Test
+    public void runPodStepCreatesThePodWithTheGivenArguments() {
+        DataTable arguments = DataTable.create(Arrays.asList(
+                Collections.singletonList("-c"),
+                Collections.singletonList("echo hello")));
+
+        spec.runPod("spec-run-pod", NAMESPACE, "busybox:1.36", null, "Never", "default", null, "sh", arguments);
+
+        assertThat(client.getPod("spec-run-pod", NAMESPACE)).isNotNull();
+    }
+
+    @Test
+    public void runPodStepParsesTheEnvironmentVariableList() {
+        DataTable arguments = DataTable.create(Collections.singletonList(Collections.singletonList("env")));
+
+        spec.runPod("spec-run-pod-env", NAMESPACE, "busybox:1.36", "Always", "Never", "default",
+                "LOG_LEVEL=DEBUG,MODE=test", "sh", arguments);
+
+        assertThat(client.getPod("spec-run-pod-env", NAMESPACE)).isNotNull();
+    }
+
+    @Test
+    public void createClusterRoleBindingStepCreatesTheBinding() {
+        spec.createClusterRole("spec-crb-role", "pods", "get", null);
+
+        spec.createClusterRoleBinding("spec-crb", "spec-crb-role", NAMESPACE + ":spec-sa");
+
+        assertThat(client.getClusterRoleBinding("spec-crb").getRoleRef().getName()).isEqualTo("spec-crb-role");
+    }
+
+    @Test
+    public void copyStepsSurfaceTheFailureWhenTheTransferCannotBeSetUp() {
+        mockClient.pods().inNamespace(NAMESPACE)
+                .resource(K8sFixtures.pod("copy-pod", NAMESPACE, Collections.emptyMap())).create();
+
+        assertThatThrownBy(() -> spec.copyToRemoteFile("src/test/resources/k8s/configmap-value.txt",
+                "/tmp/remote.txt", "copy-pod", NAMESPACE, null))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> spec.copyFromRemoteFile("/tmp/remote.txt", "target/local.txt", "copy-pod", NAMESPACE))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    public void setLocalPortForwardIgnoresAnUnknownResourceType() {
+        // the switch has no branch for anything other than pod/service, so nothing is forwarded
+        spec.setLocalPortForward(8080, 8080, "unknown", "whatever", NAMESPACE, null);
+    }
+
+    @Test
+    public void portForwardBasedVaultStepsFailWhenTheServiceIsNotThere() {
+        // every Vault step starts by forwarding the vault service in keos-core, outside its try block
+        assertThatThrownBy(() -> spec.hasSecretVault("/secret/foo")).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> spec.deleteSecretVault("/secret/foo")).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> spec.readSecretVault("/secret/foo", "VAULT_OUT")).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> spec.createSecretVault("/secret/foo",
+                DataTable.create(Collections.singletonList(Arrays.asList("user", "admin")))))
+                .isInstanceOf(Exception.class);
+    }
+
+    @Test
     public void updatePullPolicyAppChangesThePolicyOfTheContainer() {
         spec.createDeployment("policy-app", NAMESPACE, "stratio/app:1", null);
 

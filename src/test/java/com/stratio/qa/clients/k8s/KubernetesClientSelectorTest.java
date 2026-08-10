@@ -90,6 +90,18 @@ public class KubernetesClientSelectorTest extends K8sMockServerTestBase {
         mockClient.secrets().inNamespace(NAMESPACE).resource(ownedBy(K8sFixtures.secret("secret-owned", NAMESPACE))).create();
         mockClient.secrets().inNamespace(NAMESPACE).resource(K8sFixtures.secret("secret-free", NAMESPACE)).create();
 
+        // one owned resource of every remaining kind, so each ownerReference filter has something to match
+        mockClient.apps().deployments().inNamespace(NAMESPACE)
+                .resource(ownedBy(K8sFixtures.deployment("deploy-owned", NAMESPACE, "img:1", "K", "V"))).create();
+        mockClient.apps().replicaSets().inNamespace(NAMESPACE)
+                .resource(ownedBy(K8sFixtures.replicaSet("rs-owned", NAMESPACE, Collections.emptyMap()))).create();
+        mockClient.apps().statefulSets().inNamespace(NAMESPACE)
+                .resource(ownedBy(K8sFixtures.statefulSet("sts-owned", NAMESPACE, Collections.emptyMap()))).create();
+        mockClient.configMaps().inNamespace(NAMESPACE)
+                .resource(ownedBy(K8sFixtures.configMap("cm-owned", NAMESPACE, Collections.singletonMap("k", "v")))).create();
+        mockClient.persistentVolumeClaims().inNamespace(NAMESPACE)
+                .resource(ownedBy(K8sFixtures.pvc("pvc-owned", NAMESPACE, "1Gi"))).create();
+
         mockClient.network().v1().ingresses().inNamespace(NAMESPACE)
                 .resource(K8sFixtures.ingress("ing-match", NAMESPACE, MATCHING)).create();
         mockClient.network().v1().ingresses().inNamespace(NAMESPACE)
@@ -161,30 +173,35 @@ public class KubernetesClientSelectorTest extends K8sMockServerTestBase {
     }
 
     @Test
-    public void ownerReferenceFilterOnlyReturnsOwnedResources() {
+    public void ownerReferenceFilterOnlyReturnsOwnedResourcesOfEveryKind() {
         assertThat(client.getPodsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("pod-owned");
-        assertThat(client.getPodsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
         assertThat(client.getSecretsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("secret-owned");
+        assertThat(client.getDeploymentsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("deploy-owned");
+        assertThat(client.getReplicaSetsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("rs-owned");
+        assertThat(client.getStateFulSetsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("sts-owned");
+        assertThat(client.getConfigMapsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("cm-owned");
+        assertThat(client.getPersistentVolumeClaimsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEqualTo("pvc-owned");
+    }
+
+    @Test
+    public void ownerReferenceFilterReturnsEmptyForAnUnknownOwner() {
+        assertThat(client.getPodsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
         assertThat(client.getSecretsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
+        assertThat(client.getDeploymentsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
+        assertThat(client.getReplicaSetsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
+        assertThat(client.getStateFulSetsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
+        assertThat(client.getConfigMapsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
+        assertThat(client.getPersistentVolumeClaimsFilteredByOwnerReferenceName("nobody", NAMESPACE)).isEmpty();
     }
 
     @Test
     public void ownerReferenceFilterWithNullNamespaceSearchesEveryNamespace() {
         assertThat(client.getPodsFilteredByOwnerReferenceName(OWNER, null)).contains("pod-owned");
         assertThat(client.getSecretsFilteredByOwnerReferenceName(OWNER, null)).contains("secret-owned");
-        assertThat(client.getDeploymentsFilteredByOwnerReferenceName(OWNER, null)).isEmpty();
-        assertThat(client.getReplicaSetsFilteredByOwnerReferenceName(OWNER, null)).isEmpty();
-        assertThat(client.getStateFulSetsFilteredByOwnerReferenceName(OWNER, null)).isEmpty();
-        assertThat(client.getConfigMapsFilteredByOwnerReferenceName(OWNER, null)).isEmpty();
-        assertThat(client.getPersistentVolumeClaimsFilteredByOwnerReferenceName(OWNER, null)).isEmpty();
-    }
-
-    @Test
-    public void ownerReferenceFilterReturnsEmptyWhenNothingIsOwned() {
-        assertThat(client.getDeploymentsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEmpty();
-        assertThat(client.getReplicaSetsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEmpty();
-        assertThat(client.getStateFulSetsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEmpty();
-        assertThat(client.getConfigMapsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEmpty();
-        assertThat(client.getPersistentVolumeClaimsFilteredByOwnerReferenceName(OWNER, NAMESPACE)).isEmpty();
+        assertThat(client.getDeploymentsFilteredByOwnerReferenceName(OWNER, null)).contains("deploy-owned");
+        assertThat(client.getReplicaSetsFilteredByOwnerReferenceName(OWNER, null)).contains("rs-owned");
+        assertThat(client.getStateFulSetsFilteredByOwnerReferenceName(OWNER, null)).contains("sts-owned");
+        assertThat(client.getConfigMapsFilteredByOwnerReferenceName(OWNER, null)).contains("cm-owned");
+        assertThat(client.getPersistentVolumeClaimsFilteredByOwnerReferenceName(OWNER, null)).contains("pvc-owned");
     }
 }

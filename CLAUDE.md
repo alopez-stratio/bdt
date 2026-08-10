@@ -207,8 +207,23 @@ mvn clean test -DskipITs -Dtest='KubernetesClient*Test,K8SSpec*Test'
 mvn clean verify -DskipUTs -Dmaven.javadoc.skip -Dit.test=com.stratio.qa.ATests.K8SMockClusterIT
 ```
 
-Not reachable from the mock: `getK8sConfigFromWorkspace` and its helpers (they download the Keos workspace over
-SSH/CCT), port forwarding, and `copyFileToPod`/`copyFileFromPod`.
+Port forwarding *does* work against the mock: fabric8 binds the local socket eagerly and only opens the tunnel
+when something connects, so seeding the service plus a matching pod is enough to set a forward up and tear it
+down. That is what makes the Vault steps testable — they forward `vault:8200` before their try block. The port
+is hardcoded in production code, so `K8SSpecVaultTest` skips itself when 8200 is already taken.
+
+Coverage sits at ~76% for `KubernetesClient` and ~90% for `K8SSpec`. What is left is not reachable from a mock:
+
+- **Keos workspace bootstrap** (~263 lines, 90% of what remains in `KubernetesClient`) — `getK8sConfigFromWorkspace`
+  and its private helpers download the workspace over SSH/CCT and parse `keos.yaml`.
+- **File transfer** — `copyFileToPod`/`copyFileFromPod` ride the exec subresource upload, which the mock does not
+  implement. Only the failure paths are covered.
+- **`execCommand` exit codes** — the mock cannot emit the channel-3 exit status that drives `onExit`.
+- **`readSecretVault`'s body** — it delegates to `hasSecretVault`, which needs a real HTTPS Vault answering 200
+  behind the forward. The `vault` container in `ITSERVICES` does not help: the step never reads `VAULT_URL`, it
+  hardcodes `https://127.0.0.1:8200` behind a Kubernetes port forward.
+
+Do not chase these with a mock. If they ever need coverage, it has to be a real cluster.
 
 ## Key files
 

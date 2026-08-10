@@ -469,6 +469,53 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
                 .isInstanceOf(AssertionError.class);
     }
 
+    /**
+     * When the polling interval is longer than the timeout the loop exits without ever reaching the
+     * "rethrow" guard, so every one of these steps has to report the timeout at the end instead of
+     * silently passing. One test per step because each keeps its own copy of the loop.
+     */
+    @Test
+    public void assertPodStatusReportsTheTimeoutWhenThePollingWindowIsExhausted() {
+        assertThatThrownBy(() -> spec.assertPodStatus(1, 2, "pod-a", NAMESPACE, "failed", null))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected state/status not found after");
+    }
+
+    @Test
+    public void assertPodStatusWithLabelFilterReportsTheTimeoutWhenThePollingWindowIsExhausted() {
+        assertThatThrownBy(() -> spec.assertPodStatusWithLabelFilter(1, 2, 7, "app=bdt", NAMESPACE, "running", null))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("not found or pods number is not the expected one after");
+    }
+
+    @Test
+    public void assertDeploymentStatusReportsTheTimeoutWhenThePollingWindowIsExhausted() {
+        assertThatThrownBy(() -> spec.assertDeploymentStatus(1, 2, "deploy-a", NAMESPACE, 9))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected replicas ready not found after");
+    }
+
+    @Test
+    public void assertStatefulsetStatusReportsTheTimeoutWhenThePollingWindowIsExhausted() {
+        assertThatThrownBy(() -> spec.assertStatefulsetStatus(1, 2, "sts-a", NAMESPACE, 9))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected replicas ready not found after");
+    }
+
+    @Test
+    public void assertCustomResourceReplicasReportsTheTimeoutWhenThePollingWindowIsExhausted() {
+        assertThatThrownBy(() -> spec.assertCustomResourceStatus(1, 2, CRD_NAME, "pg-one", NAMESPACE, 9))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected replicas ready not found after");
+    }
+
+    @Test
+    public void assertCustomResourceGlobalStatusReportsTheTimeoutWhenThePollingWindowIsExhausted() {
+        assertThatThrownBy(() -> spec.assertCustomResourceStatus(1, 2, CRD_NAME, "pg-one", NAMESPACE, "GONE", null))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected global status GONE not found after");
+    }
+
     @Test
     public void logIntoScenarioDoesNotFailWithoutAScenario() {
         spec.logIntoScenario("a message with no scenario attached");

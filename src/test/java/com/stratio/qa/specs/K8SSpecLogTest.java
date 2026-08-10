@@ -112,6 +112,33 @@ public class K8SSpecLogTest extends K8sMockServerTestBase {
                 .isInstanceOf(AssertionError.class);
     }
 
+    /**
+     * When the API rejects the log request the step must keep retrying and rethrow the API error once
+     * the timeout is reached, rather than reporting a missing log line.
+     */
+    @Test
+    public void readLogsInLessEachFromPodRethrowsWhenTheApiRejectsTheLogRequest() {
+        server.expect().get()
+                .withPath("/api/v1/namespaces/" + NAMESPACE + "/pods/rejected/log?pretty=false")
+                .andReturn(404, "")
+                .always();
+
+        assertThatThrownBy(() -> spec.readLogsInLessEachFromPod(1, 1, "rejected", NAMESPACE, "anything"))
+                .isInstanceOf(io.fabric8.kubernetes.client.KubernetesClientException.class);
+    }
+
+    /**
+     * With a polling interval longer than the timeout the loop exits without ever reaching the rethrow
+     * guard, so the step ends on the trailing assertion over the log contents.
+     */
+    @Test
+    public void readLogsInLessEachFromPodFailsTheAssertionWhenThePollingWindowIsExhausted() {
+        expectLog("never-matches", "nothing of interest here");
+
+        assertThatThrownBy(() -> spec.readLogsInLessEachFromPod(1, 2, "never-matches", NAMESPACE, "anything"))
+                .isInstanceOf(AssertionError.class);
+    }
+
     @Test
     public void getLogDeploymentPrefixesTheVariableAndFileWithThePodName() throws Exception {
         expectLog("deploy-logger-pod", "deployment log line");

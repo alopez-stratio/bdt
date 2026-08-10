@@ -38,6 +38,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 public class KubernetesClientCustomResourceTest extends K8sMockServerTestBase {
 
+    /** Mixed mode: everything is served by the CRUD store except the responses scripted per test. */
+    @Override
+    protected boolean crudMode() {
+        return false;
+    }
+
+
     private static final String GROUP = "postgres.stratio.com";
 
     private static final String PLURAL = "pgclusters";
@@ -70,9 +77,15 @@ public class KubernetesClientCustomResourceTest extends K8sMockServerTestBase {
     }
 
     private void createItem(String name, int replicas, String readyInstances, String status, String description) {
+        Map<String, Object> server0 = new LinkedHashMap<>();
+        server0.put("port", 1);
+        Map<String, Object> server1 = new LinkedHashMap<>();
+        server1.put("port", 2);
+
         Map<String, Object> spec = new LinkedHashMap<>();
         spec.put("replicas", replicas);
         spec.put("nodes", new ArrayList<>(Arrays.asList("node-a", "node-b")));
+        spec.put("servers", new ArrayList<>(Arrays.asList(server0, server1)));
 
         Map<String, Object> globalStatus = new LinkedHashMap<>();
         globalStatus.put("status", status);
@@ -233,6 +246,98 @@ public class KubernetesClientCustomResourceTest extends K8sMockServerTestBase {
         assertThat(spec).containsEntry("replicas", 4);
         assertThat(spec).containsEntry("newField", "added");
         assertThat((List<Object>) spec.get("nodes")).containsExactly("node-b");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void patchCRDWalksThroughAListWhenThePathCrossesAnArrayIndex() throws Exception {
+        createItem("pg-deep", 1, "1/1", "READY", "ok");
+
+        assertThat(client.patchCRD(CRD_NAME, "pg-deep", NAMESPACE, "/spec/servers/1/port", "8080", "integer", null))
+                .isZero();
+
+        List<Object> servers = (List<Object>) specOf("pg-deep").get("servers");
+        assertThat((Map<String, Object>) servers.get(1)).containsEntry("port", 8080);
+        assertThat((Map<String, Object>) servers.get(0)).containsEntry("port", 1);
+    }
+
+    @Test
+    public void patchCRDRejectsANonNumericIndexWhenThePathCrossesAnArray() {
+        assertThatThrownBy(() -> client.patchCRD(CRD_NAME, "pg-one", NAMESPACE, "/spec/servers/first/port", "1", "integer", null))
+                .isInstanceOf(NumberFormatException.class);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void patchCRDInsertsEveryValueTypeIntoAList() throws Exception {
+        createItem("pg-list-types", 1, "1/1", "READY", "ok");
+
+        assertThat(client.patchCRD(CRD_NAME, "pg-list-types", NAMESPACE, "/spec/nodes/0", "42", "integer", null)).isZero();
+        assertThat(client.patchCRD(CRD_NAME, "pg-list-types", NAMESPACE, "/spec/nodes/0", "true", "boolean", null)).isZero();
+        assertThat(client.patchCRD(CRD_NAME, "pg-list-types", NAMESPACE, "/spec/nodes/0", "{\"a\":\"b\"}", "json", null)).isZero();
+        assertThat(client.patchCRD(CRD_NAME, "pg-list-types", NAMESPACE, "/spec/nodes/0", "appended", null, null)).isZero();
+
+        List<Object> nodes = (List<Object>) specOf("pg-list-types").get("nodes");
+        assertThat(nodes.get(0)).isInstanceOf(Map.class);
+        assertThat(nodes).contains(Boolean.TRUE, 42, "node-a", "node-b");
+        // an untyped value is appended instead of inserted at the index
+        assertThat(nodes.get(nodes.size() - 1)).isEqualTo("appended");
+    }
+
+    @Test
+    public void patchCRDMultipleFieldsUpdatesMetadataAsWell() throws Exception {
+        createItem("pg-multi-meta", 1, "1/1", "READY", "ok");
+
+        DataTable modifications = DataTable.create(Arrays.asList(
+                Arrays.asList("/metadata/labels/team", "UPDATE", "qa", "string"),
+                Arrays.asList("/metadata/annotations/owner", "UPDATE", "bdt", "string"),
+                Arrays.asList("/spec/replicas", "UPDATE", "3", "integer")));
+
+        assertThat(client.patchCRDMultipleFields(CRD_NAME, "pg-multi-meta", NAMESPACE, modifications, null)).isZero();
+        assertThat(specOf("pg-multi-meta")).containsEntry("replicas", 3);
+    }
+
+    @Test
+    public void patchCRDMultipleFieldsRejectsAFinalElementThatIsNotAMapOrAList() {
+        DataTable modifications = DataTable.create(Collections.singletonList(
+                Arrays.asList("/status/readyInstances/whatever", "UPDATE", "1", "string")));
+
+        assertThatThrownBy(() -> client.patchCRDMultipleFields(CRD_NAME, "pg-one", NAMESPACE, modifications, null))
+                .isInstanceOf(Exception.class)
+                .hasMessageContaining("Final element is not a map");
+    }
+
+    /**
+     * When the API server rejects the update, patchCRD must report 1 instead of propagating the
+     * exception, and expose the error message through the environment variable when one is given.
+     */
+    @Test
+    public void patchCRDReportsAFailedUpdateThroughTheEnvironmentVariable() throws Exception {
+        createItem("pg-conflict", 1, "1/1", "READY", "ok");
+        server.expect().put()
+                .withPath("/apis/" + GROUP + "/" + VERSION + "/namespaces/" + NAMESPACE + "/" + PLURAL + "/pg-conflict")
+                .andReturn(422, "{\"kind\":\"Status\",\"message\":\"the object is invalid\"}")
+                .always();
+
+        assertThat(client.patchCRD(CRD_NAME, "pg-conflict", NAMESPACE, "/spec/replicas", "9", "integer", "CRD_PATCH_ERROR"))
+                .isEqualTo(1);
+        assertThat(com.stratio.qa.utils.ThreadProperty.get("CRD_PATCH_ERROR")).isNotNull();
+    }
+
+    @Test
+    public void patchCRDMultipleFieldsReportsAFailedUpdateThroughTheEnvironmentVariable() throws Exception {
+        createItem("pg-conflict-multi", 1, "1/1", "READY", "ok");
+        server.expect().put()
+                .withPath("/apis/" + GROUP + "/" + VERSION + "/namespaces/" + NAMESPACE + "/" + PLURAL + "/pg-conflict-multi")
+                .andReturn(422, "{\"kind\":\"Status\",\"message\":\"the object is invalid\"}")
+                .always();
+
+        DataTable modifications = DataTable.create(Collections.singletonList(
+                Arrays.asList("/spec/replicas", "UPDATE", "9", "integer")));
+
+        assertThat(client.patchCRDMultipleFields(CRD_NAME, "pg-conflict-multi", NAMESPACE, modifications, "CRD_MULTI_ERROR"))
+                .isEqualTo(1);
+        assertThat(com.stratio.qa.utils.ThreadProperty.get("CRD_MULTI_ERROR")).isNotNull();
     }
 
     @Test

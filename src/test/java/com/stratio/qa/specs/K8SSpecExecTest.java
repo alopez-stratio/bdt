@@ -173,6 +173,29 @@ public class K8SSpecExecTest extends K8sMockServerTestBase {
                 .hasMessageContaining("Error executing command on keos-operator pod");
     }
 
+    /**
+     * Neither transport can work here: the mock does not implement the upload exec subresource, and the
+     * kubectl fallback has no cluster to talk to. What the test pins down is the retry contract — the
+     * step must exhaust its attempts, fall back to kubectl, and only then report the failure.
+     */
+    @Test
+    public void copyToRemoteFileWithRetryExhaustsItsAttemptsAndThenFallsBackToKubectl() {
+        String previous = System.getProperty("KUBECTL_COPY_RETRY_COUNT");
+        System.setProperty("KUBECTL_COPY_RETRY_COUNT", "1");
+        try {
+            assertThatThrownBy(() -> spec.copyToRemoteFileWithRetry("src/test/resources/k8s/configmap-value.txt",
+                    "/tmp/remote.txt", POD, NAMESPACE, "main"))
+                    .isInstanceOf(AssertionError.class)
+                    .hasMessageContaining("The file was not uploaded correctly after 1 attempts");
+        } finally {
+            if (previous == null) {
+                System.clearProperty("KUBECTL_COPY_RETRY_COUNT");
+            } else {
+                System.setProperty("KUBECTL_COPY_RETRY_COUNT", previous);
+            }
+        }
+    }
+
     @Test
     public void createSecretKeosOperatorFailsWhenTheCommandOutputHasNoSuccessMarker() {
         expectExec(KEOS_NAMESPACE, KEOS_POD, "keos-operator", "sh", "-c", "keos vault write /secret/foo user='admin'");
