@@ -278,7 +278,27 @@ chmod 600 ~/.config/sonar/token
 
 If the user doesn't have a token yet: SonarQube → top-right avatar → My Account → Security → Generate Token → type **User Token**.
 
-**JaCoCo / coverage:** coverage reports land at `target/site/jacoco/jacoco.xml` (UTs) and `target/site/jacoco-it/jacoco.xml` (ITs). Sonar picks them up automatically during `doStaticAnalysis` in the Jenkins pipeline. Coverage was 0% until PR #1167 fixed the missing JaCoCo plugin executions.
+**JaCoCo / coverage.** Execution data is split across two files, and this trips people up:
+
+| File | Written by | Via |
+|---|---|---|
+| `target/jacocoUT.exec` | surefire (unit tests) | parent pom's `${jacoco-UT-argline}` |
+| `target/jacoco.exec` | failsafe (integration tests) | this pom's `${jacoco-IT-argline}` |
+
+Nothing merged them, so `target/jacoco.exec` — the file the analysis reads — held **integration test coverage only**
+and every unit test was invisible to Sonar. That is why `K8SSpec` showed 25.6% in Sonar while the unit tests alone
+cover 90%. Fixed by the `jacoco-merge-ut-and-it` execution, which merges both into `target/jacoco.exec` at
+`post-integration-test`.
+
+The `jacoco-report` / `jacoco-report-it` executions inherit `dataFile=${jacoco.dataFile}` from the parent pom and
+that property is defined nowhere, so they always skip with `missing execution data file`. `jacoco-report-merged`
+reads the merged file explicitly, so `target/site/jacoco/jacoco.xml` now exists and holds UT + IT coverage.
+
+To read coverage locally you need both runs in the same workspace — `clean` only on the first:
+
+```bash
+mvn clean test -DskipITs && mvn verify -DskipUTs -Dmaven.javadoc.skip -Dit.test=com.stratio.qa.ATests.K8SMockClusterIT
+```
 
 ## qa-unified-tests skills
 

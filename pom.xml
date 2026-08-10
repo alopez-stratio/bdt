@@ -149,6 +149,37 @@
                         <phase>post-integration-test</phase>
                         <goals><goal>report-integration</goal></goals>
                     </execution>
+                    <!--
+                      Unit and integration tests write to different execution data files: surefire uses
+                      ${jacoco-UT-argline} (target/jacocoUT.exec) and failsafe ${jacoco-IT-argline}
+                      (target/jacoco.exec). Nothing merged them, so target/jacoco.exec - the file the
+                      analysis ends up reading - only ever held integration test coverage and every unit
+                      test was invisible to Sonar.
+
+                      The merge goal is already configured in the parent pom (destFile
+                      target/jacoco.exec, fileSets **/target/*.exec); it just had no execution binding
+                      it to a phase.
+                    -->
+                    <execution>
+                        <id>jacoco-merge-ut-and-it</id>
+                        <phase>post-integration-test</phase>
+                        <goals><goal>merge</goal></goals>
+                    </execution>
+                    <!--
+                      The report executions above inherit dataFile=${jacoco.dataFile} from the parent pom
+                      and that property is defined nowhere, so both have always skipped with "missing
+                      execution data file" and no XML report was ever produced. This one reads the merged
+                      file explicitly, so target/site/jacoco/jacoco.xml exists and holds UT + IT coverage.
+                    -->
+                    <execution>
+                        <id>jacoco-report-merged</id>
+                        <phase>post-integration-test</phase>
+                        <goals><goal>report</goal></goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco.exec</dataFile>
+                            <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
