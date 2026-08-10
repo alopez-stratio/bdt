@@ -178,6 +178,38 @@ mvn clean verify -DskipUTs -Dmaven.javadoc.skip \
 - **Kafka timeout errors after machine reboot**: `KafkaSecStepsIT` may fail with `TimeoutException: Topic not present in metadata` if Kafka+ZK were just restarted. The broker needs ~300s to elect leaders after a cold start. Fix: recreate ZK and Kafka containers (ZK first, wait 30s, then Kafka with the correct ZK IP), then wait 5min before running the ITs. `docker start` after reboot is NOT enough — Kafka stores the old ZK IP in its config; `docker rm -f bdt-kafka bdt-zookeeper` and recreate from scratch.
 - **MongoDB lock file after machine reboot**: `MongoStepsIT`/`MongoToolsIT` fail with `MongoTimeoutException` if `bdt-mongodb` was not cleanly stopped before reboot — Mongo leaves a `mongod.lock` file that prevents restart. Fix: `docker rm -f bdt-mongodb` and recreate with the original `docker run` command. `docker start` will fail silently.
 
+## Kubernetes tests (no cluster required)
+
+`KubernetesClient` and `K8SSpec` are covered against an **in-JVM fabric8 mock API server**
+(`io.fabric8:kubernetes-server-mock`, test scope). No cluster, no Docker, no network — which matters because CI
+itself runs on Kubernetes and cannot start a nested one.
+
+- **Base class**: `src/test/java/com/stratio/qa/clients/k8s/K8sMockServerTestBase.java`. It starts the mock server,
+  writes a throwaway kubeconfig pointing at it, and calls the real `KubernetesClient.connect(path)`. The production
+  singleton exposes no setter, so the kubeconfig **is** the injection point.
+- **Fixtures**: `K8sFixtures` builds the seeded Kubernetes objects shared by all the test classes.
+- **Two dispatcher modes**, chosen with `crudMode()`:
+  - `true` (default) — CRUD only: an in-memory store where create/get/list/update/delete behave like a real API server.
+  - `false` — mixed: `server.expect()` scripts win, everything else falls back to the same CRUD store. Needed for the
+    subresources CRUD does not implement (`/log`, scale, rolling restart, `exec` websocket) and for error responses.
+- **Gherkin layer**: `K8SMockClusterIT` + `src/test/resources/features/k8sMockCluster.feature` boot the same mock and
+  publish its kubeconfig as `-DK8S_MOCK_KUBECONFIG`, so the feature connects with
+  `I connect to Kubernetes cluster using config file located at '${K8S_MOCK_KUBECONFIG}'`. Do **not** tag it `@keos`,
+  which would trigger the real workspace download in `HookGSpec.keosSetup`.
+
+Run them with no infrastructure at all:
+
+```bash
+mvn clean test -DskipITs -Dtest='KubernetesClient*Test,K8SSpec*Test'
+```
+
+```bash
+mvn clean verify -DskipUTs -Dmaven.javadoc.skip -Dit.test=com.stratio.qa.ATests.K8SMockClusterIT
+```
+
+Not reachable from the mock: `getK8sConfigFromWorkspace` and its helpers (they download the Keos workspace over
+SSH/CCT), port forwarding, and `copyFileToPod`/`copyFileFromPod`.
+
 ## Key files
 
 | File | Size | Notes |

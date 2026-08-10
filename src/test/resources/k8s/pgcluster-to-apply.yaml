@@ -1,0 +1,6 @@
+apiVersion: postgres.stratio.com/v1
+kind: PgCluster
+metadata:
+  name: pg-from-file
+spec:
+  replicas: 1

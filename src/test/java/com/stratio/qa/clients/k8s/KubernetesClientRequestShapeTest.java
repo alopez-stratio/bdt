@@ -1,0 +1,144 @@
+/*
+ * Copyright (C) 2014 Stratio (http://stratio.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.stratio.qa.clients.k8s;
+
+import org.testng.annotations.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Covers the {@link KubernetesClient} calls that the CRUD dispatcher cannot emulate — pod logs, scale
+ * and rolling restart subresources, and the cluster-scoped ClusterRoleBinding create — by scripting the
+ * expected API responses instead of backing the server with an in-memory store.
+ */
+public class KubernetesClientRequestShapeTest extends K8sMockServerTestBase {
+
+    @Override
+    protected boolean crudMode() {
+        return false;
+    }
+
+    @Test
+    public void getPodLogReadsTheLogSubresource() {
+        server.expect().get()
+                .withPath("/api/v1/namespaces/" + NAMESPACE + "/pods/log-pod/log?pretty=false")
+                .andReturn(200, "first line\nsecond line")
+                .once();
+
+        assertThat(client.getPodLog("log-pod", NAMESPACE)).isEqualTo("first line\nsecond line");
+    }
+
+    @Test
+    public void getPodLogWithTailLinesAsksForTheRequestedNumberOfLines() {
+        server.expect().get()
+                .withPath("/api/v1/namespaces/" + NAMESPACE + "/pods/log-pod/log?pretty=false&tailLines=10")
+                .andReturn(200, "tail line")
+                .once();
+
+        assertThat(client.getPodLog("log-pod", NAMESPACE, 10)).isEqualTo("tail line");
+    }
+
+    @Test
+    public void scaleDeploymentPutsTheScaleSubresource() throws Exception {
+        String path = "/apis/apps/v1/namespaces/" + NAMESPACE + "/deployments/scalable";
+        server.expect().get().withPath(path)
+                .andReturn(200, K8sFixtures.deployment("scalable", NAMESPACE, "img:1", "K", "V"))
+                .always();
+        server.expect().patch().withPath(path)
+                .andReturn(200, K8sFixtures.deployment("scalable", NAMESPACE, "img:1", "K", "V"))
+                .always();
+        server.expect().put().withPath(path)
+                .andReturn(200, K8sFixtures.deployment("scalable", NAMESPACE, "img:1", "K", "V"))
+                .always();
+
+        client.scaleDeployment("scalable", NAMESPACE, 3);
+
+        assertThat(server.getLastRequest()).isNotNull();
+    }
+
+    @Test
+    public void restartDeploymentPatchesTheDeployment() throws Exception {
+        String path = "/apis/apps/v1/namespaces/" + NAMESPACE + "/deployments/restartable";
+        server.expect().get().withPath(path)
+                .andReturn(200, K8sFixtures.deployment("restartable", NAMESPACE, "img:1", "K", "V"))
+                .always();
+        server.expect().patch().withPath(path)
+                .andReturn(200, K8sFixtures.deployment("restartable", NAMESPACE, "img:1", "K", "V"))
+                .always();
+
+        client.restartDeployment("restartable", NAMESPACE);
+
+        assertThat(server.getLastRequest().getPath()).startsWith(path);
+    }
+
+    @Test
+    public void restartStatefulsetPatchesTheStatefulset() throws Exception {
+        String path = "/apis/apps/v1/namespaces/" + NAMESPACE + "/statefulsets/restartable-sts";
+        server.expect().get().withPath(path)
+                .andReturn(200, K8sFixtures.statefulSet("restartable-sts", NAMESPACE, java.util.Collections.emptyMap()))
+                .always();
+        server.expect().patch().withPath(path)
+                .andReturn(200, K8sFixtures.statefulSet("restartable-sts", NAMESPACE, java.util.Collections.emptyMap()))
+                .always();
+
+        client.restartStatefulset("restartable-sts", NAMESPACE);
+
+        assertThat(server.getLastRequest().getPath()).startsWith(path);
+    }
+
+    /**
+     * A ClusterRoleBinding is cluster scoped, but {@code createClusterRoleBinding} copies the namespace
+     * out of the {@code <namespace>:<serviceaccount>} argument into {@code metadata.namespace}. A real
+     * API server ignores that field, so the request must still be sent to the cluster-scoped collection.
+     */
+    @Test
+    public void createClusterRoleBindingPostsToTheClusterScopedCollection() throws Exception {
+        String path = "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings";
+        server.expect().post().withPath(path)
+                .andReturn(201, K8sFixtures.clusterRoleBinding("crb-shape"))
+                .always();
+        server.expect().get().withPath(path + "/crb-shape")
+                .andReturn(404, "")
+                .always();
+
+        client.createClusterRoleBinding("crb-shape", "a-cluster-role", NAMESPACE + ":a-service-account");
+
+        assertThat(server.getLastRequest().getPath()).isEqualTo(path);
+        assertThat(server.getLastRequest().getBody().readUtf8())
+                .contains("\"kind\":\"ServiceAccount\"")
+                .contains("\"name\":\"a-service-account\"")
+                .contains("\"namespace\":\"" + NAMESPACE + "\"");
+    }
+
+    @Test
+    public void patchCRDFailsFastWhenTheCrdDefinitionDoesNotExist() {
+        server.expect().get()
+                .withPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions/missing.stratio.com")
+                .andReturn(404, "")
+                .always();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> client.patchCRD("missing.stratio.com", "item", NAMESPACE, "/spec/replicas", "2", "integer", null))
+                .isInstanceOf(Exception.class)
+                .hasMessageContaining("CRD definition missing.stratio.com not found");
+    }
+
+    @Test
+    public void closePortForwardIsANoOpWhenNothingWasForwarded() throws Exception {
+        client.closePortForward(null);
+        client.closePortForward("unknown-id");
+    }
+}
