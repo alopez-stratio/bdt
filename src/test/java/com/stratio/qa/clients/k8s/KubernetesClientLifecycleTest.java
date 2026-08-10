@@ -169,12 +169,17 @@ public class KubernetesClientLifecycleTest extends K8sMockServerTestBase {
         client.createRole("role-lifecycle", "pods,services", "get,list", "", NAMESPACE);
         client.createClusterRole("cr-lifecycle", "pods", "get", null);
         client.createRoleBinding("rb-lifecycle", "role-lifecycle", NAMESPACE + ":sa-lifecycle");
+        client.createClusterRoleBinding("crb-lifecycle", "cr-lifecycle", NAMESPACE + ":sa-lifecycle");
 
         assertThat(client.getServiceAccount("sa-lifecycle", NAMESPACE)).isNotNull();
         assertThat(client.getRole("role-lifecycle", NAMESPACE).getRules().get(0).getVerbs()).containsExactly("get", "list");
         assertThat(client.getClusterRole("cr-lifecycle").getRules().get(0).getApiGroups()).containsExactly("");
         assertThat(client.getRoleBinding("rb-lifecycle", NAMESPACE).getSubjects().get(0).getName()).isEqualTo("sa-lifecycle");
         assertThat(client.getRoleBinding("rb-lifecycle", NAMESPACE).getSubjects().get(0).getNamespace()).isEqualTo(NAMESPACE);
+        // a cluster-scoped binding must round-trip through the cluster-scoped collection
+        assertThat(client.getClusterRoleBinding("crb-lifecycle").getRoleRef().getName()).isEqualTo("cr-lifecycle");
+        assertThat(client.getClusterRoleBinding("crb-lifecycle").getMetadata().getNamespace()).isNull();
+        assertThat(client.getClusterRoleBinding("crb-lifecycle").getSubjects().get(0).getNamespace()).isEqualTo(NAMESPACE);
 
         client.deleteRoleBinding("rb-lifecycle", NAMESPACE);
         client.deleteRole("role-lifecycle", NAMESPACE);

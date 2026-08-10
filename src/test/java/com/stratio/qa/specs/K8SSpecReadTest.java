@@ -84,14 +84,16 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
         mockClient.apps().replicaSets().inNamespace(NAMESPACE).resource(K8sFixtures.replicaSet("rs-a", NAMESPACE, labels)).create();
         mockClient.apps().statefulSets().inNamespace(NAMESPACE).resource(K8sFixtures.statefulSet("sts-a", NAMESPACE, labels)).create();
         mockClient.configMaps().inNamespace(NAMESPACE)
-                .resource(K8sFixtures.configMap("cm-a", NAMESPACE, Collections.singletonMap("key", "value"))).create();
+                .resource(labelled(K8sFixtures.configMap("cm-a", NAMESPACE, Collections.singletonMap("key", "value")), labels)).create();
         mockClient.secrets().inNamespace(NAMESPACE).resource(K8sFixtures.secret("secret-a", NAMESPACE)).create();
-        io.fabric8.kubernetes.api.model.ServiceAccount serviceAccount = K8sFixtures.serviceAccount("sa-a", NAMESPACE);
-        serviceAccount.getMetadata().setLabels(new HashMap<>(labels));
-        mockClient.serviceAccounts().inNamespace(NAMESPACE).resource(serviceAccount).create();
-        mockClient.persistentVolumeClaims().inNamespace(NAMESPACE).resource(K8sFixtures.pvc("pvc-a", NAMESPACE, "1Gi")).create();
-        mockClient.rbac().roles().inNamespace(NAMESPACE).resource(K8sFixtures.role("role-a", NAMESPACE)).create();
-        mockClient.rbac().roleBindings().inNamespace(NAMESPACE).resource(K8sFixtures.roleBinding("rb-a", NAMESPACE)).create();
+        mockClient.serviceAccounts().inNamespace(NAMESPACE)
+                .resource(labelled(K8sFixtures.serviceAccount("sa-a", NAMESPACE), labels)).create();
+        mockClient.persistentVolumeClaims().inNamespace(NAMESPACE)
+                .resource(labelled(K8sFixtures.pvc("pvc-a", NAMESPACE, "1Gi"), labels)).create();
+        mockClient.rbac().roles().inNamespace(NAMESPACE)
+                .resource(labelled(K8sFixtures.role("role-a", NAMESPACE), labels)).create();
+        mockClient.rbac().roleBindings().inNamespace(NAMESPACE)
+                .resource(labelled(K8sFixtures.roleBinding("rb-a", NAMESPACE), labels)).create();
         mockClient.rbac().clusterRoles().resource(K8sFixtures.clusterRole("cr-a")).create();
         mockClient.rbac().clusterRoleBindings().resource(K8sFixtures.clusterRoleBinding("crb-a")).create();
         mockClient.network().v1().ingresses().inNamespace(NAMESPACE).resource(K8sFixtures.ingress("ing-a", NAMESPACE, labels)).create();
@@ -114,6 +116,11 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
                 .endContainerStatus()
                 .endStatus()
                 .build();
+    }
+
+    private static <T extends io.fabric8.kubernetes.api.model.HasMetadata> T labelled(T resource, Map<String, String> labels) {
+        resource.getMetadata().setLabels(new HashMap<>(labels));
+        return resource;
     }
 
     private io.fabric8.kubernetes.api.model.apps.Deployment readyDeployment(Map<String, String> labels) {
@@ -335,16 +342,24 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
     }
 
     /**
-     * The step regular expression accepts {@code serviceacounts} (a single "c") but the switch matches
-     * {@code serviceaccounts}, so the step silently returns an empty result for that alternative.
+     * {@code serviceacounts} (a single "c") is a typo kept in the step regular expression for backwards
+     * compatibility; both spellings must resolve to the same service account lookup.
      */
     @Test
-    public void getPodsLabelSelectorReturnsEmptyForTheMisspelledServiceAccountAlternative() throws Exception {
+    public void getPodsLabelSelectorAcceptsBothServiceAccountSpellings() throws Exception {
         spec.getPodsLabelSelector("serviceacounts", "app=bdt", NAMESPACE, "LABELS_SA_TYPO", null);
         spec.getPodsLabelSelector("serviceaccounts", "app=bdt", NAMESPACE, "LABELS_SA", null);
 
-        assertThat(ThreadProperty.get("LABELS_SA_TYPO")).isEmpty();
+        assertThat(ThreadProperty.get("LABELS_SA_TYPO")).isEqualTo("sa-a");
         assertThat(ThreadProperty.get("LABELS_SA")).isEqualTo("sa-a");
+    }
+
+    @Test
+    public void getPodsLabelSelectorCoversTheRemainingResourceTypes() throws Exception {
+        assertLabelSelectorStep("configmaps", "cm-a");
+        assertLabelSelectorStep("roles", "role-a");
+        assertLabelSelectorStep("rolebindings", "rb-a");
+        assertLabelSelectorStep("persistentVolumeClaims", "pvc-a");
     }
 
     @Test
@@ -426,15 +441,15 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
                 .isInstanceOf(AssertionError.class);
     }
 
-    /**
-     * Unlike {@code assertDeploymentStatus}, the statefulset variant dereferences
-     * {@code getStatus().getReadyReplicas()} without a null guard, so an unpopulated status surfaces as
-     * a NullPointerException rather than an assertion failure.
-     */
     @Test
-    public void assertStatefulsetStatusThrowsWhenTheStatusIsNotPopulated() {
+    public void assertStatefulsetStatusReadsAnUnpopulatedStatusAsZeroReplicas() throws Exception {
+        spec.assertStatefulsetStatus(1, 1, "sts-a", NAMESPACE, 0);
+    }
+
+    @Test
+    public void assertStatefulsetStatusFailsWhenReplicasDoNotMatch() {
         assertThatThrownBy(() -> spec.assertStatefulsetStatus(0, 1, "sts-a", NAMESPACE, 1))
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(AssertionError.class);
     }
 
     @Test

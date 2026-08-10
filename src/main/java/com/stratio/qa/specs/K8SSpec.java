@@ -393,7 +393,7 @@ public class K8SSpec extends BaseGSpec {
         while (!found && i <= timeout) {
             try {
                 StatefulSet statefulSet = commonspec.kubernetesClient.getStateFulSet(statefulsetName, namespace);
-                Assert.assertEquals(statefulSet.getStatus().getReadyReplicas().intValue(), readyReplicas.intValue(), "# Ready Replicas");
+                Assert.assertEquals(statefulSet.getStatus() != null && statefulSet.getStatus().getReadyReplicas() != null ? statefulSet.getStatus().getReadyReplicas().intValue() : 0, readyReplicas.intValue(), "# Ready Replicas");
                 found = true;
             } catch (AssertionError | Exception e) {
                 getCommonSpec().getLogger().info("Expected replicas ready not found after " + i + " seconds");
@@ -702,7 +702,7 @@ public class K8SSpec extends BaseGSpec {
         commonspec.kubernetesClient.scaleDeployment(deployment, namespace, instances);
     }
 
-    @When("^I get (pods|deployments|replicasets|services|statefulsets|configmaps|serviceacounts|roles|rolebindings|persistentVolumeClaims) using the following label filter '(.+?)'( in namespace '(.+?)')?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
+    @When("^I get (pods|deployments|replicasets|services|statefulsets|configmaps|serviceaccounts|serviceacounts|roles|rolebindings|persistentVolumeClaims) using the following label filter '(.+?)'( in namespace '(.+?)')?( and save it in environment variable '(.*?)')?( and save it in file '(.*?)')?$")
     public void getPodsLabelSelector(String type, String selector, String namespace, String envVar, String fileName) throws Exception {
         String result = "";
         switch (type) {
@@ -724,6 +724,8 @@ public class K8SSpec extends BaseGSpec {
             case "configmaps":
                 result = commonspec.kubernetesClient.getConfigMapsFilteredByLabel(selector, namespace);
                 break;
+            // "serviceacounts" is a typo kept for backwards compatibility with existing feature files
+            case "serviceacounts":
             case "serviceaccounts":
                 result = commonspec.kubernetesClient.getServiceAccountsFilteredByLabel(selector, namespace);
                 break;
@@ -887,7 +889,9 @@ public class K8SSpec extends BaseGSpec {
 
         List<EnvVar> envVars = new ArrayList<>(new LinkedHashSet<>(container.getEnv()));
 
-        List<List<String>> datatable = modifications.asLists(String.class);
+        // Cucumber 7: asList()/asLists() require a TypeRegistry converter and fail on programmatically
+        // created DataTables (DataTable.create()). Use cells() instead, as runCommandInPodDatatable does.
+        List<List<String>> datatable = modifications.cells();
         datatable.forEach(entry -> {
             String name = entry.get(0);
             String action = entry.get(1);

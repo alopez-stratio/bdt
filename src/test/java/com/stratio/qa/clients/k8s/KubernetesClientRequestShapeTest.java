@@ -100,12 +100,12 @@ public class KubernetesClientRequestShapeTest extends K8sMockServerTestBase {
     }
 
     /**
-     * A ClusterRoleBinding is cluster scoped, but {@code createClusterRoleBinding} copies the namespace
-     * out of the {@code <namespace>:<serviceaccount>} argument into {@code metadata.namespace}. A real
-     * API server ignores that field, so the request must still be sent to the cluster-scoped collection.
+     * A ClusterRoleBinding is cluster scoped. The namespace in the {@code <namespace>:<serviceaccount>}
+     * argument identifies the subject, so it must end up on the subject and never on
+     * {@code metadata.namespace} — a namespaced ClusterRoleBinding is not a valid object.
      */
     @Test
-    public void createClusterRoleBindingPostsToTheClusterScopedCollection() throws Exception {
+    public void createClusterRoleBindingKeepsTheNamespaceOnTheSubjectOnly() throws Exception {
         String path = "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings";
         server.expect().post().withPath(path)
                 .andReturn(201, K8sFixtures.clusterRoleBinding("crb-shape"))
@@ -117,10 +117,12 @@ public class KubernetesClientRequestShapeTest extends K8sMockServerTestBase {
         client.createClusterRoleBinding("crb-shape", "a-cluster-role", NAMESPACE + ":a-service-account");
 
         assertThat(server.getLastRequest().getPath()).isEqualTo(path);
-        assertThat(server.getLastRequest().getBody().readUtf8())
-                .contains("\"kind\":\"ServiceAccount\"")
-                .contains("\"name\":\"a-service-account\"")
-                .contains("\"namespace\":\"" + NAMESPACE + "\"");
+        org.json.JSONObject body = new org.json.JSONObject(server.getLastRequest().getBody().readUtf8());
+        assertThat(body.getJSONObject("metadata").has("namespace")).isFalse();
+        org.json.JSONObject subject = body.getJSONArray("subjects").getJSONObject(0);
+        assertThat(subject.getString("kind")).isEqualTo("ServiceAccount");
+        assertThat(subject.getString("name")).isEqualTo("a-service-account");
+        assertThat(subject.getString("namespace")).isEqualTo(NAMESPACE);
     }
 
     @Test

@@ -70,15 +70,6 @@ public class K8SSpecWriteTest extends K8sMockServerTestBase {
         mockClient.genericKubernetesResources(context).inNamespace(NAMESPACE).resource(pgCluster("pg-write")).create();
     }
 
-    /**
-     * {@link DataTable#create(java.util.List)} builds a table without a type converter, which is enough
-     * for steps that read {@code cells()} but not for the ones calling {@code asLists(String.class)}.
-     */
-    private static DataTable convertibleDataTable(java.util.List<java.util.List<String>> cells) {
-        return DataTable.create(cells, new io.cucumber.datatable.DataTableTypeRegistryTableConverter(
-                new io.cucumber.datatable.DataTableTypeRegistry(java.util.Locale.ENGLISH)));
-    }
-
     private GenericKubernetesResource pgCluster(String name) {
         Map<String, Object> additionalProperties = new LinkedHashMap<>();
         additionalProperties.put("spec", new LinkedHashMap<>(Collections.singletonMap("replicas", 1)));
@@ -146,8 +137,7 @@ public class K8SSpecWriteTest extends K8sMockServerTestBase {
         mockClient.apps().deployments().inNamespace(NAMESPACE)
                 .resource(K8sFixtures.deployment("env-app", NAMESPACE, "img:1", "TO_REPLACE", "before")).create();
 
-        // updateAppEnvs calls asLists(String.class), which needs the converter Cucumber attaches at runtime
-        DataTable modifications = convertibleDataTable(Arrays.asList(
+        DataTable modifications = DataTable.create(Arrays.asList(
                 Arrays.asList("TO_REPLACE", "REPLACE", "after"),
                 Arrays.asList("TO_ADD", "ADD", "added"),
                 Arrays.asList("TO_REMOVE", "REMOVE", ""),

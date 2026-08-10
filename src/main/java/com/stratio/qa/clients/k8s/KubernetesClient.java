@@ -2256,8 +2256,9 @@ public class KubernetesClient {
         roleRef.setApiGroup("rbac.authorization.k8s.io");
         roleRef.setKind("ClusterRole");
         roleRef.setName(clusterRole);
+        // A ClusterRoleBinding is cluster scoped: the namespace belongs to the subject, not to the binding
         ClusterRoleBinding clusterRoleBindingCreated = new ClusterRoleBindingBuilder()
-                .withNewMetadata().withName(clusterRoleBindingName).withNamespace(serviceAccount.split(":")[0]).endMetadata()
+                .withNewMetadata().withName(clusterRoleBindingName).endMetadata()
                 .withRoleRef(roleRef)
                 .addAllToSubjects(subjects)
                 .build();
