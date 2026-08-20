@@ -2793,6 +2793,26 @@ public class CommonG {
         executeCommand(command, sshConnectionId, exitStatus, envVar, -1);
     }
 
+    /**
+     * Renders a keystore/truststore password parameter for a Crossdata JDBC connection string.
+     *
+     * A null password means the parameter was not provided in the step, so it is left out of the
+     * connection string entirely. The {@link DatabaseSpec#EMPTY_VALUE} placeholder renders the
+     * parameter with an empty value, which is how a passwordless JKS file is declared: an empty
+     * quoted value in the feature would be ambiguous, since the step regex also matches an absent
+     * parameter. Any other password is used as is.
+     *
+     * @param key      connection string key, either KEYSTORE_PWD or TRUSTSTORE_PWD
+     * @param password password as written in the step, may be null
+     * @return the parameter to append, empty when there is nothing to append
+     */
+    private String keyStorePasswordParam(String key, String password) {
+        if (password == null) {
+            return "";
+        }
+        return ";" + key + "=" + (DatabaseSpec.EMPTY_VALUE.equals(password) ? "" : password);
+    }
+
     public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit, String timeout) throws Exception {
         // Driver log capture is configured in log4j2.xml (XDDriver appender): the driver logs
         // through SLF4J, so its package trees are routed there to a file
@@ -2803,14 +2823,15 @@ public class CommonG {
         if (security) {
             if (!mutualTLS) {
                 Assert.assertNotNull(keystore_path, "Keystore path is mandatory when security is enabled");
-                Assert.assertNotNull(keystore_pwd, "Keystore password is mandatory when security is enabled");
                 Assert.assertNotNull(truststore_path, "Truststore path is mandatory when security is enabled");
-                Assert.assertNotNull(truststore_pwd, "Truststore password is mandatory when security is enabled");
-                jdbcConnection = jdbcConnection + ";SSL=true;KEYSTORE=" + keystore_path +
-                        ";KEYSTORE_PWD=" + keystore_pwd + ";TRUSTSTORE=" + truststore_path + ";TRUSTSTORE_PWD=" + truststore_pwd;
+                jdbcConnection = jdbcConnection + ";SSL=true;KEYSTORE=" + keystore_path
+                        + keyStorePasswordParam("KEYSTORE_PWD", keystore_pwd)
+                        + ";TRUSTSTORE=" + truststore_path
+                        + keyStorePasswordParam("TRUSTSTORE_PWD", truststore_pwd);
             } else {
                 if (truststore_path != null && truststore_pwd != null) {
-                    jdbcConnection = jdbcConnection + ";SSL=true;MUTUAL_SSL=false;TRUSTSTORE=" + truststore_path + ";TRUSTSTORE_PWD=" + truststore_pwd;
+                    jdbcConnection = jdbcConnection + ";SSL=true;MUTUAL_SSL=false;TRUSTSTORE=" + truststore_path
+                            + keyStorePasswordParam("TRUSTSTORE_PWD", truststore_pwd);
                 } else {
                     jdbcConnection = jdbcConnection + ";SSL=true;MUTUAL_SSL=false;INSECURE_TRUSTSTORE=true";
                 }

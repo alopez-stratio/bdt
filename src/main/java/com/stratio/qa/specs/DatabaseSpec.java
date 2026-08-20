@@ -1763,13 +1763,43 @@ public class DatabaseSpec extends BaseGSpec {
         ThreadProperty.remove("querysize");
     }
 
-    @Given(value = "^I connect with JDBC to Crossdata server( using TLS)?( without mutualTLS)? with parameters: host '(.*?)', port '(.*?)', user '(.*?)'(, password '(.*?)')?(, keystore '(.*?)')?(, keystore password '(.*?)')?(, truststore '(.*?)')?(, truststore password '(.*?)')?(, limit '(.*?)')?(, timeout '(.*?)')?( and pagination)?$")
-    public void createXDDriver(String security, String withoutMutualTLS, String host, String port, String user, String password, String keyStorePath, String keyStorePass, String trustStorePath, String trustStorePass, String limit, String timeout, String pagination) {
+    /**
+     * Connects to a Crossdata server through JDBC.
+     *
+     * Both keystore and truststore passwords are optional. Omitting one leaves its key out of the
+     * connection string, and passing {@value #EMPTY_VALUE} sends it with an empty value, which is
+     * what a JKS file stored without password needs [ROCK-15021].
+     *
+     * By default a connection error fails the step. With the 'capturing the exception' modifier the
+     * error is recorded instead, so the scenario can assert it with the step
+     * 'an exception IS thrown with class ... and message like ...'.
+     */
+    @Given(value = "^I connect with JDBC to Crossdata server( using TLS)?( without mutualTLS)? with parameters: host '(.*?)', port '(.*?)', user '(.*?)'(, password '(.*?)')?(, keystore '(.*?)')?(, keystore password '(.*?)')?(, truststore '(.*?)')?(, truststore password '(.*?)')?(, limit '(.*?)')?(, timeout '(.*?)')?( and pagination)?( capturing the exception)?$")
+    public void createXDDriver(String security, String withoutMutualTLS, String host, String port, String user, String password, String keyStorePath, String keyStorePass, String trustStorePath, String trustStorePass, String limit, String timeout, String pagination, String capturingException) {
+        if (capturingException != null) {
+            commonspec.getExceptions().clear();
+        }
         try {
             commonspec.connectToCrossdataDatabase(security != null, withoutMutualTLS != null, host, port, keyStorePath, keyStorePass, trustStorePath, trustStorePass, user, password, pagination != null, limit, timeout);
         } catch (Exception e) {
-            fail("Error when we trying to connect to Crossdata Database -> " + e.getMessage());
+            if (capturingException == null) {
+                fail("Error when we trying to connect to Crossdata Database -> " + e.getMessage());
+            } else {
+                commonspec.getLogger().error(e.toString());
+                commonspec.getExceptions().add(e);
+            }
         }
+    }
+
+    /**
+     * @deprecated kept for callers that invoke this method directly. Use
+     * {@link #createXDDriver(String, String, String, String, String, String, String, String, String, String, String, String, String, String)},
+     * which also accepts the 'capturing the exception' modifier. Behaviour is unchanged: a
+     * connection error fails the step.
+     */
+    @Deprecated
+    public void createXDDriver(String security, String withoutMutualTLS, String host, String port, String user, String password, String keyStorePath, String keyStorePass, String trustStorePath, String trustStorePass, String limit, String timeout, String pagination) {
+        createXDDriver(security, withoutMutualTLS, host, port, user, password, keyStorePath, keyStorePass, trustStorePath, trustStorePass, limit, timeout, pagination, null);
     }
 
     @Given(value = "^I connect with JDBC to database '(.*?)' with url '(.*?)', user '(.*?)'( and password '(.*?)')$")
