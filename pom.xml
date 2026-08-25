@@ -90,6 +90,8 @@
         <kafka.version>3.9.1</kafka.version>
         <kubernetes-client.version>6.3.1</kubernetes-client.version>
         <ok-http-client.version>3.12.12</ok-http-client.version>
+        <mockito.version>5.18.0</mockito.version>
+        <byte-buddy.version>1.17.5</byte-buddy.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <aws.java.sdk.version>2.20.26</aws.java.sdk.version>
@@ -254,6 +256,27 @@
             </plugin>
         </plugins>
     </build>
+    <!--
+        selenium-java 3.9.1 pulls byte-buddy 1.7.9, which predates Java 9 and fails with
+        "Unknown Java version: 11" when Mockito bootstraps its mock maker. Being a compile
+        dependency it also wins over the byte-buddy mockito-core asks for, so pin both
+        byte-buddy artifacts to the version mockito-core expects.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy</artifactId>
+                <version>${byte-buddy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy-agent</artifactId>
+                <version>${byte-buddy.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>io.cucumber</groupId>
@@ -402,7 +425,8 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>1.10.5</version>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.skyscreamer</groupId>

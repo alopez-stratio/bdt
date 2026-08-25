@@ -22,11 +22,17 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.mockito.ArgumentCaptor;
+import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 import com.stratio.qa.exceptions.NonReplaceableException;
@@ -227,7 +233,7 @@ public class ReplacementAspectTest {
                 .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
 
         verify(pjp, never()).proceed();
-        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+        verify(pjp, never()).proceed(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -242,7 +248,7 @@ public class ReplacementAspectTest {
                 .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
 
         verify(pjp, never()).proceed();
-        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+        verify(pjp, never()).proceed(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -260,7 +266,7 @@ public class ReplacementAspectTest {
                 .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
 
         verify(pjp, never()).proceed();
-        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+        verify(pjp, never()).proceed(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -279,7 +285,7 @@ public class ReplacementAspectTest {
                 .isThrownBy(() -> aspect.aroundReplacementExecute(pjp));
 
         verify(pjp, never()).proceed();
-        verify(pjp, never()).proceed(org.mockito.Matchers.any());
+        verify(pjp, never()).proceed(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -452,5 +458,135 @@ public class ReplacementAspectTest {
         assertThat(resolved).as("placeholder must be resolved").contains("test12345");
         assertThat(resolved).as("real newlines must be preserved").contains("\n");
         assertThat(resolved).as("newlines must NOT be escaped to the literal sequence backslash+n").doesNotContain("\\n");
+    }
+
+    // -----------------------------------------------------------------------
+    // @{...} placeholders: the IP form and the failure paths
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void replaceCodePlaceholderWithoutSubpropertyThrows() {
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .as("@{X} carries no source to read from, so it cannot be resolved")
+                .isThrownBy(() -> repAspect.replaceCodePlaceholders("@{NOSUBPROPERTY}", null))
+                .withMessageContaining("@{NOSUBPROPERTY}");
+    }
+
+    @Test
+    public void replaceCodePlaceholderWithEmptyInterfaceThrows() {
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> repAspect.replaceCodePlaceholders("@{IP.}", null))
+                .withMessageContaining("not available");
+    }
+
+    @Test
+    public void replaceCodePlaceholderResolvesTheIpv4OfALocalInterface() throws Exception {
+        NetworkInterface itf = firstInterfaceWithIpv4();
+        if (itf == null) {
+            throw new SkipException("no network interface with an IPv4 address on this host");
+        }
+        String expected = firstIpv4Of(itf);
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThat(repAspect.replaceCodePlaceholders("host=@{IP." + itf.getName() + "}", null))
+                .isEqualTo("host=" + expected);
+    }
+
+    // -----------------------------------------------------------------------
+    // ${VAR:-''}: an explicitly empty default is not the same as no default
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void replaceEnvironmentPlaceholderWithEmptyDefault() throws Exception {
+        ReplacementAspect repAspect = new ReplacementAspect();
+        System.clearProperty("STRATIOBDD_EMPTY_DEFAULT");
+
+        assertThat(repAspect.replaceEnvironmentPlaceholders("a${STRATIOBDD_EMPTY_DEFAULT:-''}b", null))
+                .as("an undefined var with an empty default must collapse to nothing, not fail")
+                .isEqualTo("ab");
+
+        System.setProperty("STRATIOBDD_EMPTY_DEFAULT", "value");
+        try {
+            assertThat(repAspect.replaceEnvironmentPlaceholders("a${STRATIOBDD_EMPTY_DEFAULT:-''}b", null))
+                    .as("the default only applies when the var is undefined")
+                    .isEqualTo("avalueb");
+        } finally {
+            System.clearProperty("STRATIOBDD_EMPTY_DEFAULT");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Failure paths of replacedElement / replacedElementSkipReflection
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void replacedElementSkipReflectionDefersRuntimeAndCodePlaceholders() throws Exception {
+        ThreadProperty.set("STRATIOBDD_DEFERRED", "resolved");
+        System.setProperty("STRATIOBDD_MATCH_TIME", "now");
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThat(repAspect.replacedElementSkipReflection(
+                "${STRATIOBDD_MATCH_TIME} !{STRATIOBDD_DEFERRED} @{JSON.schemas/simple1.json}", null))
+                .as("only ${ENV} is resolved at match time")
+                .isEqualTo("now !{STRATIOBDD_DEFERRED} @{JSON.schemas/simple1.json}");
+    }
+
+    @Test
+    public void replacedElementSkipReflectionRethrowsUnresolvableEnvVars() {
+        ReplacementAspect repAspect = new ReplacementAspect();
+        System.clearProperty("STRATIOBDD_SKIPREFLECTION_UNDEFINED");
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> repAspect.replacedElementSkipReflection("${STRATIOBDD_SKIPREFLECTION_UNDEFINED}", null))
+                .withMessageContaining("Unreplaceable placeholder");
+    }
+
+    @Test
+    public void replacedElementSkipReflectionWrapsUnexpectedFailures() {
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .as("a placeholder that is never closed blows up inside the parser, not with our own exception")
+                .isThrownBy(() -> repAspect.replacedElementSkipReflection("${UNCLOSED", null))
+                .withMessageContaining("Unreplaceable element");
+    }
+
+    @Test
+    public void replacedElementWrapsUnexpectedFailures() {
+        ReplacementAspect repAspect = new ReplacementAspect();
+
+        assertThatExceptionOfType(NonReplaceableException.class)
+                .isThrownBy(() -> repAspect.replacedElement("${UNCLOSED", null))
+                .withMessageContaining("Unreplaceable element");
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * @return the first interface this host exposes with an IPv4 address, in the same order
+     *         {@code replaceCodePlaceholders} walks them, or {@code null} if there is none
+     */
+    private static NetworkInterface firstInterfaceWithIpv4() throws SocketException {
+        for (NetworkInterface itf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+            if (firstIpv4Of(itf) != null) {
+                return itf;
+            }
+        }
+        return null;
+    }
+
+    private static String firstIpv4Of(NetworkInterface itf) {
+        for (InetAddress address : Collections.list(itf.getInetAddresses())) {
+            if (address instanceof Inet4Address) {
+                return address.getHostAddress();
+            }
+        }
+        return null;
     }
 }
