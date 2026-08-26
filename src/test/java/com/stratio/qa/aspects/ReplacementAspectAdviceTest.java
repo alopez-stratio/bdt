@@ -179,6 +179,39 @@ public class ReplacementAspectAdviceTest {
         assertThat(wrapped.getId()).isEqualTo("pickle-delegating");
     }
 
+    @Test
+    public void theStepDataOfAScenarioDoesNotOutliveIt() throws Throwable {
+        System.setProperty("BDDTEST_SCENARIO_SCOPED", "resolved");
+        ReplacementAspect aspect = new ReplacementAspect();
+        Step step = stepMock("step-scoped", "a step with ${BDDTEST_SCENARIO_SCOPED}", null);
+
+        Pickle pickle = mock(Pickle.class);
+        when(pickle.getName()).thenReturn("a scenario");
+        when(pickle.getId()).thenReturn("pickle-scoped");
+
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getTarget()).thenReturn(new Object());
+        when(pjp.proceed(org.mockito.ArgumentMatchers.any(Object[].class)))
+                .thenAnswer(invocation -> runMatch(aspect, step));
+
+        aspect.aroundScenarios(pjp, pickle);
+
+        // Cucumber reuses threads across scenarios, so anything the aspect stashes per step has to
+        // go when the scenario does. The next scenario on this thread must not inherit it: with the
+        // map still populated, resolveStepDisplayText would answer with the previous scenario's
+        // text for a step that shares its id.
+        ProceedingJoinPoint next = starJoinPoint(step, mock(TestCase.class), FakeExecutionMode.RUN);
+        TestCaseState state = mock(TestCaseState.class);
+        when(next.proceed()).thenAnswer(invocation -> {
+            aspect.writeReplacedStepToReport(mock(JoinPoint.class), state);
+            return null;
+        });
+
+        aspect.aroundReplacementStar(next);
+
+        verify(state, never()).log(org.mockito.ArgumentMatchers.anyString());
+    }
+
     // -----------------------------------------------------------------------
     // aroundReplacementMatch
     // -----------------------------------------------------------------------

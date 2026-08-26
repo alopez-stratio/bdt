@@ -119,6 +119,10 @@ public class ReplacementAspect {
             currentRunner.remove();
             currentPickle.remove();
             lastLoggedStepWasBackground.remove();
+            // Scoped to the scenario like the ones above: it is keyed by step id and only read
+            // while the scenario runs. Left behind, it grew for the life of the thread, and
+            // since Cucumber reuses threads across scenarios that is a leak (java:S5164).
+            replacedStepData.remove();
         }
     }
 
