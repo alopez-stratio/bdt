@@ -86,6 +86,10 @@ public class ReplacementAspectAdviceTest {
     public void tearDown() {
         HookGSpec.loggerEnabled = loggerEnabledBackup;
         StepException.INSTANCE.setException(null);
+        // ExceptionList is a global singleton that ExceptionListTest asserts is empty, so the
+        // failures these tests record have to be cleaned up or that test breaks depending on the
+        // order the suite happens to run in.
+        ExceptionList.INSTANCE.getExceptions().clear();
     }
 
     // -----------------------------------------------------------------------

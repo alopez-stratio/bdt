@@ -92,6 +92,7 @@
         <ok-http-client.version>3.12.12</ok-http-client.version>
         <mockito.version>5.18.0</mockito.version>
         <byte-buddy.version>1.17.5</byte-buddy.version>
+        <h2.version>2.3.232</h2.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <aws.java.sdk.version>2.20.26</aws.java.sdk.version>
@@ -432,6 +433,12 @@
             <groupId>org.skyscreamer</groupId>
             <artifactId>jsonassert</artifactId>
             <version>1.2.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
