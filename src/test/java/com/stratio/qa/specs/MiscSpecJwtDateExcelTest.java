@@ -371,10 +371,23 @@ public class MiscSpecJwtDateExcelTest {
     }
 
     @Test
-    public void aMissingExcelFileIsSwallowed() throws Exception {
-        // The step catches IOException and only prints the stack trace, so a path that does not
-        // exist passes. Documents current behaviour -- see the PR description.
-        miscSpec.verifyExcelCellValue("/nonexistent/path/book.xlsx", "anything", null, null, null, null, null);
+    public void aMissingExcelFileIsReported() {
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> miscSpec.verifyExcelCellValue(
+                        "/nonexistent/path/book.xlsx", "anything", null, null, null, null, null))
+                .withMessageContaining("Could not read the Excel file");
+    }
+
+    @Test
+    public void aFileThatIsNotAWorkbookIsReported() throws Exception {
+        excelFile = File.createTempFile("bdt-not-excel-", ".xlsx");
+        Files.write(excelFile.toPath(), "this is not a workbook".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        // POI raises NotOfficeXmlFileException, a RuntimeException rather than an IOException, so
+        // this path was never swallowed and already failed loudly. Pinned so it stays that way.
+        assertThat(catchThrowable(() -> miscSpec.verifyExcelCellValue(
+                excelFile.getAbsolutePath(), "anything", null, null, null, null, null)))
+                .hasMessageContaining("not a valid OOXML");
     }
 
     // -----------------------------------------------------------------------

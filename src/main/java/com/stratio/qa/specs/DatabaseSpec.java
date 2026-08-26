@@ -985,9 +985,7 @@ public class DatabaseSpec extends BaseGSpec {
             }
         }
         catch (Exception e) {
-            e.printStackTrace();
-            assertThat(1).as(e.getClass().getName() + ": " + e.getMessage()).isNotEqualTo(0);
-
+            fail("Error running SQL file " + file + " -> " + e.getClass().getName() + ": " + e.getMessage());
         }
     }
 
@@ -1392,7 +1390,7 @@ public class DatabaseSpec extends BaseGSpec {
             try (java.sql.ResultSet rs = myStatement.executeQuery()) {
                 //if there are no data row
                 if (rs.next() == false) {
-                    Assertions.assertThat(rs.next()).as("there are no table " + tableName).isTrue();
+                    fail("There is no table " + tableName);
                 } else {
                     //data exist
                     String resultTableName = rs.getString(2);
@@ -1400,7 +1398,7 @@ public class DatabaseSpec extends BaseGSpec {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            fail("Could not check whether table " + tableName + " exists -> " + e.getMessage());
         }
 
     }
@@ -1422,15 +1420,13 @@ public class DatabaseSpec extends BaseGSpec {
             myStatement.setString(1, tableName);
             try (java.sql.ResultSet rs = myStatement.executeQuery()) {
                 //if there are no data row, table doesn't exists
-                if (rs.next() == false) {
-                    Assertions.assertThat(rs.next()).as("table exists " + tableName).isFalse();
-                } else {
+                if (rs.next() != false) {
                     String resultTableName = rs.getString(2);
                     assertThat(resultTableName).as("table exists " + tableName).isNotEqualToIgnoringCase(tableName);
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            fail("Could not check whether table " + tableName + " exists -> " + e.getMessage());
         }
     }
 
@@ -1672,14 +1668,14 @@ public class DatabaseSpec extends BaseGSpec {
              ResultSet rs = myStatement.executeQuery(query)) {
             //if there are no data row
             if (rs.next() == false) {
-                assertThat(rs.next()).as("there are no " + objetType + ": " + objectName).isTrue();
+                fail("There is no " + objetType + ": " + objectName);
             } else {
                 //data exist
                 String resultName = rs.getString(1);
                 assertThat(resultName).as("there are incorrect " + objetType + " name: " + objectName).contains(objectName);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            fail("Could not check whether " + objetType + " " + objectName + " exists -> " + e.getMessage());
         }
     }
 
@@ -1749,14 +1745,12 @@ public class DatabaseSpec extends BaseGSpec {
         try (Statement myStatement = myConnection.createStatement();
              ResultSet rs = myStatement.executeQuery(query)) {
             //if there are no data row, table doesn't exists
-            if (rs.next() == false) {
-                assertThat(rs.next()).as(objectName + " exists " + objectName).isFalse();
-            } else {
+            if (rs.next() != false) {
                 String resultName = rs.getString(1);
-                assertThat(resultName).as(objectName + " exists " + objectName).isEqualToIgnoringCase(objectName);
+                assertThat(resultName).as(objetType + " " + objectName + " exists").isNotEqualToIgnoringCase(objectName);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            fail("Could not check whether " + objetType + " " + objectName + " exists -> " + e.getMessage());
         }
     }
 
@@ -1976,9 +1970,8 @@ public class DatabaseSpec extends BaseGSpec {
 
         for (int i = 0; (i <= wait); i += period) {
 
-            this.selectData(query);
-
             try {
+                this.selectData(query);
                 compareList(expectedResult);
                 finished = true;
                 commonspec.getLogger().info("Users found in database.");
@@ -2017,9 +2010,8 @@ public class DatabaseSpec extends BaseGSpec {
 
         for (int i = 0; (i <= wait); i += period) {
 
-            this.selectData(query);
-
             try {
+                this.selectData(query);
                 compareList(expectedResult);
                 finished = true;
                 commonspec.getLogger().info("Groups found in database.");
@@ -2059,9 +2051,8 @@ public class DatabaseSpec extends BaseGSpec {
 
         for (int i = 0; (i <= wait); i += period) {
 
-            this.selectData(query);
-
             try {
+                this.selectData(query);
                 compareList(expectedResult);
                 finished = true;
                 commonspec.getLogger().info("Users belonging to group in database found.");

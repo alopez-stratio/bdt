@@ -293,18 +293,20 @@ public class DatabaseSpecJdbcTest {
     }
 
     @Test
-    public void aBrokenSqlFilePassesSilently() throws Exception {
+    public void aBrokenSqlFileIsReported() throws Exception {
         sqlFile = writeSqlFile("SELECT * FROM nonexistent;");
 
-        // Documents current behaviour, which is not the intended one: the failure is caught and
-        // asserted as assertThat(1).isNotEqualTo(0), which holds unconditionally, so the step
-        // always passes. See the PR description.
-        databaseSpec.executeJdbcQueryFile(sqlFile.toString(), null, null, null);
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.executeJdbcQueryFile(sqlFile.toString(), null, null, null))
+                .withMessageContaining("Error running SQL file")
+                .withMessageContaining("nonexistent");
     }
 
     @Test
-    public void aMissingSqlFilePassesSilently() throws Exception {
-        databaseSpec.executeJdbcQueryFile("/nonexistent/path/to/file.sql", null, null, null);
+    public void aMissingSqlFileIsReported() {
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.executeJdbcQueryFile("/nonexistent/path/to/file.sql", null, null, null))
+                .withMessageContaining("Error running SQL file");
     }
 
     @Test
@@ -464,7 +466,7 @@ public class DatabaseSpecJdbcTest {
 
         assertThatExceptionOfType(AssertionError.class)
                 .isThrownBy(() -> databaseSpec.checkTable("nonexistent"))
-                .withMessageContaining("there are no table nonexistent");
+                .withMessageContaining("There is no table nonexistent");
     }
 
     @Test
@@ -485,12 +487,27 @@ public class DatabaseSpecJdbcTest {
     }
 
     @Test
-    public void aSqlErrorMakesTheTableExistenceStepsPassSilently() throws Exception {
-        // No pg_tables view here, so the query itself fails. Both steps catch Exception and only
-        // print the stack trace, so a database that cannot answer the question reads as a pass.
-        // Documents current behaviour -- see the PR description.
-        databaseSpec.checkTable("demo");
-        databaseSpec.checkTableFalse("demo");
+    public void aSqlErrorIsReportedByTheTableExistenceSteps() {
+        // No pg_tables view here, so the query itself fails. "I could not ask" must not be
+        // confused with "the table is not there".
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.checkTable("demo"))
+                .withMessageContaining("Could not check whether table demo exists");
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.checkTableFalse("demo"))
+                .withMessageContaining("Could not check whether table demo exists");
+    }
+
+    @Test
+    public void aSqlErrorIsReportedByTheObjectExistenceSteps() throws Exception {
+        connection.close();
+
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.checkObjectExists("Sequence", "demo_seq"))
+                .withMessageContaining("Could not check whether Sequence demo_seq exists");
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.checkObjectNoExists("Sequence", "demo_seq"))
+                .withMessageContaining("Could not check whether Sequence demo_seq exists");
     }
 
     @Test
@@ -536,7 +553,7 @@ public class DatabaseSpecJdbcTest {
 
     @Test(dataProvider = "objectQueries")
     public void eachObjectTypeMapsToItsCatalogQueryWhenCheckingAbsence(String objectType, String expectedQuery) throws Exception {
-        assertThat(captureQueryOf(() -> databaseSpec.checkObjectNoExists(objectType, "obj"), "obj"))
+        assertThat(captureQueryOf(() -> databaseSpec.checkObjectNoExists(objectType, "obj"), "obj", false))
                 .isEqualTo(expectedQuery);
     }
 
@@ -551,7 +568,7 @@ public class DatabaseSpecJdbcTest {
     public void aMissingSequenceIsReported() {
         assertThatExceptionOfType(AssertionError.class)
                 .isThrownBy(() -> databaseSpec.checkObjectExists("Sequence", "nonexistent_seq"))
-                .withMessageContaining("there are no Sequence: nonexistent_seq");
+                .withMessageContaining("There is no Sequence: nonexistent_seq");
     }
 
     @Test
@@ -560,14 +577,12 @@ public class DatabaseSpecJdbcTest {
     }
 
     @Test
-    public void anObjectExpectedToBeAbsentButPresentPassesSilently() throws Exception {
+    public void anObjectExpectedToBeAbsentButPresentIsReported() throws Exception {
         exec("CREATE SEQUENCE demo_seq");
 
-        // Documents current behaviour, which is not the intended one. checkObjectNoExists asserts
-        // isEqualToIgnoringCase on the name it found, so finding the object is what makes it pass.
-        // checkTableFalse, the equivalent step for tables, uses isNotEqualToIgnoringCase.
-        // See the PR description.
-        databaseSpec.checkObjectNoExists("Sequence", "demo_seq");
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> databaseSpec.checkObjectNoExists("Sequence", "demo_seq"))
+                .withMessageContaining("Sequence demo_seq exists");
     }
 
     @Test
@@ -639,14 +654,13 @@ public class DatabaseSpecJdbcTest {
     }
 
     @Test
-    public void aQueryThatCannotRunAbortsTheWaitInsteadOfRetrying() {
-        // The pg_group tables are not seeded here, so the SELECT itself fails. selectData is called
-        // outside the try that guards the comparison, so its failure escapes the retry loop and the
-        // step gives up on the first attempt rather than waiting. Documents current behaviour --
-        // see the PR description.
+    public void aQueryThatCannotRunIsRetriedUntilTheTimeout() {
+        // The pg_group tables are not seeded, so the SELECT itself fails. That is precisely the
+        // state these steps exist to wait through, so it must be retried and end in the timeout
+        // message, not abort on the first attempt with the SELECT error.
         assertThatExceptionOfType(AssertionError.class)
-                .isThrownBy(() -> databaseSpec.waitUsersInGroupExistance(10, 1, "devs", dataTable(Arrays.asList("bdt_ana"))))
-                .withMessageContaining("There are no response from SELECT");
+                .isThrownBy(() -> databaseSpec.waitUsersInGroupExistance(1, 1, "devs", dataTable(Arrays.asList("bdt_ana"))))
+                .withMessageContaining("Users do not belong to group in database");
     }
 
     // -----------------------------------------------------------------------
@@ -813,8 +827,18 @@ public class DatabaseSpecJdbcTest {
      * {@code value}, and returns the SQL the step asked for.
      */
     private String captureQueryOf(ThrowingRunnable step, String value) throws Exception {
+        return captureQueryOf(step, value, true);
+    }
+
+    /**
+     * Runs a step against a connection that answers every query with either one row holding
+     * {@code value} or no rows at all, and returns the SQL the step asked for. Which of the two the
+     * step needs in order to pass differs: the existence step wants the row, the absence step wants
+     * an empty result.
+     */
+    private String captureQueryOf(ThrowingRunnable step, String value, boolean withRow) throws Exception {
         ResultSet resultSet = mock(ResultSet.class);
-        when(resultSet.next()).thenReturn(true);
+        when(resultSet.next()).thenReturn(withRow);
         when(resultSet.getString(1)).thenReturn(value);
         Statement statement = mock(Statement.class);
         when(statement.executeQuery(anyString())).thenReturn(resultSet);

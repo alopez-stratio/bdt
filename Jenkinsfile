@@ -41,16 +41,24 @@ hose {
                  'jts:1.14.0'],
            'env': [
                  'MAX_HEAP=256M'],
-           'sleep': 30,
-           // Without this the container inherits the pipeline library's default limit of 512Mi
-           // (continuous-delivery-tng, cd/Util.groovy:574). Cassandra idles around 443MiB and
-           // grows past 512Mi as soon as a scenario creates a keyspace and inserts rows, so the
-           // JVM was OOM-killed mid-suite -- deterministically 3 scenarios passing and 9 failing
-           // on every build. The death is silent because Cassandra is the only JVM service here
-           // whose process is not PID 1: the entrypoint forks it through /etc/init.d/cassandra
-           // and stays alive on a `tail -f`, so the container keeps running and 9042 just
-           // refuses. See #1196 for the controlled comparison.
-           'resources': ['limits': ['memory': "2Gi"]],
+           // 'sleep' is not a delay: the library turns it into failureThreshold = sleep/10 with a
+           // 10s period, for both probes (cd/Util.groovy:619). At 30 the liveness probe gave the
+           // container 30 seconds from start to open 9042 -- but Cassandra needs 60-100s to get
+           // there in CI (12s locally). So any restart was fatal: the probe killed it again
+           // before it finished booting, and it never came back. 180 gives it 18 attempts.
+           'sleep': 180,
+           // Two separate things here. The limit: without it the container inherits the library
+           // default of 512Mi (cd/Util.groovy:574), and Cassandra idles at 443MiB and grows past
+           // 512Mi once a scenario inserts rows, so the JVM was OOM-killed. The request: the
+           // library defaults it to 256Mi (cd/Util.groovy:571), which leaves the container
+           // Burstable and using ~2x what it asked for -- first in line when the node is tight.
+           // Requesting 1Gi covers the real footprint.
+           //
+           // None of this is visible when it goes wrong: Cassandra is the only JVM service here
+           // whose process is not PID 1. The entrypoint forks it through /etc/init.d/cassandra
+           // and stays alive on a `tail -f`, so the container keeps running, the pod stays Ready
+           // and 9042 just refuses.
+           'resources': ['requests': ['memory': "1Gi"], 'limits': ['memory': "2Gi"]],
            'healthcheck': 9042]],
         ['KAFKA': [
             'image': 'confluentinc/cp-kafka:5.3.1',

@@ -53,6 +53,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.assertj.core.api.Assertions.fail;
 import static com.stratio.qa.assertions.Assertions.assertThat;
 
 /**
@@ -882,13 +883,12 @@ public class MiscSpec extends BaseGSpec {
     @Then("^Excel file in path '(.+?)' contains value '(.+?)'( in sheet '(.+?)')?( with column number '(.+?)')?( with column name '(.+?)')?( with row number '(.+?)')?( with row name '(.+?)')?$")
     public void verifyExcelCellValue(String filePath, String expectedValue, String sheetName,
                                      String columnNumber, String columnName, String rowNumber, String rowName) throws Exception {
-        try {
-            FileInputStream fis = new FileInputStream(new File(filePath));
-            Workbook workbook = new XSSFWorkbook(fis);
+        // Set limits to prevent zip bombs
+        int maxInflateRatio = 2000;
+        ZipSecureFile.setMinInflateRatio(maxInflateRatio);
 
-            // Set limits to prevent zip bombs
-            int maxInflateRatio = 2000;
-            ZipSecureFile.setMinInflateRatio(maxInflateRatio);
+        try (FileInputStream fis = new FileInputStream(new File(filePath));
+             Workbook workbook = new XSSFWorkbook(fis)) {
 
             Sheet sheet;
             if (sheetName != null && !sheetName.isEmpty()) {
@@ -902,15 +902,12 @@ public class MiscSpec extends BaseGSpec {
 
             Cell cell = findCellWithValue(sheet, expectedValue, columnNumber, columnName, rowNumber, rowName);
             if (cell != null) {
-                System.out.println("String " + expectedValue + " found in cell: " + cell.getStringCellValue());
+                commonspec.getLogger().debug("String {} found in cell: {}", expectedValue, cell.getStringCellValue());
             } else {
                 throw new Exception("String " + expectedValue + " NOT found");
             }
-
-            workbook.close();
-            fis.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            fail("Could not read the Excel file " + filePath + " -> " + e.getMessage());
         }
     }
 
