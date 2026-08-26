@@ -20,6 +20,12 @@ hose {
            'healthcheck': 2181]],
         ['MONGODB': [
            'image': 'stratio/mongo:3.0.4',
+           // The library only turns 'healthcheck' into a real TCP probe when 'sleep' is also
+           // present (continuous-delivery-tng, cd/Util.groovy:619). Without it the pod reports
+           // Ready as soon as the container starts, which says nothing about mongod -- the same
+           // blind gate that let a dead Cassandra through. 'sleep' is a budget, not a delay: the
+           // pod is Ready the moment 27017 answers.
+           'sleep': 60,
 	       'healthcheck': 27017]],
         ['ELASTIC': [
                 'image': 'amazon/opendistro-for-elasticsearch:1.13.2',
@@ -36,6 +42,15 @@ hose {
            'env': [
                  'MAX_HEAP=256M'],
            'sleep': 30,
+           // Without this the container inherits the pipeline library's default limit of 512Mi
+           // (continuous-delivery-tng, cd/Util.groovy:574). Cassandra idles around 443MiB and
+           // grows past 512Mi as soon as a scenario creates a keyspace and inserts rows, so the
+           // JVM was OOM-killed mid-suite -- deterministically 3 scenarios passing and 9 failing
+           // on every build. The death is silent because Cassandra is the only JVM service here
+           // whose process is not PID 1: the entrypoint forks it through /etc/init.d/cassandra
+           // and stays alive on a `tail -f`, so the container keeps running and 9042 just
+           // refuses. See #1196 for the controlled comparison.
+           'resources': ['limits': ['memory': "2Gi"]],
            'healthcheck': 9042]],
         ['KAFKA': [
             'image': 'confluentinc/cp-kafka:5.3.1',
@@ -65,17 +80,24 @@ hose {
 	    ['CHROME': [
 	        'image': 'selenium/standalone-chrome-debug:3.141.59',
             'resources': ['limits': ['memory': "2Gi"]],
+            // See MONGODB above: no 'sleep' meant no probe on the grid port either.
+            'sleep': 60,
 		    'healthcheck': 4444]],
         ['UBUNTU': [
            'image': 'stratio/ubuntu-base:16.04',
            'cmd': '/usr/sbin/sshd -D -e',
+           // See MONGODB above: no 'sleep' meant no probe on sshd either.
+           'sleep': 60,
            'healthcheck': 22]],
         ['VAULT': [
            'image': 'vault:0.6.2',
            'env': [
               'VAULT_DEV_ROOT_TOKEN_ID=stratio',
               'VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200'],
-           'sleep': 5,
+           // failureThreshold is sleep/10 floored at 1, so the previous value of five gave
+           // Vault a single 10-second attempt to open 8200 before the liveness probe
+           // restarted it. Thirty gives it three.
+           'sleep': 30,
            'healthcheck': 8200]],
     ]
     

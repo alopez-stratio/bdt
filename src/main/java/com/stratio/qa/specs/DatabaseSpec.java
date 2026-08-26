@@ -237,7 +237,10 @@ public class DatabaseSpec extends BaseGSpec {
             for (int i = 0; i < attrLength; i++) {
                 columns.put(datatable.cells().get(0).get(i),
                         datatable.cells().get(1).get(i));
-                if ((datatable.cells().size() == 3) && datatable.cells().get(2).get(i).equalsIgnoreCase("PK")) {
+                // Cucumber returns a genuinely empty cell (| |) as null, so the PK marker has to be
+                // compared the other way round: a table definition marks only some columns as PK
+                // and leaves the rest of that row empty.
+                if ((datatable.cells().size() == 3) && "PK".equalsIgnoreCase(datatable.cells().get(2).get(i))) {
                     pk.add(datatable.cells().get(0).get(i));
                 }
             }
