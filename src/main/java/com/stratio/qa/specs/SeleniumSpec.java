@@ -171,11 +171,15 @@ public class SeleniumSpec extends BaseGSpec {
     }
 
     /**
-     * Switches to the frames main container.
+     * Switches back to the top-level document, leaving any iframe behind.
+     *
+     * <p>This used to hand the parent <em>window handle</em> to {@code switchTo().frame(String)},
+     * which looks its argument up as a frame name or id -- so it could only ever answer
+     * {@code NoSuchFrameException: No frame element found by name or id CDwindow-...}.
      */
     @Given("^I switch to the main frame container$")
     public void seleniumSwitchParentFrame() {
-        commonspec.getDriver().switchTo().frame(commonspec.getParentWindow());
+        commonspec.getDriver().switchTo().defaultContent();
     }
 
     /**
@@ -340,20 +344,22 @@ public class SeleniumSpec extends BaseGSpec {
         assertThat(this.commonspec, scenario, commonspec.getPreviousWebElements()).as("There are less found elements than required")
                 .hasAtLeast(index);
 
+        WebElement element = commonspec.getPreviousWebElements().getPreviousWebElements().get(index);
+
+        // Keys sent through Actions go to whatever holds the focus, and moveToElement only moves
+        // the pointer -- so without a click every keystroke below landed on the document body and
+        // the step did nothing at all. Click first, put the caret at the end, and delete backwards
+        // as many characters as the caller named.
         Actions actions = new Actions(commonspec.getDriver());
-        actions.moveToElement(commonspec.getPreviousWebElements().getPreviousWebElements().get(index), (text.length() / 2), 0);
-        for (int i = 0; i < (text.length() / 2); i++) {
-            actions.sendKeys(Keys.ARROW_LEFT);
-            actions.build().perform();
-        }
+        actions.click(element);
+        actions.sendKeys(Keys.END);
         for (int i = 0; i < text.length(); i++) {
-            actions.sendKeys(Keys.DELETE);
-            actions.build().perform();
+            actions.sendKeys(Keys.BACK_SPACE);
         }
         if (replacement != null && replacement.length() != 0) {
             actions.sendKeys(replacement);
-            actions.build().perform();
         }
+        actions.build().perform();
     }
 
 
