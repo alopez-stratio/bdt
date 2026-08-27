@@ -174,6 +174,20 @@ public class KafkaSecSpec extends BaseGSpec {
     }
 
     /**
+     * Check whether a topic contains the transactional messages generated or not.
+     *
+     * <p>The secured variants of this check already existed; this is the plain one, so the
+     * unsecured connection has the same read-back step as every other operation.
+     *
+     * @param topic topic where to look for the transactional messages
+     * @throws Exception
+     */
+    @Then("topic {string} contains transactional messages")
+    public void containsTransactionalMessages(String topic) throws Exception {
+        commonspec.getKafkaSecUtils().containsTransactionalMessages(topic);
+    }
+
+    /**
      * Check topic contains a specific number of messages
      *
      * @param topic         topic where to look for messages

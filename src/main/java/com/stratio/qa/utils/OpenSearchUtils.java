@@ -10,15 +10,14 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.apache.http.util.EntityUtils;
+import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.client.indices.GetIndexRequest;
-import org.opensearch.client.indices.GetMappingsRequest;
-import org.opensearch.client.indices.GetMappingsResponse;
-import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -61,9 +60,12 @@ public class OpenSearchUtils extends RestClient.FailureListener {
 
 
     public OpenSearchUtils() {
-        this.es_host = System.getProperty("ES_NODE", "127.0.0.1");
-        this.es_native_port = Integer.parseInt(System.getProperty("ES_NATIVE_PORT", "9200"));
-
+        // OPENSEARCH_NODE lets OpenSearch point at a cluster of its own; it falls back to ES_NODE
+        // so nothing that only sets the old property changes behaviour. They shared one container
+        // until now, which meant one suite could leave an index behind for the other to trip over.
+        this.es_host = System.getProperty("OPENSEARCH_NODE", System.getProperty("ES_NODE", "127.0.0.1"));
+        this.es_native_port = Integer.parseInt(System.getProperty("OPENSEARCH_NATIVE_PORT",
+                System.getProperty("ES_NATIVE_PORT", "9200")));
     }
 
     public void connect(String keyStorePath, String keyStorePassword, String trustorePath, String trustorePassword) throws SSLException {
@@ -140,24 +142,49 @@ public class OpenSearchUtils extends RestClient.FailureListener {
     }
 
 
+    /**
+     * Every index currently on the cluster, read straight off {@code _cat/indices}.
+     *
+     * <p>This used to go through the mappings API, which is far more than the caller needs -- it
+     * only wants names -- and which cannot be parsed at all in this classpath: building a
+     * {@code MappingMetadata} initializes {@code org.opensearch.Version}, and that class asks for
+     * {@code org.apache.lucene.util.Version.LUCENE_8_8_2}, a field lucene-core 8.2.0 does not have.
+     * lucene-core resolves to 8.2.0 because elasticsearch-rest-high-level-client 7.4.2 pulls it,
+     * and there is no version that satisfies both clients -- pinning 9.3.0 breaks
+     * {@code org.elasticsearch.Version} the same way. So the request came back as
+     *
+     *     java.lang.NoSuchFieldError: LUCENE_8_8_2
+     *
+     * whenever the cluster held at least one index, and passed only when it was empty.
+     *
+     * <p>The low-level client hands back plain text, so nothing in that chain is touched.
+     */
+    public List<String> getAllIndexNames() {
+        Request request = new Request("GET", "/_cat/indices");
+        request.addParameter("h", "index");
+
+        String body;
+        try {
+            body = EntityUtils.toString(client.getLowLevelClient().performRequest(request).getEntity());
+        } catch (IOException e) {
+            throw new OpenSearchException("Error getting indices names: " + e.getMessage());
+        }
+
+        List<String> names = new ArrayList<>();
+        for (String line : body.split("\\R")) {
+            String name = line.trim();
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
     public boolean dropAllIndexes() {
 
         boolean result = true;
 
-
-        org.opensearch.client.indices.GetMappingsRequest request = new GetMappingsRequest();
-        GetMappingsResponse response;
-
-        try {
-            response = client.indices().getMapping(request, org.opensearch.client.RequestOptions.DEFAULT);
-        } catch (IOException e) {
-            throw new OpenSearchException("Error getting indices names");
-
-        }
-
-        Map<String, MappingMetadata> mappings = response.mappings();
-
-        for (String indexName : mappings.keySet()) {
+        for (String indexName : getAllIndexNames()) {
             org.opensearch.action.admin.indices.delete.DeleteIndexRequest deleteIndexRequest = new org.opensearch.action.admin.indices.delete.DeleteIndexRequest(indexName);
             try {
                 this.client.indices().delete(deleteIndexRequest, org.opensearch.client.RequestOptions.DEFAULT);

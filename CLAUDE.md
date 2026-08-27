@@ -108,6 +108,7 @@ Start services (Elastic first — needs 600s warmup):
 
 ```bash
 docker run -d --name bdt-elastic --network bdt-it -e "discovery.type=single-node" -e "opendistro_security.disabled=true" -m 2g amazon/opendistro-for-elasticsearch:1.13.2
+docker run -d --name bdt-opensearch --network bdt-it -e "discovery.type=single-node" -e "opendistro_security.disabled=true" -m 2g amazon/opendistro-for-elasticsearch:1.13.2
 docker run -d --name bdt-zookeeper --network bdt-it zookeeper:3.5.7
 docker run -d --name bdt-mongodb --network bdt-it qa.int.stratio.com/stratio/mongo:3.0.4
 docker run -d --name bdt-cassandra --network bdt-it -e MAX_HEAP=256M qa.int.stratio.com/stratio/cassandra-lucene-index:3.0.7.3
@@ -141,6 +142,7 @@ Wait for warmup (Elastic 600s, Kafka 300s from start). Then get IPs and run:
 
 ```bash
 ELASTIC_IP=$(docker inspect bdt-elastic --format '{{ (index .NetworkSettings.Networks "bdt-it").IPAddress }}')
+OPENSEARCH_IP=$(docker inspect bdt-opensearch --format '{{ (index .NetworkSettings.Networks "bdt-it").IPAddress }}')
 ZK_IP=$(docker inspect bdt-zookeeper --format '{{ (index .NetworkSettings.Networks "bdt-it").IPAddress }}')
 MONGO_IP=$(docker inspect bdt-mongodb --format '{{ (index .NetworkSettings.Networks "bdt-it").IPAddress }}')
 CASS_IP=$(docker inspect bdt-cassandra --format '{{ (index .NetworkSettings.Networks "bdt-it").IPAddress }}')
@@ -155,6 +157,7 @@ mvn clean verify -DskipUTs -Dmaven.javadoc.skip \
   -DMONGO_HOST=${MONGO_IP} \
   -DCASSANDRA_HOST=${CASS_IP} \
   -DES_NODE=${ELASTIC_IP} \
+  -DOPENSEARCH_NODE=${OPENSEARCH_IP} \
   -DES_CLUSTER=elasticsearch \
   -DZOOKEEPER_HOSTS=${ZK_IP}:2181 \
   -DSECURIZED_ZOOKEEPER=false \
@@ -177,6 +180,40 @@ mvn clean verify -DskipUTs -Dmaven.javadoc.skip \
 - All tests should pass with 0 failures on a clean run
 - **Kafka timeout errors after machine reboot**: `KafkaSecStepsIT` may fail with `TimeoutException: Topic not present in metadata` if Kafka+ZK were just restarted. The broker needs ~300s to elect leaders after a cold start. Fix: recreate ZK and Kafka containers (ZK first, wait 30s, then Kafka with the correct ZK IP), then wait 5min before running the ITs. `docker start` after reboot is NOT enough — Kafka stores the old ZK IP in its config; `docker rm -f bdt-kafka bdt-zookeeper` and recreate from scratch.
 - **MongoDB lock file after machine reboot**: `MongoStepsIT`/`MongoToolsIT` fail with `MongoTimeoutException` if `bdt-mongodb` was not cleanly stopped before reboot — Mongo leaves a `mongod.lock` file that prevents restart. Fix: `docker rm -f bdt-mongodb` and recreate with the original `docker run` command. `docker start` will fail silently.
+
+## Elasticsearch and OpenSearch share nothing
+
+They used to share the `bdt-elastic` container, and that made the build flaky in a way that took a
+while to pin down.
+
+`org.opensearch.cluster.metadata.MappingMetadata` **cannot be initialized in this classpath at all**:
+
+```
+java.lang.NoSuchFieldError: LUCENE_8_8_2  at org.opensearch.Version.<clinit>
+```
+
+`lucene-core` resolves to **8.2.0**, pulled in by `elasticsearch-rest-high-level-client:7.4.2`, but
+`opensearch:2.2.1` needs 9.3.0 — the field does not exist in 8.2.0. **There is no version that suits
+both**: pin 9.3.0 and `org.elasticsearch.Version` breaks the same way looking for `LUCENE_8_2_0`.
+Both clients are used by `qa-unified-tests`, so neither can be dropped today. Check it in one line:
+
+```bash
+Class.forName("org.opensearch.cluster.metadata.MappingMetadata")   // NoSuchFieldError
+Class.forName("org.elasticsearch.cluster.metadata.MappingMetaData") // fine
+```
+
+`OpenSearchUtils.dropAllIndexes` used to enumerate indexes through the mappings API, which builds a
+`MappingMetadata` per index — so it blew up whenever the cluster held at least one index, and passed
+only when it was empty. It now reads `_cat/indices` through the low-level client, which touches
+none of that. **Nothing else in `OpenSearchUtils` goes near `MappingMetadata`**; keep it that way.
+
+What made it intermittent: `ElasticSearchUtilsIT` created `testindex` and never removed it (no
+`@AfterClass`). Whichever suite ran `drop every existing index` first decided the build — the
+Elasticsearch client can parse mappings, the OpenSearch one cannot. IT class order is not stable
+between builds, so the same commit was green or red at random. Fixed three ways at once: the leak
+is closed, the step no longer parses mappings, and **`OPENSEARCH` is now its own ITSERVICES
+container** (`-DOPENSEARCH_NODE`, falling back to `ES_NODE` when unset, so consumers setting only
+the old property are unaffected).
 
 ## Kubernetes tests (no cluster required)
 

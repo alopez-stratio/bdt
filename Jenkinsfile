@@ -26,8 +26,39 @@ hose {
            // blind gate that let a dead Cassandra through. 'sleep' is a budget, not a delay: the
            // pod is Ready the moment 27017 answers.
            'sleep': 60,
+           // mongod itself idles at ~66MiB, but MMAPv1 preallocates three 1GB journal files on
+           // first boot -- 3.1GB written in one burst before it ever listens on 27017. That burst
+           // is page cache inside the container's cgroup, and without a 'resources' block the
+           // library caps it at 512Mi (cd/Util.groovy:574) and requests 256Mi (:571). On an idle
+           // node the kernel writes back fast enough to stay under it; on a busy one it does not,
+           // and the burst hits the limit:
+           //
+           //     File Preallocator Progress: 503316480/1073741824 46%
+           //     /docker-entrypoint.sh: line 5: 8 Killed  mongod
+           //
+           // The preallocation check itself shows the contention -- 2.2-2.8s per probe locally
+           // against 4.9-8.6s on the builds that died. The container never opens 27017, the
+           // readiness probe never passes and the build dies before a single IT runs.
+           //
+           // Turning journaling off would remove the burst outright, but this image's entrypoint
+           // runs a bare `mongod` and drops whatever arguments it is given, and ITSERVICES' 'cmd'
+           // maps to args (cd/Util.groovy:580), not command. So headroom is the only lever here.
+           'resources': ['requests': ['memory': "512Mi"], 'limits': ['memory': "1Gi"]],
 	       'healthcheck': 27017]],
         ['ELASTIC': [
+                'image': 'amazon/opendistro-for-elasticsearch:1.13.2',
+                'sleep': 600,
+                'healthcheck': 9200,
+                'resources': ['limits': ['memory': "2Gi"]],
+                'env': ['discovery.type=single-node', 'opendistro_security.disabled=true']
+            ]
+            ],
+        // OpenSearch gets a cluster of its own. It shared the ELASTIC container until now, and
+        // "I drop every existing opensearch index" enumerates whatever is on the cluster -- so an
+        // index left behind by the Elasticsearch suite (ElasticSearchUtilsIT used to leak
+        // 'testindex') landed in the OpenSearch suite's lap. Whichever of the two happened to run
+        // first decided whether the build was green, and that order is not stable.
+        ['OPENSEARCH': [
                 'image': 'amazon/opendistro-for-elasticsearch:1.13.2',
                 'sleep': 600,
                 'healthcheck': 9200,
@@ -71,6 +102,11 @@ hose {
                    'KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://%%OWNHOSTNAME:9092',
                    'KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT',
                    'KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1',
+                   // __transaction_state defaults to a replication factor of 3, which a single
+                   // broker cannot satisfy: initTransactions() then dies with "Timeout expired
+                   // while awaiting InitProducerId" and the transactional steps are untestable.
+                   'KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1',
+                   'KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1',
                    'KAFKA_BROKER_ID=1']
             ]
         ],
@@ -114,6 +150,7 @@ hose {
         | -DMONGO_HOST=%%MONGODB
         | -DCASSANDRA_HOST=%%CASSANDRA
         | -DES_NODE=%%ELASTIC
+        | -DOPENSEARCH_NODE=%%OPENSEARCH
         | -DES_CLUSTER=elasticsearch
         | -DZOOKEEPER_HOSTS=%%ZOOKEEPER:2181
         | -DSECURIZED_ZOOKEEPER=false

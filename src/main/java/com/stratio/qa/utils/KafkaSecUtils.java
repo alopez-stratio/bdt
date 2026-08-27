@@ -177,16 +177,14 @@ public class KafkaSecUtils {
         for (int i = 0; (i <= timeout); i += wait) {
             try {
                 ListTopicsResult topics = adminClient.listTopics();
+                // Answering at all is the availability signal. This used to require the answer to
+                // be non-empty as well, which reports a broker that is up but has no topics yet as
+                // unavailable -- and a broker with no topics is exactly what you get right after
+                // one starts.
                 Set<String> names = topics.names().get();
-                if (names.isEmpty()) {
-                    // case: if no topic found.
-                    logger.info("Kafka not ready yet to accept requests. Waiting...");
-                    Thread.sleep(wait * 1000);
-                } else {
-                    ready = true;
-                    logger.info("Kafka ready to accept requests after " + i + " seconds.");
-                    break;
-                }
+                ready = true;
+                logger.info("Kafka ready to accept requests after " + i + " seconds, serving " + names.size() + " topics.");
+                break;
             } catch (Exception e) {
                 // Kafka is not available
                 logger.info("Kafka not ready yet to accept requests. Waiting...");
@@ -316,7 +314,10 @@ public class KafkaSecUtils {
         adminClient.createTopics(asList(newTopic)).all().get(KAFKA_DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         logger.debug("Topic created.");
 
-        if (numPartitions != null) {
+        // The topic is created with a single partition above, and createPartitions only ever grows
+        // a topic -- asking it to increase to 1 gets "InvalidPartitionsException: Topic already
+        // has 1 partitions" back. So only widen it when more than one was asked for.
+        if (numPartitions != null && Integer.parseInt(numPartitions) > 1) {
             // create partitions
             logger.debug("Creating: " + numPartitions + " partitions in topic: " + topic);
             Map<String, NewPartitions> partitions = new HashMap<String, NewPartitions>() {

@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -37,6 +38,24 @@ public class ElasticSearchUtilsIT {
             .getLogger(ElasticSearchUtilsIT.class);
 
     private ElasticSearchUtils es_utils;
+
+    /**
+     * Two of the tests below create 'testindex' and never remove it, so it outlived the class and
+     * sat on the shared cluster for whatever ran next. That is how it reached
+     * "I drop every existing opensearch index", which then had a non-empty cluster to enumerate.
+     */
+    @AfterClass(alwaysRun = true)
+    public void removeLeftoverIndex() throws IOException {
+        ElasticSearchUtils cleanup = new ElasticSearchUtils();
+        cleanup.connect();
+        try {
+            if (cleanup.indexExists("testindex")) {
+                cleanup.dropSingleIndex("testindex");
+            }
+        } finally {
+            cleanup.getClient().close();
+        }
+    }
 
     @BeforeMethod
     public void setSettingsTest() {
