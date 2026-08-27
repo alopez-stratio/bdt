@@ -45,7 +45,7 @@ public class CctMarathonServiceApiClient extends BaseClient {
     public DeployedService getService(String serviceId) throws Exception {
         String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT"))
                 .concat(":" + getPort()).concat("/service/")
-                .concat(ThreadProperty.get("cct-marathon-services_id")).concat("/v1/services");
+                .concat(ThreadProperty.get("cct-marathon-services_id")).concat("/v1/services/");
         url = url.concat(serviceId);
 
         Response response = get(url);

@@ -58,7 +58,8 @@ public class ConfigurationApiClient extends BaseClient {
 
     public BaseResponse getSchema() throws Exception {
         String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT"))
-                .concat(":" + getPort()).concat(":443/service/cct-configuration-api/central/schema");
+                // used to append ":443" after the port as well, building https://host:443:443/...
+                .concat(":" + getPort()).concat("/service/cct-configuration-api/central/schema");
 
         Response response = get(url);
         return map(response);
@@ -66,7 +67,8 @@ public class ConfigurationApiClient extends BaseClient {
 
     public CalicoConfiguration getNetwork(String networkId) throws Exception {
         String url = "https://".concat(ThreadProperty.get("EOS_ACCESS_POINT"))
-                .concat(":" + getPort()).concat(":443/service/cct-configuration-api/network/");
+                // used to append ":443" after the port as well, building https://host:443:443/...
+                .concat(":" + getPort()).concat("/service/cct-configuration-api/network/");
         url = url.concat(networkId);
 
         Response response = get(url);
