@@ -225,6 +225,67 @@ Coverage sits at ~76% for `KubernetesClient` and ~90% for `K8SSpec`. What is lef
 
 Do not chase these with a mock. If they ever need coverage, it has to be a real cluster.
 
+## LDAP tests
+
+`LdapSpec` and `LdapUtils` run against the `bdt-ldap` container (`ldapSteps.feature` + `LdapUtilsIT`).
+Two things used to keep every scenario tagged `@manual @ignore`:
+
+1. **The DNs came out as `null`.** Every step builds `uid=x,${LDAP_USER_DN}` from ThreadProperty
+   variables that only the DC/OS bootstrap step publishes (`DcosSpec.obtainJSONInfo`,
+   `KubernetesClient` for Keos). The feature now sets them itself with
+   `I save 'dc=stratio,dc=com' in variable 'LDAP_USER_DN'`.
+2. **The group steps wrote two mutually exclusive structural object classes.** `groupOfNames` and
+   `posixGroup` are both STRUCTURAL in the stock schema, so the server answers
+   `objectClassViolation (65) - invalid structural object class chain`. Same for pushing `member`
+   onto a `posixGroup`.
+
+**`LDAP_SCHEMA`** now selects the shape (see `com.stratio.qa.utils.LdapSchema`):
+
+| Value | Group objectClass | Membership attributes |
+|---|---|---|
+| `rfc2307` | `posixGroup` | `memberUid` |
+| `rfc2307bis` *(default)* | `groupOfNames`, `posixGroup` | `member`, `memberUid` |
+| `groupOfNames` | `groupOfNames` | `member` |
+
+The default keeps the behaviour bdt has always had, so the ~181 uses of these steps in
+`qa-unified-tests` (all `@dcos`) are unaffected. The container serves plain `rfc2307`, which is why
+the feature sets it in its own Background rather than in the Jenkinsfile.
+
+**Do not rely on the demo tree the LDAP image ships.** `ou=People`, `ou=Groups` and the demo users
+(`abrookes`, `cn=Developers`, …) are loaded by a script inside the container that runs `ldapadd`
+right after starting slapd and **does not retry**:
+
+```
+LDAP schema is: rfc2307
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+```
+
+When it loses that race the directory ends up holding only `dc=stratio,dc=com` and
+`cn=admin,dc=stratio,dc=com`, and every search comes back `NO_SUCH_OBJECT (32)`. CI loses it
+regularly — build PR-1200/1 failed 19 ITs this way. Nothing external fixes it: the port is open, so
+the `healthcheck: 389` probe passes while the seed has already failed.
+
+That is why `LDAP_USER_DN` and `LDAP_GROUP_DN` point at `dc=stratio,dc=com` and the feature seeds
+its own groups and users (all prefixed `bdtit`) underneath the root entry, which comes from the
+image's own bootstrap LDIF and is always there. `LdapUtilsIT.searchAdminUserTest` is safe for the
+same reason; `searchRegularUserTest` looks for `abrookes` and stays disabled because of it.
+Verified green in all three states: unseeded, unseeded twice in a row, and fully seeded.
+
+Run them with only the LDAP container up:
+
+```bash
+LDAP_IP=$(docker inspect bdt-ldap --format '{{ (index .NetworkSettings.Networks "bdt-it").IPAddress }}')
+mvn clean verify -DskipUTs -Dmaven.javadoc.skip -Dit.test='com.stratio.qa.ATests.LdapStepsIT,com.stratio.qa.utils.LdapUtilsIT' \
+  -DLDAP_USER=admin -DLDAP_BASE=dc=stratio,dc=com -DLDAP_PASSWORD=stratio \
+  -DLDAP_SSL=false -DLDAP_PORT=389 -DLDAP_URL=${LDAP_IP}
+```
+
+**Deleting is idempotent on purpose.** `LdapUtils.delete` goes through JNDI's
+`Context.destroySubcontext`, which is specified to do nothing when the name is unbound — so
+removing a user that is not there returns `SUCCESS`. It only fails when the entry exists and the
+server refuses. The cleanup steps depend on that, so the feature proves deletions with an explicit
+`I check that LDAP user '...' does not exist` instead.
+
 ## Key files
 
 | File | Size | Notes |

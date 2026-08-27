@@ -128,6 +128,18 @@ public class LdapUtils {
         }
     }
 
+    /**
+     * Delete an entry.
+     *
+     * <p>Deleting something that is not there is <b>not</b> an error: the JNDI provider behind
+     * ldaptive maps this to {@code Context.destroySubcontext}, which is specified to do nothing
+     * when the name is unbound. So this fails when the entry exists and cannot be removed, and
+     * stays quiet otherwise -- which is what the cleanup steps rely on. Assert the absence
+     * explicitly if you need to know the entry was really there.
+     *
+     * @param dn the entry to remove
+     * @throws LdapException if the server refuses the deletion
+     */
     public void delete(String dn) throws LdapException {
         Connection conn = null;
         try {
@@ -239,7 +251,8 @@ public class LdapUtils {
     public boolean isLDAPuserInGroup(String userUid, String groupCn) throws LdapException {
         boolean userBelongsToGroup = false;
 
-        Matcher matcher = this.getSearchResult(ThreadProperty.get("LDAP_GROUP_DN"), "(&(cn=" + groupCn + ")(member=uid=" + userUid + "," + ThreadProperty.get("LDAP_USER_DN") + "))", "cn", ".*?cn\\[([^\\[\\]]*)\\].*?");
+        String memberAttr = LdapSchema.current().getMembershipSearchAttribute();
+        Matcher matcher = this.getSearchResult(ThreadProperty.get("LDAP_GROUP_DN"), "(&(cn=" + groupCn + ")(" + memberAttr + "=uid=" + userUid + "," + ThreadProperty.get("LDAP_USER_DN") + "))", "cn", ".*?cn\\[([^\\[\\]]*)\\].*?");
         if (matcher.matches()) {
             userBelongsToGroup = true;
         }

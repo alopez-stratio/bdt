@@ -53,6 +53,13 @@ public class LdapUtilsIT {
         }
     }
 
+    /*
+     * The demo tree this looks for is loaded by a script in the image that runs ldapadd right
+     * after starting slapd and does not retry when the server is not accepting connections yet
+     * ("ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)"). CI loses that race often enough
+     * that this cannot be relied on. cn=admin, which searchAdminUserTest uses, comes from the
+     * image's own bootstrap LDIF instead and is always there.
+     */
     @Test(enabled=false)
     public void searchRegularUserTest(){
         String dn = "dc=stratio,dc=com";
@@ -86,12 +93,11 @@ public class LdapUtilsIT {
         }
     }
 
-    @Test(enabled=false)
-    /*
-     * This test assumes RFC2307bis schema in the LDAP server
-     */
+    @Test
     public void crudTest(){
-        String dn = "cn=AddTestGroup,ou=Groups,dc=stratio,dc=com";
+        // Directly under the root, which the image always creates -- see searchRegularUserTest
+        // for why ou=Groups cannot be relied on.
+        String dn = "cn=AddTestGroup,dc=stratio,dc=com";
         LdapEntry entry = new LdapEntry(
                 dn,
                 new LdapAttribute("objectClass", "posixGroup"),

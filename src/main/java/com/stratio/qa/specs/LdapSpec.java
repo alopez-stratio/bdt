@@ -16,6 +16,7 @@
 
 package com.stratio.qa.specs;
 
+import com.stratio.qa.utils.LdapSchema;
 import com.stratio.qa.utils.ThreadProperty;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -34,6 +35,11 @@ import static org.testng.AssertJUnit.fail;
 
 /**
  * Generic LDAP Specs.
+ *
+ * <p>How groups and membership are written depends on the schema the target directory serves.
+ * Set the {@code LDAP_SCHEMA} system property to {@code rfc2307}, {@code rfc2307bis} (the default)
+ * or {@code groupOfNames} -- see {@link LdapSchema}. Getting this wrong makes the server answer
+ * {@code objectClassViolation (65)} on the first write.
  *
  * @see <a href="LdapSpec-annotations.html">LDAP Steps &amp; Matching Regex</a>
  */
@@ -121,9 +127,14 @@ public class LdapSpec extends BaseGSpec {
     }
 
     /**
+     * Delete a user, first removing it from every group it belongs to.
+     *
+     * <p>Deleting a user that does not exist is not an error -- see
+     * {@link com.stratio.qa.utils.LdapUtils#delete(String)}. Follow this with
+     * {@code I check that LDAP user '...' does not exist} when you need the deletion proven.
      *
      * @param userUid The user to be deleted
-     * @throws LdapException
+     * @throws LdapException if the server refuses the deletion
      */
     @When("^I delete LDAP user '(.+?)'$")
     public void deleteLDAPuser(String userUid) throws LdapException {
@@ -144,11 +155,10 @@ public class LdapSpec extends BaseGSpec {
         String groupDn = "cn=" + groupCn + "," + ThreadProperty.get("LDAP_GROUP_DN");
         String userDn = "uid=" + userUid + "," + ThreadProperty.get("LDAP_USER_DN");
 
-        AttributeModification newAttrMember = new AttributeModification(AttributeModificationType.ADD, new LdapAttribute("member", userDn));
-        this.commonspec.getLdapUtils().modify(groupDn, newAttrMember);
-
-        AttributeModification newAttrMemberUid = new AttributeModification(AttributeModificationType.ADD, new LdapAttribute("memberUid", userDn));
-        this.commonspec.getLdapUtils().modify(groupDn, newAttrMemberUid);
+        for (String memberAttr : LdapSchema.current().getMembershipAttributes()) {
+            AttributeModification newAttr = new AttributeModification(AttributeModificationType.ADD, new LdapAttribute(memberAttr, userDn));
+            this.commonspec.getLdapUtils().modify(groupDn, newAttr);
+        }
     }
 
     /**
@@ -158,8 +168,9 @@ public class LdapSpec extends BaseGSpec {
      */
     @When("^I unassign LDAP user '(.+?)' from all LDAP groups$")
     public void unassignLDAPuserFromAllGroups(String userUid) throws LdapException {
-        this.commonspec.getLdapUtils().deleteLDAPuserFromAllGroupsAttribute(userUid, "member");
-        this.commonspec.getLdapUtils().deleteLDAPuserFromAllGroupsAttribute(userUid, "memberUid");
+        for (String memberAttr : LdapSchema.current().getMembershipAttributes()) {
+            this.commonspec.getLdapUtils().deleteLDAPuserFromAllGroupsAttribute(userUid, memberAttr);
+        }
     }
 
     /**
@@ -170,8 +181,9 @@ public class LdapSpec extends BaseGSpec {
      */
     @When("^I unassign LDAP user '(.+?)' from LDAP group '(.+?)'$")
     public void unassignLDAPuserFromGroup(String userUid, String groupCn) throws LdapException {
-        this.commonspec.getLdapUtils().deleteLDAPuserFromGroupAttribute(userUid, groupCn, "member");
-        this.commonspec.getLdapUtils().deleteLDAPuserFromGroupAttribute(userUid, groupCn, "memberUid");
+        for (String memberAttr : LdapSchema.current().getMembershipAttributes()) {
+            this.commonspec.getLdapUtils().deleteLDAPuserFromGroupAttribute(userUid, groupCn, memberAttr);
+        }
     }
 
     /**
@@ -185,20 +197,29 @@ public class LdapSpec extends BaseGSpec {
         String groupDn = "cn=" + groupCn + "," + ThreadProperty.get("LDAP_GROUP_DN");
         int groupGidNumber = this.commonspec.getLdapUtils().getLDAPMaxGidNumber() + 1;
 
+        LdapSchema schema = LdapSchema.current();
+
         LdapEntry newGroup = new LdapEntry(groupDn);
-        newGroup.addAttribute(new LdapAttribute("objectClass", "groupOfNames", "posixGroup"));
+        newGroup.addAttribute(new LdapAttribute("objectClass", schema.getGroupObjectClasses().toArray(new String[0])));
         newGroup.addAttribute(new LdapAttribute("cn", groupCn));
         newGroup.addAttribute(new LdapAttribute("gidNumber", String.valueOf(groupGidNumber)));
-        newGroup.addAttribute(new LdapAttribute("member", "uid=fake," + ThreadProperty.get("LDAP_USER_DN")));
         newGroup.addAttribute(new LdapAttribute("description", groupCn + " group"));
-        newGroup.addAttribute(new LdapAttribute("memberUid", "uid=fake," + ThreadProperty.get("LDAP_USER_DN")));
+        // groupOfNames declares member as MUST, so a brand new group needs a placeholder to exist
+        // at all. Written to every membership attribute of the schema to keep them consistent.
+        for (String memberAttr : schema.getMembershipAttributes()) {
+            newGroup.addAttribute(new LdapAttribute(memberAttr, "uid=fake," + ThreadProperty.get("LDAP_USER_DN")));
+        }
         this.commonspec.getLdapUtils().add(newGroup);
     }
 
     /**
+     * Delete a group.
+     *
+     * <p>Deleting a group that does not exist is not an error -- see
+     * {@link com.stratio.qa.utils.LdapUtils#delete(String)}.
      *
      * @param groupCn The group to be deleted
-     * @throws LdapException
+     * @throws LdapException if the server refuses the deletion
      */
     @When("^I delete LDAP group '(.+?)'$")
     public void deleteLDAPgroup(String groupCn) throws LdapException {
@@ -291,7 +312,7 @@ public class LdapSpec extends BaseGSpec {
      */
     @When("^I get all LDAP groups where LDAP user '(.+?)' belongs and save it in environment variable '(.+?)'$")
     public void getLDAPgroupsOfUser(String userUid, String envVar) throws LdapException {
-        ArrayList<String> groupsList = this.commonspec.getLdapUtils().getLDAPgroupsContainingUserAsAttribute(userUid, "member");
+        ArrayList<String> groupsList = this.commonspec.getLdapUtils().getLDAPgroupsContainingUserAsAttribute(userUid, LdapSchema.current().getMembershipSearchAttribute());
         ThreadProperty.set(envVar, groupsList.toString());
     }
 }
