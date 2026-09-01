@@ -64,6 +64,20 @@ public class RunOnTagAspect {
      *<dd>The scenario will omitted if ALL of params are defined. (AND)</dd>
      *</dl>
      *
+     * <p>A param can also compare the value of a property, with any of these operators:
+     * <dl>
+     *     <dt>=</dt><dd>equal</dd>
+     *     <dt>&gt;</dt><dd>greater than</dd>
+     *     <dt>&lt;</dt><dd>lower than</dd>
+     *     <dt>&gt;=</dt><dd>greater than or equal</dd>
+     *     <dt>&lt;=</dt><dd>lower than or equal</dd>
+     *     <dt>!=</dt><dd>not equal</dd>
+     * </dl>
+     * Values that look like a version (they contain a dot) are compared element by element, ignoring a
+     * -SNAPSHOT, -M&lt;n&gt;, -RC&lt;n&gt; or commit-hash suffix; numeric values are compared as numbers and
+     * anything else is compared as a string. An undefined property makes every comparison false,
+     * "!=" included.
+     *
      * @param pjp ProceedingJoinPoint
      * @param pickle pickle
      * @throws Throwable exception
@@ -113,7 +127,12 @@ public class RunOnTagAspect {
         // Only valid operators: AND -> &&; OR -> ||
         // Valid variables names and values can only contain: characters, numbers, underscores, hyphens, dots and equal
         if (s.contains("&&") || s.contains("||")) {
-            ops = s.substring((s.lastIndexOf("(") + 1), (s.length()) - 1).split("[a-zA-Z._\\-0-9=<>]+");
+            // Normalise the comparison operators before extracting the conditional ones, so that neither the
+            // '!' of "!=" nor the '!' that marks a value as a reference to another property is read as a
+            // conditional operator. A stray '!' anywhere else is still reported as an invalid operator.
+            String normalised = s.substring((s.lastIndexOf("(") + 1), (s.length()) - 1)
+                    .replace("!=", "=").replaceAll("([<>=])!", "$1");
+            ops = normalised.split("[a-zA-Z._\\-0-9=<>]+");
             if (ops.length > 0) {
                 ops = Arrays.copyOfRange(ops, 1, ops.length);
             }
@@ -133,6 +152,65 @@ public class RunOnTagAspect {
         return result;
     }
 
+    /**
+     * Comparison operators recognised inside an expression, longest first so that ">=" is not read as
+     * "=" followed by a parameter ending in ">".
+     */
+    private static final String[] OPERATORS = {">=", "<=", "!=", "=", ">", "<"};
+
+    /**
+     * Returns the comparison operator present in the expression, or null when the expression is just a
+     * parameter name.
+     */
+    private static String operatorIn(String element) {
+        for (String operador : OPERATORS) {
+            if (element.contains(operador)) {
+                return operador;
+            }
+        }
+        return null;
+    }
+
+    /** Whether the operator is one of the ones evaluated as a combination of the basic three. */
+    private static boolean isCompositeOperator(String operador) {
+        return ">=".equals(operador) || "<=".equals(operador) || "!=".equals(operador);
+    }
+
+    /** Replaces the first occurrence of an operator by another one, leaving the value untouched. */
+    private static String replaceOperator(String element, String from, String to) {
+        int i = element.indexOf(from);
+        return element.substring(0, i) + to + element.substring(i + from.length());
+    }
+
+    /** Whether the property named by the parameter has a value, either as a system or a thread property. */
+    private static boolean isDefined(String param) {
+        return !System.getProperty(param, "").isEmpty() || ThreadProperty.get(param) != null;
+    }
+
+    /**
+     * Evaluates one "PARAM<operator>VALUE" expression on its own.
+     * <p>
+     * ">=", "<=" and "!=" are evaluated as combinations of "=", ">" and "<", so the version comparison
+     * in {@link #checkVersion} stays untouched.
+     */
+    private boolean evaluateElement(String element, String operador) throws Exception {
+        switch (operador) {
+            case ">=":
+                return firstElementOperator(replaceOperator(element, ">=", ">"), ">")
+                        || firstElementOperator(replaceOperator(element, ">=", "="), "=");
+            case "<=":
+                return firstElementOperator(replaceOperator(element, "<=", "<"), "<")
+                        || firstElementOperator(replaceOperator(element, "<=", "="), "=");
+            case "!=":
+                // An undefined property makes every comparison false, "!=" included: with no value there
+                // is nothing to compare, and a scenario must not be run on a guess.
+                return isDefined(element.substring(0, element.indexOf("!=")))
+                        && !firstElementOperator(replaceOperator(element, "!=", "="), "=");
+            default:
+                return firstElementOperator(element, operador);
+        }
+    }
+
    /*
     * Checks if every param in the array of strings is defined
     */
@@ -143,56 +221,40 @@ public class RunOnTagAspect {
 
         boolean result = true;
         // Primer elemento
-        if (params[0][0].contains("=")) {
-            result = firstElementOperator(params[0][0], "=");
-        } else if (params[0][0].contains(">")) {
-            result = firstElementOperator(params[0][0], ">");
-        } else if (params[0][0].contains("<")) {
-            result = firstElementOperator(params[0][0], "<");
-        } else {
-            if (System.getProperty(params[0][0], "").isEmpty() && ThreadProperty.get(params[0][0]) == null) {
-                result = false;
-            }
+        String firstOperator = operatorIn(params[0][0]);
+        if (firstOperator != null) {
+            result = evaluateElement(params[0][0], firstOperator);
+        } else if (!isDefined(params[0][0])) {
+            result = false;
         }
 
         // Elementos intermedios
         for (int j = 1; j < params[0].length - 1; j++) {
-            if (params[0][j].contains("=")) {
-                result = elementOperator(params[0][j], "=", params[1], j - 1, result);
-            } else if (params[0][j].contains(">")) {
-                result = elementOperator(params[0][j], ">", params[1], j - 1, result);
-            } else if (params[0][j].contains("<")) {
-                result = elementOperator(params[0][j], "<", params[1], j - 1, result);
+            String operador = operatorIn(params[0][j]);
+            if (operador != null) {
+                result = elementOperator(params[0][j], operador, params[1], j - 1, result);
             } else {
-                if (System.getProperty(params[0][j], "").isEmpty() && ThreadProperty.get(params[0][j]) == null) {
-                    result = updateResultOperation(params[1], j - 1, result, false);
-                } else {
-                    result = updateResultOperation(params[1], j - 1, result, true);
-                }
-
+                result = updateResultOperation(params[1], j - 1, result, isDefined(params[0][j]));
             }
         }
 
         // Último elemento
         if (params[0].length > 1) {
-            if (params[0][params[0].length - 1].contains("=")) {
-                result = elementOperator(params[0][params[0].length - 1], "=", params[1], params[1].length - 1, result);
-            } else if (params[0][params[0].length - 1].contains(">")) {
-                result = elementOperator(params[0][params[0].length - 1], ">", params[1], params[1].length - 1, result);
-            } else if (params[0][params[0].length - 1].contains("<")) {
-                result = elementOperator(params[0][params[0].length - 1], "<", params[1], params[1].length - 1, result);
+            String lastElement = params[0][params[0].length - 1];
+            String lastOperator = operatorIn(lastElement);
+            if (lastOperator != null) {
+                result = elementOperator(lastElement, lastOperator, params[1], params[1].length - 1, result);
             } else {
-                if (System.getProperty(params[0][params[0].length - 1], "").isEmpty() && ThreadProperty.get(params[0][params[0].length - 1]) == null) {
-                    result = updateResultOperation(params[1], params[1].length - 1, result, false);
-                } else {
-                    result = updateResultOperation(params[1], params[1].length - 1, result, true);
-                }
+                result = updateResultOperation(params[1], params[1].length - 1, result, isDefined(lastElement));
             }
         }
         return result;
     }
 
     private boolean firstElementOperator(String element, String operador) throws Exception {
+        if (isCompositeOperator(operador)) {
+            return evaluateElement(element, operador);
+        }
         boolean result = true;
         String param = element.split(operador)[0];
         String value = element.split(operador)[1];
@@ -219,6 +281,9 @@ public class RunOnTagAspect {
     }
 
     private boolean elementOperator(String element, String operador, String[] operations, int posop, boolean result) throws Exception {
+        if (isCompositeOperator(operador)) {
+            return updateResultOperation(operations, posop, result, evaluateElement(element, operador));
+        }
         boolean res = result;
         String param = element.split(operador)[0];
         String value = element.split(operador)[1];

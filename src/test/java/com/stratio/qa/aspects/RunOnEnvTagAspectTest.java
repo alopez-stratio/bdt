@@ -2690,4 +2690,333 @@ public class RunOnEnvTagAspectTest {
         tagList.add("@skipOnEnv(TEST=!TEST2)");
         assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Relational operators: >=, <= and !=
+    // ---------------------------------------------------------------------------------------------
+
+    private boolean runOnEnv(String expression) throws Exception {
+        return runontag.checkParams(runontag.getParams("@runOnEnv(" + expression + ")"));
+    }
+
+    @Test
+    public void testGreaterOrEqualVersionWhenEqual() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION>=1.0.0")).as("1.0.0 >= 1.0.0").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualVersionWhenGreater() throws Exception {
+        System.setProperty("VERSION", "1.1.0");
+        assertThat(runOnEnv("VERSION>=1.0.0")).as("1.1.0 >= 1.0.0").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualVersionWhenLower() throws Exception {
+        System.setProperty("VERSION", "0.9.0");
+        assertThat(runOnEnv("VERSION>=1.0.0")).as("0.9.0 >= 1.0.0").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualVersionComparesElementWise() throws Exception {
+        System.setProperty("VERSION", "0.11.0");
+        assertThat(runOnEnv("VERSION>=0.9.0")).as("0.11.0 >= 0.9.0, not a string comparison").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testLowerOrEqualVersionWhenEqual() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION<=1.0.0")).as("1.0.0 <= 1.0.0").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testLowerOrEqualVersionWhenLower() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION<=1.0.1")).as("1.0.0 <= 1.0.1").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testLowerOrEqualVersionWhenGreater() throws Exception {
+        System.setProperty("VERSION", "1.0.2");
+        assertThat(runOnEnv("VERSION<=1.0.1")).as("1.0.2 <= 1.0.1").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testNotEqualVersionWhenDifferent() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION!=1.0.1")).as("1.0.0 != 1.0.1").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testNotEqualVersionWhenEqual() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION!=1.0.0")).as("1.0.0 != 1.0.0").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testNotEqualVersionWithDifferentNumberOfElements() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION!=1.0")).as("1.0.0 != 1.0, without raising the length error of > and <").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testRelationalOperatorsWithUndefinedProperty() throws Exception {
+        System.clearProperty("UNDEFINED_VERSION");
+        assertThat(runOnEnv("UNDEFINED_VERSION>=1.0.0")).as(">= on an undefined property").isFalse();
+        assertThat(runOnEnv("UNDEFINED_VERSION<=1.0.0")).as("<= on an undefined property").isFalse();
+        assertThat(runOnEnv("UNDEFINED_VERSION!=1.0.0")).as("!= on an undefined property").isFalse();
+    }
+
+    @Test
+    public void testRelationalOperatorsWithEmptyProperty() throws Exception {
+        System.setProperty("EMPTY_VERSION", "");
+        assertThat(runOnEnv("EMPTY_VERSION>=1.0.0")).as(">= on an empty property").isFalse();
+        assertThat(runOnEnv("EMPTY_VERSION!=1.0.0")).as("!= on an empty property").isFalse();
+        System.clearProperty("EMPTY_VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualWithNumbers() throws Exception {
+        System.setProperty("REPLICAS", "10");
+        assertThat(runOnEnv("REPLICAS>=10")).as("10 >= 10").isTrue();
+        assertThat(runOnEnv("REPLICAS>=9")).as("10 >= 9").isTrue();
+        assertThat(runOnEnv("REPLICAS>=11")).as("10 >= 11").isFalse();
+        System.clearProperty("REPLICAS");
+    }
+
+    @Test
+    public void testLowerOrEqualWithNumbers() throws Exception {
+        System.setProperty("REPLICAS", "10");
+        assertThat(runOnEnv("REPLICAS<=10")).as("10 <= 10").isTrue();
+        assertThat(runOnEnv("REPLICAS<=11")).as("10 <= 11").isTrue();
+        assertThat(runOnEnv("REPLICAS<=9")).as("10 <= 9").isFalse();
+        System.clearProperty("REPLICAS");
+    }
+
+    @Test
+    public void testNotEqualWithNumbers() throws Exception {
+        System.setProperty("REPLICAS", "10");
+        assertThat(runOnEnv("REPLICAS!=10")).as("10 != 10").isFalse();
+        assertThat(runOnEnv("REPLICAS!=11")).as("10 != 11").isTrue();
+        System.clearProperty("REPLICAS");
+    }
+
+    @Test
+    public void testRelationalOperatorsWithStrings() throws Exception {
+        System.setProperty("FLAVOUR", "beta");
+        assertThat(runOnEnv("FLAVOUR>=beta")).as("beta >= beta").isTrue();
+        assertThat(runOnEnv("FLAVOUR>=alpha")).as("beta >= alpha").isTrue();
+        assertThat(runOnEnv("FLAVOUR<=beta")).as("beta <= beta").isTrue();
+        assertThat(runOnEnv("FLAVOUR<=gamma")).as("beta <= gamma").isTrue();
+        assertThat(runOnEnv("FLAVOUR!=alpha")).as("beta != alpha").isTrue();
+        assertThat(runOnEnv("FLAVOUR!=beta")).as("beta != beta").isFalse();
+        System.clearProperty("FLAVOUR");
+    }
+
+    @Test
+    public void testGreaterOrEqualIgnoresCommitHashSuffix() throws Exception {
+        System.setProperty("VERSION", "1.1.0-a9bb781");
+        assertThat(runOnEnv("VERSION>=1.1.0")).as("1.1.0-a9bb781 >= 1.1.0").isTrue();
+        assertThat(runOnEnv("VERSION>=1.2.0")).as("1.1.0-a9bb781 >= 1.2.0").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualIgnoresSnapshotSuffix() throws Exception {
+        System.setProperty("VERSION", "2.0.0-SNAPSHOT");
+        assertThat(runOnEnv("VERSION>=2.0.0")).as("2.0.0-SNAPSHOT >= 2.0.0").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualIgnoresMilestoneSuffix() throws Exception {
+        System.setProperty("VERSION", "0.6.0-M10");
+        assertThat(runOnEnv("VERSION>=0.6.0")).as("0.6.0-M10 >= 0.6.0").isTrue();
+        assertThat(runOnEnv("VERSION>=0.7.0")).as("0.6.0-M10 >= 0.7.0").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualWithThreadProperty() throws Exception {
+        ThreadProperty.set("LOCAL_VERSION", "1.2.0");
+        assertThat(runOnEnv("LOCAL_VERSION>=1.2.0")).as("thread property 1.2.0 >= 1.2.0").isTrue();
+        assertThat(runOnEnv("LOCAL_VERSION>=1.3.0")).as("thread property 1.2.0 >= 1.3.0").isFalse();
+        ThreadProperty.remove("LOCAL_VERSION");
+    }
+
+    @Test
+    public void testRelationalOperatorAgainstAnotherProperty() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        System.setProperty("OTHER_VERSION", "1.0.0");
+        assertThat(runOnEnv("VERSION>=!OTHER_VERSION")).as("1.0.0 >= value of OTHER_VERSION").isTrue();
+        assertThat(runOnEnv("VERSION!=!OTHER_VERSION")).as("1.0.0 != value of OTHER_VERSION").isFalse();
+        System.clearProperty("VERSION");
+        System.clearProperty("OTHER_VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualIsEquivalentToTheOldIdiom() throws Exception {
+        String[] properties = {"0.9.0", "1.0.0", "1.0.1", "1.1.0", "2.0.0"};
+        String[] values = {"0.9.0", "1.0.0", "1.0.1", "1.1.0", "2.0.0"};
+        for (String property : properties) {
+            for (String value : values) {
+                System.setProperty("VERSION", property);
+                boolean oldIdiom = runOnEnv("VERSION=" + value + "||VERSION>" + value);
+                boolean newOperator = runOnEnv("VERSION>=" + value);
+                assertThat(newOperator).as(property + " >= " + value + " must match the =||> idiom").isEqualTo(oldIdiom);
+                System.clearProperty("VERSION");
+            }
+        }
+    }
+
+    @Test
+    public void testLowerOrEqualIsEquivalentToTheOldIdiom() throws Exception {
+        String[] properties = {"0.9.0", "1.0.0", "1.0.1", "1.1.0", "2.0.0"};
+        String[] values = {"0.9.0", "1.0.0", "1.0.1", "1.1.0", "2.0.0"};
+        for (String property : properties) {
+            for (String value : values) {
+                System.setProperty("VERSION", property);
+                boolean oldIdiom = runOnEnv("VERSION=" + value + "||VERSION<" + value);
+                boolean newOperator = runOnEnv("VERSION<=" + value);
+                assertThat(newOperator).as(property + " <= " + value + " must match the =||< idiom").isEqualTo(oldIdiom);
+                System.clearProperty("VERSION");
+            }
+        }
+    }
+
+    @Test
+    public void testRelationalOperatorsCombinedWithAnd() throws Exception {
+        System.setProperty("VERSION", "1.1.0");
+        System.setProperty("CCT_VERSION", "3.0.0");
+        assertThat(runOnEnv("VERSION>=1.0.0&&CCT_VERSION>=3.0.0")).as("both hold").isTrue();
+        assertThat(runOnEnv("VERSION>=1.0.0&&CCT_VERSION>=4.0.0")).as("second one fails").isFalse();
+        assertThat(runOnEnv("VERSION>=2.0.0&&CCT_VERSION>=3.0.0")).as("first one fails").isFalse();
+        System.clearProperty("VERSION");
+        System.clearProperty("CCT_VERSION");
+    }
+
+    @Test
+    public void testRelationalOperatorsCombinedWithOr() throws Exception {
+        System.setProperty("VERSION", "0.9.0");
+        System.setProperty("CCT_VERSION", "3.0.0");
+        assertThat(runOnEnv("VERSION>=1.0.0||CCT_VERSION>=3.0.0")).as("second one holds").isTrue();
+        assertThat(runOnEnv("VERSION>=1.0.0||CCT_VERSION>=4.0.0")).as("neither holds").isFalse();
+        System.clearProperty("VERSION");
+        System.clearProperty("CCT_VERSION");
+    }
+
+    @Test
+    public void testRelationalOperatorsInThreeTermExpression() throws Exception {
+        System.setProperty("VERSION", "1.1.0");
+        System.setProperty("CCT_VERSION", "3.0.0");
+        System.setProperty("FLAVOUR", "default");
+        assertThat(runOnEnv("VERSION>=1.0.0&&CCT_VERSION>=3.0.0&&FLAVOUR!=custom")).as("three terms hold").isTrue();
+        assertThat(runOnEnv("VERSION>=1.0.0&&CCT_VERSION>=3.0.0&&FLAVOUR!=default")).as("last term fails").isFalse();
+        System.clearProperty("VERSION");
+        System.clearProperty("CCT_VERSION");
+        System.clearProperty("FLAVOUR");
+    }
+
+    @Test
+    public void testMixedOperatorsInTheSameExpression() throws Exception {
+        System.setProperty("VERSION", "1.1.0");
+        assertThat(runOnEnv("VERSION>=1.0.0&&VERSION<=1.2.0")).as("1.1.0 within [1.0.0, 1.2.0]").isTrue();
+        assertThat(runOnEnv("VERSION>=1.2.0&&VERSION<=1.3.0")).as("1.1.0 within [1.2.0, 1.3.0]").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGetParamsWithRelationalOperators() throws Exception {
+        String[][] params = runontag.getParams("@runOnEnv(VERSION>=1.0.0&&FLAVOUR!=custom)");
+        assertThat(params[0]).as("Expressions").containsExactly("VERSION>=1.0.0", "FLAVOUR!=custom");
+        assertThat(params[1]).as("Conditional operators").containsExactly("&&");
+    }
+
+    @Test
+    public void testGetParamsWithNotEqualAndOr() throws Exception {
+        String[][] params = runontag.getParams("@runOnEnv(A!=1.0.0||B<=2.0.0)");
+        assertThat(params[0]).as("Expressions").containsExactly("A!=1.0.0", "B<=2.0.0");
+        assertThat(params[1]).as("Conditional operators").containsExactly("||");
+    }
+
+    @Test
+    public void testGetParamsComparingAgainstAnotherPropertyWithAnd() throws Exception {
+        // The '!' of a property reference used to be read as a conditional operator, which made this
+        // expression fail with "Error in conditional operators".
+        String[][] params = runontag.getParams("@runOnEnv(TEST=!TEST2&&OTHER=1)");
+        assertThat(params[0]).as("Expressions").containsExactly("TEST=!TEST2", "OTHER=1");
+        assertThat(params[1]).as("Conditional operators").containsExactly("&&");
+    }
+
+    @Test
+    public void testTagIterationRunsWithGreaterOrEqual() throws Exception {
+        System.setProperty("VERSION", "1.1.0");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>=1.0.0)");
+        assertThat(runontag.tagsIteration(tagList, 1)).as("Scenario is not skipped").isFalse();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testTagIterationSkipsWithGreaterOrEqual() throws Exception {
+        System.setProperty("VERSION", "0.9.0");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>=1.0.0)");
+        assertThat(runontag.tagsIteration(tagList, 1)).as("Scenario is skipped").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testTagIterationSkipOnEnvWithLowerOrEqual() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@skipOnEnv(VERSION<=1.0.0)");
+        assertThat(runontag.tagsIteration(tagList, 1)).as("Scenario is skipped").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testTagIterationSkipOnEnvWithNotEqual() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@skipOnEnv(VERSION!=2.0.0)");
+        assertThat(runontag.tagsIteration(tagList, 1)).as("Scenario is skipped").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testParameterNameEndingInLetterIsNotSplitOnTheOperator() throws Exception {
+        // ">=" must be read as a single operator: reading it as "=" would leave the parameter name as
+        // "VERSION>" and no property would be found.
+        System.setProperty("VERSION", "1.0.0");
+        System.clearProperty("VERSION>");
+        assertThat(runOnEnv("VERSION>=1.0.0")).as("VERSION >= 1.0.0").isTrue();
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testGreaterOrEqualStillRaisesTheLengthErrorOfGreaterThan() throws Exception {
+        System.setProperty("VERSION", "1.0.0");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> runOnEnv("VERSION>=1.0"))
+                .withMessage("Error while parsing params. The versions must have the same number of elements");
+        System.clearProperty("VERSION");
+    }
+
+    @Test
+    public void testRelationalOperatorsRejectInvalidVersions() throws Exception {
+        System.setProperty("VERSION", "1.0.0@1.0.0");
+        assertThatExceptionOfType(Exception.class).isThrownBy(() -> runOnEnv("VERSION>=1.0.0-1.0"))
+                .withMessage("Error while parsing params. The versions have some characters that are not numbers, '.' or '-' or an invalid format");
+        System.clearProperty("VERSION");
+    }
 }
