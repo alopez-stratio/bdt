@@ -405,4 +405,98 @@ public class IncludeTagAspectTest {
         assertThat(lines.get(2)).as("Test that Scenario line was moved to first include line with tags").isEqualTo("@test\nScenario: Scenario with include");
         assertThat(lines).as("Test that array doesn't contains @include tag").doesNotContain("@include");
     }
+
+    // -------------------------------------------------------------------------
+    // @include resolves by scenario name, and until now the three ways that can
+    // go wrong were all silent or unhelpful:
+    //   - a name that is not there threw an exception naming only the name, with
+    //     no clue about what the feature does declare;
+    //   - a name declared twice matched both and appended both bodies, producing
+    //     a scenario nobody wrote;
+    //   - a name that is only inside a comment still matched, so the including
+    //     feature got the commented lines and nothing else.
+    // The first is still an error, now with the file, the closest name and the
+    // list of what is declared. The other two keep resolving the way they did,
+    // because consumer repositories rely on it, but they are logged and a
+    // duplicated name now copies only the first body.
+    // -------------------------------------------------------------------------
+
+    private static final String DIAGNOSTICS_FEATURE = "src/test/resources/features/includeDiagnostics.feature";
+
+    @Test
+    public void testMissingScenarioErrorNamesTheFileAndWhatIsDeclared() {
+        assertThatExceptionOfType(IncludeException.class)
+                .isThrownBy(() -> inctag.featureStepConverter(DIAGNOSTICS_FEATURE, "[999] Nothing like this", null))
+                .withMessageContaining(DIAGNOSTICS_FEATURE)
+                .withMessageContaining("[001] Unique scenario")
+                .withMessageContaining("[005] Last scenario");
+    }
+
+    @Test
+    public void testMissingScenarioErrorSuggestsTheClosestName() {
+        assertThatExceptionOfType(IncludeException.class)
+                .isThrownBy(() -> inctag.featureStepConverter(DIAGNOSTICS_FEATURE, "[001] Unique scenari", null))
+                .withMessageContaining("Did you mean '[001] Unique scenario'?");
+    }
+
+    @Test
+    public void testMissingScenarioErrorSkipsTheSuggestionWhenNothingIsClose() {
+        assertThatExceptionOfType(IncludeException.class)
+                .isThrownBy(() -> inctag.featureStepConverter(DIAGNOSTICS_FEATURE, "zzzzzzzzzzzzzzzzzzzz", null))
+                .withMessageNotContaining("Did you mean");
+    }
+
+    @Test
+    public void testDuplicatedScenarioNameCopiesOnlyTheFirstBody() throws IncludeException {
+        String extracted = inctag.featureStepConverter(DIAGNOSTICS_FEATURE, "[002] Duplicated scenario", null);
+        assertThat(extracted).as("The first body of the duplicated name is the one copied").contains("first_body");
+        assertThat(extracted).as("The second body of the duplicated name is not appended too").doesNotContain("second_body");
+    }
+
+    @Test
+    public void testCommentedOutScenarioIsNotReportedAsMissing() throws IncludeException {
+        // It keeps resolving, as it does today, and yields nothing but the commented lines.
+        String extracted = inctag.featureStepConverter(DIAGNOSTICS_FEATURE, "[004] Commented out scenario", null);
+        assertThat(extracted).as("A commented out scenario contributes no step").doesNotContain("Given I save");
+    }
+
+    @Test
+    public void testMissingFeatureFileIsStillReportedAsSuch() {
+        assertThatExceptionOfType(IncludeException.class)
+                .isThrownBy(() -> inctag.featureStepConverter("src/test/resources/features/nope.feature", "whatever", null))
+                .withMessageContaining("Feature file were not found");
+    }
+
+    @Test
+    public void testScenarioNameOf() {
+        assertThat(inctag.scenarioNameOf("  Scenario: Plain name  ")).as("Name of a Scenario line").isEqualTo("Plain name");
+        assertThat(inctag.scenarioNameOf("  Scenario Outline: Outline name")).as("Name of a Scenario Outline line").isEqualTo("Outline name");
+        assertThat(inctag.scenarioNameOf("  Given I do something")).as("A step line declares no scenario").isNull();
+        assertThat(inctag.scenarioNameOf("Feature: Scenario without the colon")).as("A Feature title is not a declaration").isNull();
+    }
+
+    @Test
+    public void testIsCommentedOut() {
+        assertThat(inctag.isCommentedOut("#  Scenario: Disabled")).as("A commented declaration").isTrue();
+        assertThat(inctag.isCommentedOut("   #  Scenario: Indented and commented")).as("An indented commented declaration").isTrue();
+        assertThat(inctag.isCommentedOut("  Scenario: Live one")).as("A live declaration").isFalse();
+    }
+
+    @Test
+    public void testClosestName() {
+        java.util.List<String> declared = java.util.Arrays.asList("Create the table", "Drop the table", "Query it");
+        assertThat(inctag.closestName("Create the tabl", declared)).as("One character away").isEqualTo("Create the table");
+        assertThat(inctag.closestName("Query it", declared)).as("An exact name is its own closest").isEqualTo("Query it");
+        assertThat(inctag.closestName("something entirely different", declared)).as("Too far to be a typo").isNull();
+        assertThat(inctag.closestName("anything", java.util.Collections.emptyList())).as("Nothing declared, nothing to suggest").isNull();
+    }
+
+    @Test
+    public void testEditDistance() {
+        assertThat(LoopIncludeTagAspect.editDistance("", "")).as("Two empty strings").isZero();
+        assertThat(LoopIncludeTagAspect.editDistance("abc", "abc")).as("Two equal strings").isZero();
+        assertThat(LoopIncludeTagAspect.editDistance("", "abc")).as("From empty, one insert per character").isEqualTo(3);
+        assertThat(LoopIncludeTagAspect.editDistance("kitten", "sitting")).as("The textbook case").isEqualTo(3);
+        assertThat(LoopIncludeTagAspect.editDistance("abc", "acb")).as("A transposition costs two substitutions").isEqualTo(2);
+    }
 }
