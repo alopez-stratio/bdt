@@ -26,7 +26,8 @@ import org.testng.annotations.Test;
 @CucumberOptions(plugin = "json:target/cucumber-loop-tag-aspect.json", features = {
         "src/test/resources/features/loopTag.feature",
         "src/test/resources/features/progloopTag.feature",
-        "src/test/resources/features/multiloopTag.feature"
+        "src/test/resources/features/multiloopTag.feature",
+        "src/test/resources/features/loopOutlineTag.feature"
 })
 public class LoopTagAspectIT extends BaseGTest {
 
