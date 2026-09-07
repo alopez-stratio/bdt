@@ -29,6 +29,7 @@ import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.DBObjectsAssert;
 import com.stratio.qa.exceptions.DBException;
 import com.stratio.qa.utils.JDBCConnection;
+import com.stratio.qa.utils.SqlStatementSplitter;
 import com.stratio.qa.utils.ThreadProperty;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -45,6 +46,9 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -77,6 +81,20 @@ public class DatabaseSpec extends BaseGSpec {
      * Marker a SQL NULL is stored as, so it stays comparable against a datatable cell.
      */
     public static final String EMPTY_VALUE = "<EMPTY>";
+
+    /**
+     * Directory the Vault certificates are downloaded into.
+     */
+    public static final String CERTIFICATES_PATH = "target/test-classes/";
+
+    public static final String POSTGRES_DEFAULT_PORT = "5432";
+
+    public static final String POSTGRES_DEFAULT_USER = "postgres";
+
+    /**
+     * Vault certificate entry the Postgres steps download when the feature names none.
+     */
+    public static final String POSTGRES_DEFAULT_CERTIFICATE = "postgres";
 
     private Scenario scenario;
 
@@ -922,6 +940,279 @@ public class DatabaseSpec extends BaseGSpec {
                                                String exceptionMessageExpected,
                                                String query) throws Exception {
         executeJdbcQuery(query, exceptionReturned, warningReturned, exceptionMessageExpected);
+    }
+
+    /**
+     * Executes a set of SQL statements against a Postgres database running in Kubernetes, handling
+     * the whole plumbing internally: Vault certificates, /etc/hosts entry, port forward, JDBC
+     * connection, query execution and cleanup.
+     * <p>
+     * Replaces the 11-step block that had to be repeated in every feature needing SQL access:
+     * <pre>
+     *   I obtain Postgres certificates for Postgres
+     *   I save host '...' with ip '127.0.0.1' in /etc/hosts
+     *   I forward containerPort '...' in localhostPort '...' for service '...' in namespace '...'
+     *   I connect with JDBC and security type 'CERT' to database transactional '...' ...
+     *   an exception 'IS NOT' thrown
+     *   I execute query '...' through JDBC connection      (xN)
+     *   I close database connection
+     *   I close port forward
+     *   I restore /etc/hosts
+     * </pre>
+     * Cleanup always runs, even when a query fails, so a failing scenario cannot leave a stale port
+     * forward or a polluted /etc/hosts behind. Every phase is logged into the scenario output.
+     * <p>
+     * Two authentication modes:
+     * <ul>
+     *   <li>mTLS (default): certificates are downloaded from Vault into {@code target/test-classes}
+     *       ({@code <certName>.pem}, {@code <certName>.pk8} and {@code ca.crt}), with 3 retries.</li>
+     *   <li>Password: given {@code with password '...'}, connects with security type {@code MD5} and
+     *       no Vault access at all.</li>
+     * </ul>
+     * Example:
+     * <pre>
+     * When I execute the following queries in Postgres database 'genaimemories' on host 'my-pg-primary' in namespace 'my-ns':
+     *   """
+     *   -- Extensions required by Hindsight
+     *   CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+     *   CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+     *   """
+     * </pre>
+     * Statements are separated by {@code ;}, so one of them may span as many lines as it needs.
+     * A certificate other than the Postgres one is given with
+     * {@code with certificates 'gosec-authz' from vault path 'gosec-authz.keos-core'}.
+     * <p>
+     * A failing statement fails the step, unless {@code ignoring errors} is given: then a failure
+     * is logged and skipped, which is what a best-effort cleanup wants.
+     *
+     * @param database  database to connect to
+     * @param host      Postgres service name (also the /etc/hosts entry and the JDBC host)
+     * @param namespace namespace where the Postgres service lives
+     * @param port      Postgres port (defaults to 5432)
+     * @param user      database user (defaults to postgres)
+     * @param certName  Vault certificate entry (defaults to postgres)
+     * @param vaultPath Vault path of the certificates (defaults to the idPostgres test variable)
+     * @param password  when set, connects with password instead of certificates
+     * @param queries   statements to execute in order, separated by {@code ;}; statements may span
+     *                  several lines and {@code --} comments are ignored
+     * @param ignoringErrors           when set, a failing statement is logged and skipped instead
+     *                                 of failing the step
+     * @throws Exception if the certificates cannot be downloaded, the connection cannot be opened
+     *                   or any of the queries fails
+     */
+    @When("^I execute the following queries in Postgres database '(.+?)' on host '(.+?)' in namespace '(.+?)'( on port '(.+?)')?( with user '(.+?)')?( with certificates '(.+?)')?( from vault path '(.+?)')?( with password '(.+?)')?( ignoring errors)?:$")
+    public void executeQueriesInKubernetesPostgres(String database, String host, String namespace, String port,
+                                                   String user, String certName, String vaultPath, String password,
+                                                   String ignoringErrors, String queries) throws Exception {
+        List<String> statements = SqlStatementSplitter.splitSqlStatements(queries);
+        inKubernetesPostgresConnection(database, host, namespace, port, user, certName, vaultPath, password,
+            statements.size() + " query(ies) to execute",
+            () -> executeStatements(statements, ignoringErrors));
+    }
+
+    /**
+     * Executes a SQL file against a Postgres database running in Kubernetes, handling the whole
+     * plumbing internally exactly like
+     * {@code executeQueriesInKubernetesPostgres}
+     * - Vault certificates, /etc/hosts entry, port forward, JDBC connection and cleanup - so a
+     * feature needing a schema loaded no longer has to spell the block out.
+     * <p>
+     * The file is read as UTF-8 and split by {@link SqlStatementSplitter#splitSqlStatements(String)}, the same way the
+     * docstring of the step above is, so both behave alike: statements are separated by {@code ;},
+     * may span several lines, and comments are dropped.
+     * <p>
+     * Example:
+     * <pre>
+     * When I execute the sql file 'src/test/resources/schemas/postgres-sakila-schema.sql' in Postgres database 'sakila' on host 'my-pg-primary' in namespace 'my-ns'
+     * </pre>
+     * {@code ignoring errors} means here exactly what it means in the step above.
+     *
+     * @param file      path of the SQL file to execute
+     * @param database  database to connect to
+     * @param host      Postgres service name (also the /etc/hosts entry and the JDBC host)
+     * @param namespace namespace where the Postgres service lives
+     * @param port      Postgres port (defaults to 5432)
+     * @param user      database user (defaults to postgres)
+     * @param certName  Vault certificate entry (defaults to postgres)
+     * @param vaultPath Vault path of the certificates (defaults to the idPostgres test variable)
+     * @param password  when set, connects with password instead of certificates
+     * @param ignoringErrors           when set, a failing statement is logged and skipped instead
+     *                                 of failing the step
+     * @throws Exception if the certificates cannot be downloaded, the connection cannot be opened
+     *                   or the file cannot be read or executed
+     */
+    @When("^I execute the sql file '(.+?)' in Postgres database '(.+?)' on host '(.+?)' in namespace '(.+?)'( on port '(.+?)')?( with user '(.+?)')?( with certificates '(.+?)')?( from vault path '(.+?)')?( with password '(.+?)')?( ignoring errors)?$")
+    public void executeSqlFileInKubernetesPostgres(String file, String database, String host, String namespace,
+                                                   String port, String user, String certName, String vaultPath,
+                                                   String password, String ignoringErrors) throws Exception {
+        List<String> statements = SqlStatementSplitter.splitSqlStatements(new String(Files.readAllBytes(Paths.get(file)), StandardCharsets.UTF_8));
+        inKubernetesPostgresConnection(database, host, namespace, port, user, certName, vaultPath, password,
+            "sql file '" + file + "', " + statements.size() + " query(ies) to execute",
+            () -> executeStatements(statements, ignoringErrors));
+    }
+
+    /**
+     * Executes {@code statements} in order over the JDBC connection already open.
+     * <p>
+     * A statement failing fails the step, unless {@code ignoring errors} was given: then every
+     * statement is attempted and a failure is only logged, which is what a best-effort block such
+     * as a cleanup wants. Autocommit is on, so a failed statement does not abort the ones after it.
+     *
+     * @param statements     statements to execute in order
+     * @param ignoringErrors when set, a failing statement is logged instead of failing the step
+     * @throws Exception if a statement fails and {@code ignoring errors} was not given
+     */
+    private void executeStatements(List<String> statements, String ignoringErrors) throws Exception {
+        for (String statement : statements) {
+            logIntoScenario("[Postgres] Executing query: " + statement);
+            try {
+                executeJdbcQuery(statement, null, null, null);
+            } catch (Exception | AssertionError e) {
+                if (ignoringErrors == null) {
+                    throw e;
+                }
+                logIntoScenario("[Postgres] Ignored error -> " + e.getMessage());
+            }
+        }
+        logIntoScenario("[Postgres] All queries executed successfully");
+    }
+
+    /**
+     * Opens everything a Postgres database running in Kubernetes needs - Vault certificates,
+     * /etc/hosts entry, port forward and JDBC connection - runs {@code work} against it and tears
+     * it all down again.
+     * <p>
+     * Cleanup always runs, even when {@code work} fails, so a failing scenario cannot leave a stale
+     * port forward or a polluted /etc/hosts behind, and a cleanup failure is logged rather than
+     * thrown so it cannot mask the original error. Every phase is logged into the scenario output.
+     *
+     * @param workDescription what {@code work} is going to do, for the opening log line
+     * @param work            what to run once the connection is open
+     */
+    private void inKubernetesPostgresConnection(String database, String host, String namespace, String port,
+                                                String user, String certName, String vaultPath, String password,
+                                                String workDescription, ThrowingRunnable work) throws Exception {
+        String pgPort = port != null ? port : POSTGRES_DEFAULT_PORT;
+        String pgUser = user != null ? user : POSTGRES_DEFAULT_USER;
+        String pgCertName = certName != null ? certName : POSTGRES_DEFAULT_CERTIFICATE;
+        String pgVaultPath = vaultPath != null ? vaultPath : ThreadProperty.get("idPostgres");
+
+        if (password == null && (pgVaultPath == null || pgVaultPath.isEmpty())) {
+            throw new Exception("No Postgres credentials given: add \"with certificates '<name>' from vault path '<path>'\", "
+                    + "or \"with password '<password>'\", or set the 'idPostgres' test variable");
+        }
+
+        K8SSpec k8SSpec = new K8SSpec(commonspec);
+        ETCHOSTSManagementSpec etcHostsManagementSpec = new ETCHOSTSManagementSpec(commonspec);
+        String forwardId = "postgres-" + host + "-" + pgPort;
+        boolean hostsFileModified = false;
+        boolean portForwarded = false;
+
+        logIntoScenario("[Postgres] " + pgUser + "@" + host + "." + namespace + ":" + pgPort + "/" + database
+                + " - " + workDescription);
+
+        try {
+            if (password == null) {
+                getPostgresCertificates(k8SSpec, pgCertName, pgVaultPath);
+            }
+
+            logIntoScenario("[Postgres] Adding '" + host + " -> 127.0.0.1' to /etc/hosts");
+            etcHostsManagementSpec.addEntryHostsFile(host, "127.0.0.1", null, null);
+            hostsFileModified = true;
+
+            logIntoScenario("[Postgres] Forwarding localhost:" + pgPort + " to service '" + host + "' in namespace '" + namespace + "'");
+            k8SSpec.setLocalPortForward(Integer.parseInt(pgPort), Integer.parseInt(pgPort), "service", host, namespace, forwardId);
+            portForwarded = true;
+
+            if (password != null) {
+                logIntoScenario("[Postgres] Connecting with JDBC (MD5) to database '" + database + "'");
+                connectDatabasePostgres("MD5", null, " transactional", database, host, pgPort, pgUser, password, null, null, null);
+            } else {
+                logIntoScenario("[Postgres] Connecting with JDBC (CERT) to database '" + database + "'");
+                connectDatabasePostgres("CERT", null, " transactional", database, host, pgPort, pgUser, null,
+                        CERTIFICATES_PATH + "ca.crt", CERTIFICATES_PATH + pgCertName + ".pem", CERTIFICATES_PATH + pgCertName + ".pk8");
+            }
+            if (!commonspec.getExceptions().isEmpty()) {
+                Exception connectionException = commonspec.getExceptions().get(commonspec.getExceptions().size() - 1);
+                throw new Exception("Could not connect to Postgres database '" + database + "' on " + host + ":" + pgPort
+                        + " -> " + connectionException.getMessage(), connectionException);
+            }
+
+            work.run();
+        } finally {
+            closeQuietly("close database connection", this::closeDatabase);
+            if (portForwarded) {
+                closeQuietly("close port forward", () -> k8SSpec.closePortForward(forwardId));
+            }
+            if (hostsFileModified) {
+                closeQuietly("restore /etc/hosts", () -> etcHostsManagementSpec.restoreHostsFile(null, null));
+            }
+        }
+    }
+
+    /**
+     * Downloads the Postgres PEM/PK8/CA certificates from Vault into {@code target/test-classes},
+     * retrying up to 3 times.
+     *
+     * @param k8SSpec   spec used to open the port forward to Vault
+     * @param certName  Vault certificate entry (e.g. postgres)
+     * @param vaultPath Vault path of the certificates (e.g. my-postgres.my-namespace)
+     * @throws Exception if the certificates could not be downloaded after 3 attempts
+     */
+    private void getPostgresCertificates(K8SSpec k8SSpec, String certName, String vaultPath) throws Exception {
+        VaultSpec vaultSpec = new VaultSpec(commonspec);
+        String vaultForwardId = "postgres-certificates-vault-8200";
+        Exception lastException = null;
+        for (int i = 1; i <= 3; i++) {
+            logIntoScenario("[Postgres] Downloading certificates '" + certName + "' from Vault path '" + vaultPath + "' (attempt " + i + "/3)");
+            try {
+                k8SSpec.setLocalPortForward(8200, 8200, "service", "vault", "keos-core", vaultForwardId);
+                commonspec.runLocalCommand("rm -Rf " + CERTIFICATES_PATH + "*.pem " + CERTIFICATES_PATH + "*.key "
+                        + CERTIFICATES_PATH + "*.pk8 " + CERTIFICATES_PATH + "ca.crt");
+                vaultSpec.getPubCertificate(certName, vaultPath, null);
+                vaultSpec.getPK8Certificate(certName, vaultPath, null);
+                vaultSpec.getCA();
+                lastException = null;
+                break;
+            } catch (Exception | Error e) {
+                lastException = new Exception(e.getMessage(), e);
+                commonspec.getLogger().warn("Error downloading Postgres certificates - " + e.getMessage());
+            } finally {
+                k8SSpec.closePortForward(vaultForwardId);
+            }
+        }
+        if (lastException != null) {
+            throw new Exception("Could not download Postgres certificates from Vault path '" + vaultPath
+                    + "' after 3 attempts -> " + lastException.getMessage(), lastException);
+        }
+        logIntoScenario("[Postgres] Certificates available in " + CERTIFICATES_PATH);
+    }
+
+    /**
+     * Runs a cleanup action, logging - but never propagating - its failure, so that one broken
+     * cleanup step neither prevents the rest from running nor masks the original error.
+     */
+    private void closeQuietly(String description, ThrowingRunnable action) {
+        try {
+            action.run();
+        } catch (Throwable t) {
+            commonspec.getLogger().warn("[Postgres] Could not " + description + " - " + t.getMessage());
+        }
+    }
+
+    /**
+     * Logs as INFO and, when running inside a scenario, into the scenario output.
+     */
+    private void logIntoScenario(String message) {
+        commonspec.getLogger().info(message);
+        if (scenario != null) {
+            scenario.log(message);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     /*

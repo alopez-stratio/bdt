@@ -6,6 +6,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 * Skip the LDAP synchronizer when the user/group already exists and its creation is skipped
 * [DG-4138] Add step to upgrade a service using CCT
+* Add composite steps to run SQL statements and SQL files against a Postgres database in Kubernetes, handling Vault certificates, /etc/hosts, port forward, JDBC connection and cleanup internally
 
 ## Previous development
 
