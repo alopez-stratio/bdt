@@ -17,6 +17,7 @@
 package com.stratio.qa.specs;
 
 import com.jayway.jsonpath.PathNotFoundException;
+import com.stratio.qa.aspects.RunOnTagAspect;
 import com.stratio.qa.utils.ThreadProperty;
 import io.cucumber.java.Scenario;
 import io.cucumber.java.Before;
@@ -198,6 +199,45 @@ public class MiscSpec extends BaseGSpec {
                                 .orElse(System.getProperty(defaultVal, defaultVal))));
         ThreadProperty.set(key, finalValue);
         logIntoScenario(String.format("%s -> %s", key, finalValue));
+    }
+
+    /**
+     * Sets a variable to one value or another depending on a condition, using the same expression syntax as the
+     * \@runOnEnv tag: =, &gt;, &lt;, &gt;=, &lt;=, != and the conditional operators &amp;&amp; and ||.
+     * Usage:
+     * Given I set variable 'MODE' to 'new' if condition 'STRATIO_VIRTUALIZER_VERSION&gt;=0.11.0', or to 'old' otherwise
+     * Given I set variable 'MODE' to 'new' if condition 'VERSION&gt;=0.11.0&amp;&amp;VERSION&lt;1.0.0', or to 'old' otherwise
+     * <p>
+     * A condition with no operator is the "is present" check of the tag: it holds when the property is defined,
+     * either as a system or as a thread property. There is no negation operator, so "is not present" is written by
+     * swapping the branches:
+     * Given I set variable 'MODE' to 'custom' if condition 'MY_VAR', or to 'default' otherwise
+     * Given I set variable 'MODE' to 'default' if condition 'MY_VAR', or to 'custom' otherwise
+     * <p>
+     * Note that '!=' is not an "is present" check either: it requires the property to be defined, so it holds only
+     * when the property exists and its value is a different one. And there is no null literal: 'MY_VAR!=null'
+     * compares against the literal string "null".
+     * <p>
+     * The left side of a comparison is the <b>name</b> of a system or thread property, not its value, exactly as in
+     * the tag: write 'VERSION&gt;=0.11.0', never '!{VERSION}&gt;=0.11.0'. The values of both branches are ordinary
+     * step arguments, so '!{VAR}' and '${VAR}' are replaced in them as usual.
+     * <p>
+     * When the condition does not hold and no otherwise value is given, the variable is set to an empty string
+     * rather than left unset, so that a later '!{VAR}' still resolves.
+     *
+     * @param envVar    thread environment variable where to store the value
+     * @param value     value to set when the condition holds
+     * @param condition runOnEnv-style expression to evaluate
+     * @param elseValue value to set when the condition does not hold, empty string when not given
+     * @throws Exception if the expression cannot be parsed
+     */
+    @Given("^I set variable '(.+?)' to '(.+?)' if condition '(.+?)'(?:, or to '(.+?)' otherwise)?$")
+    public void setVariableIfCondition(String envVar, String value, String condition, String elseValue) throws Exception {
+        RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
+        boolean holds = runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(" + condition + ")"));
+        String finalValue = holds ? value : (elseValue != null ? elseValue : "");
+        ThreadProperty.set(envVar, finalValue);
+        logIntoScenario(String.format("%s -> %s (condition '%s' evaluated to %s)", envVar, finalValue, condition, holds));
     }
 
     /**

@@ -1176,4 +1176,264 @@ public class MiscTest {
         assertThat(ThreadProperty.get("var2")).isEqualTo("test");
     }
 
+    /*
+     * setVariableIfCondition: the condition uses the same syntax as the @runOnEnv tag, so the left side of a
+     * comparison is the NAME of a property, never its value.
+     */
+    @Test
+    public void testSetVariableIfCondition_GreaterOrEqualWhenEqual() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "0.11.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_VERSION>=0.11.0", "old");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("new");
+        System.clearProperty("MISC_VERSION");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_GreaterOrEqualWhenGreater() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "1.2.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_VERSION>=0.11.0", "old");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("new");
+        System.clearProperty("MISC_VERSION");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_GreaterOrEqualWhenLowerTakesElseBranch() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "0.10.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_VERSION>=0.11.0", "old");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("old");
+        System.clearProperty("MISC_VERSION");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_NotEqual() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "0.11.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "other", "MISC_VERSION!=1.0.0", "same");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("other");
+
+        misc.setVariableIfCondition("MODE", "other", "MISC_VERSION!=0.11.0", "same");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("same");
+
+        System.clearProperty("MISC_VERSION");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_VersionRangeWithAnd() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "0.11.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "in", "MISC_VERSION>=0.11.0&&MISC_VERSION<1.0.0", "out");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("in");
+
+        misc.setVariableIfCondition("MODE", "in", "MISC_VERSION>=1.0.0&&MISC_VERSION<2.0.0", "out");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("out");
+
+        System.clearProperty("MISC_VERSION");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_ReadsThreadProperty() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.clearProperty("MISC_TP_VERSION");
+        ThreadProperty.set("MISC_TP_VERSION", "2.0.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_TP_VERSION>=1.0.0", "old");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("new");
+        ThreadProperty.remove("MISC_TP_VERSION");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_UndefinedPropertyTakesElseBranch() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.clearProperty("MISC_UNDEFINED_VERSION");
+        ThreadProperty.remove("MISC_UNDEFINED_VERSION");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_UNDEFINED_VERSION>=0.11.0", "old");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("old");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_WithoutElseSetsEmptyString() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "0.10.0");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_VERSION>=0.11.0", null);
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("");
+        System.clearProperty("MISC_VERSION");
+    }
+
+    /*
+     * A condition with no operator is the "is present" check of the @runOnEnv tag: it holds when the property is
+     * defined, whatever its value.
+     */
+    @Test
+    public void testSetVariableIfCondition_IsPresent() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        System.setProperty("MISC_FLAG", "whatever");
+        misc.setVariableIfCondition("MODE", "custom", "MISC_FLAG", "default");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("custom");
+
+        System.clearProperty("MISC_FLAG");
+        ThreadProperty.remove("MISC_FLAG");
+        misc.setVariableIfCondition("MODE", "custom", "MISC_FLAG", "default");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("default");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_IsPresentReadsThreadProperty() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.clearProperty("MISC_TP_FLAG");
+        ThreadProperty.set("MISC_TP_FLAG", "whatever");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "custom", "MISC_TP_FLAG", "default");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("custom");
+        ThreadProperty.remove("MISC_TP_FLAG");
+    }
+
+    /*
+     * There is no negation operator, so "is not present" is written by swapping the branches.
+     */
+    @Test
+    public void testSetVariableIfCondition_IsNotPresentBySwappingBranches() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        System.clearProperty("MISC_FLAG");
+        ThreadProperty.remove("MISC_FLAG");
+        misc.setVariableIfCondition("MODE", "default", "MISC_FLAG", "custom");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("custom");
+
+        System.setProperty("MISC_FLAG", "whatever");
+        misc.setVariableIfCondition("MODE", "default", "MISC_FLAG", "custom");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("default");
+
+        System.clearProperty("MISC_FLAG");
+    }
+
+    /*
+     * "!=" is not an "is present" check: it needs the property to be defined, and there is no null literal, so
+     * "MISC_FLAG!=null" compares against the literal string "null".
+     */
+    @Test
+    public void testSetVariableIfCondition_NotEqualIsNotAPresenceCheck() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        System.setProperty("MISC_FLAG", "whatever");
+        misc.setVariableIfCondition("MODE", "set", "MISC_FLAG!=null", "unset");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("set");
+
+        System.setProperty("MISC_FLAG", "null");
+        misc.setVariableIfCondition("MODE", "set", "MISC_FLAG!=null", "unset");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("unset");
+
+        System.clearProperty("MISC_FLAG");
+        ThreadProperty.remove("MISC_FLAG");
+        misc.setVariableIfCondition("MODE", "set", "MISC_FLAG!=null", "unset");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("unset");
+    }
+
+    /*
+     * Both branches are literal values, never property names: a property called "new" must not be dereferenced.
+     */
+    @Test
+    public void testSetVariableIfCondition_BranchValuesAreLiterals() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_VERSION", "0.11.0");
+        System.setProperty("new", "SHOULD_NOT_BE_USED");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "new", "MISC_VERSION>=0.11.0", "old");
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("new");
+        System.clearProperty("new");
+        System.clearProperty("MISC_VERSION");
+    }
+
+    /*
+     * The condition is not limited to versions: plain strings and numbers are compared too.
+     */
+    @Test
+    public void testSetVariableIfCondition_PlainStringEquality() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_ENV", "production");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "prod", "MISC_ENV=production", "other");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("prod");
+
+        misc.setVariableIfCondition("MODE", "prod", "MISC_ENV=staging", "other");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("other");
+
+        misc.setVariableIfCondition("MODE", "notprod", "MISC_ENV!=staging", "prod");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("notprod");
+
+        System.clearProperty("MISC_ENV");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_PlainNumberComparison() throws Exception {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_REPLICAS", "3");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        misc.setVariableIfCondition("MODE", "ha", "MISC_REPLICAS>=3", "single");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("ha");
+
+        misc.setVariableIfCondition("MODE", "ha", "MISC_REPLICAS>=4", "single");
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("single");
+
+        System.clearProperty("MISC_REPLICAS");
+    }
+
+    /*
+     * Inherited from the tag: when BOTH sides contain a dot they are parsed as versions, so a dotted value that is
+     * not a version fails instead of being compared as a string.
+     */
+    @Test
+    public void testSetVariableIfCondition_DottedNonVersionValueFails() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        System.setProperty("MISC_HOST", "my.host.com");
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        assertThatExceptionOfType(Exception.class)
+                .isThrownBy(() -> misc.setVariableIfCondition("MODE", "yes", "MISC_HOST=my.host.com", "no"));
+
+        System.clearProperty("MISC_HOST");
+    }
+
+    @Test
+    public void testSetVariableIfCondition_InvalidExpressionFails() {
+        ThreadProperty.set("class", this.getClass().getCanonicalName());
+        MiscSpec misc = new MiscSpec(new CommonG());
+
+        assertThatExceptionOfType(Exception.class)
+                .isThrownBy(() -> misc.setVariableIfCondition("MODE", "new", "MISC_VERSION=1.0.0&&", "old"));
+    }
+
 }
