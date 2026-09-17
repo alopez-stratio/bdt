@@ -92,6 +92,9 @@
         <jackson.version>2.15.3</jackson.version>
         <jackson-yaml.version>2.14.1</jackson-yaml.version>
         <snakeyaml.version>1.33</snakeyaml.version>
+        <commons-compress.version>1.26.2</commons-compress.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
+        <commons-io.version>2.16.1</commons-io.version>
         <ok-http-client.version>3.12.12</ok-http-client.version>
         <mockito.version>5.18.0</mockito.version>
         <byte-buddy.version>1.17.5</byte-buddy.version>
@@ -518,6 +521,26 @@
             <artifactId>jackson-datatype-jsr310</artifactId>
             <version>${jackson-yaml.version}</version>
         </dependency>
+        <!--
+            kubernetes-client needs commons-compress to tar a directory up for a pod upload, but it
+            declares the dependency <optional>, so it never reaches anything that depends on this
+            library. Without a declaration here the classpath falls back to whatever else drags
+            commons-compress in — hadoop-common 2.10.0 wins with 1.19 — and PodUpload.addFileToTar
+            dies with NoSuchMethodError on TarArchiveOutputStream.putArchiveEntry(TarArchiveEntry).
+            That overload only exists from commons-compress 1.25.0; 1.19 through 1.24 have nothing
+            but the ArchiveEntry signature.
+
+            ${commons-compress.version} is what kubernetes-client is built against. It needs
+            commons-lang3 3.14 and commons-io 2.15 at a minimum — 1.26 reaches for
+            commons-lang3 SystemProperties and ArrayFill — which is why those two move with it here.
+
+            It is declared directly, not managed, so that consumers of this library resolve it too.
+        -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>${commons-compress.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>java-jwt</artifactId>
@@ -622,7 +645,7 @@
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.7</version>
+            <version>${commons-io.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-collections</groupId>
@@ -637,7 +660,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.7</version>
+            <version>${commons-lang3.version}</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>

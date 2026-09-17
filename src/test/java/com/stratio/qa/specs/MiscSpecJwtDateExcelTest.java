@@ -383,11 +383,17 @@ public class MiscSpecJwtDateExcelTest {
         excelFile = File.createTempFile("bdt-not-excel-", ".xlsx");
         Files.write(excelFile.toPath(), "this is not a workbook".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-        // POI raises NotOfficeXmlFileException, a RuntimeException rather than an IOException, so
-        // this path was never swallowed and already failed loudly. Pinned so it stays that way.
+        // What matters is that a file that is not a workbook fails loudly and names the file, not
+        // how POI happens to word it. Which exception POI raises depends on the commons-compress it
+        // runs against: it used to be NotOfficeXmlFileException ("not a valid OOXML"), a
+        // RuntimeException that propagated raw, and from commons-compress 1.26 it arrives as an
+        // IOException ("Cannot find zip signature within the file") that verifyExcelCellValue
+        // catches and wraps. Both fail the step; the wrapped one also reports the path. Asserting on
+        // POI's wording pinned the test to a third-party message instead of to this behaviour.
         assertThat(catchThrowable(() -> miscSpec.verifyExcelCellValue(
                 excelFile.getAbsolutePath(), "anything", null, null, null, null, null)))
-                .hasMessageContaining("not a valid OOXML");
+                .isNotNull()
+                .hasMessageContaining(excelFile.getAbsolutePath());
     }
 
     // -----------------------------------------------------------------------
