@@ -91,6 +91,7 @@
         <kubernetes-client.version>6.13.5</kubernetes-client.version>
         <jackson.version>2.15.3</jackson.version>
         <jackson-yaml.version>2.14.1</jackson-yaml.version>
+        <snakeyaml.version>1.33</snakeyaml.version>
         <ok-http-client.version>3.12.12</ok-http-client.version>
         <mockito.version>5.18.0</mockito.version>
         <byte-buddy.version>1.17.5</byte-buddy.version>
@@ -276,30 +277,6 @@
                 <groupId>net.bytebuddy</groupId>
                 <artifactId>byte-buddy-agent</artifactId>
                 <version>${byte-buddy.version}</version>
-            </dependency>
-            <!--
-                kubernetes-client 6.13.5 brings jackson-dataformat-yaml and jackson-datatype-jsr310
-                at 2.17.1. Both are transitive, so nothing here pins them, and at 2.17.1 they call a
-                GeneratorBase constructor that only exists in jackson-core 2.17 — while this project
-                pins jackson-core at ${jackson.version}. The result is a NoSuchMethodError the moment
-                anything serializes YAML.
-
-                They are held at the versions the previous kubernetes-client resolved rather than at
-                ${jackson.version}, because jackson-dataformat-yaml needs snakeyaml 2.1 from 2.15
-                onwards and both this project and qa-unified-tests pin snakeyaml at 1.3x. Raising
-                snakeyaml here would not reach qa-unified-tests, which pins 1.33 itself, so it would
-                inherit the newer YAML dataformat with the older parser and fail at runtime.
-                Upgrading Jackson and snakeyaml together is its own change; this one keeps them put.
-            -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.dataformat</groupId>
-                <artifactId>jackson-dataformat-yaml</artifactId>
-                <version>${jackson-yaml.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.datatype</groupId>
-                <artifactId>jackson-datatype-jsr310</artifactId>
-                <version>${jackson-yaml.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -514,6 +491,33 @@
             <artifactId>jackson-dataformat-xml</artifactId>
             <version>${jackson.version}</version>
         </dependency>
+        <!--
+            kubernetes-client brings jackson-dataformat-yaml and jackson-datatype-jsr310 at 2.17.1,
+            which call a GeneratorBase constructor that only exists in jackson-core 2.17 — while
+            jackson-core is pinned here at ${jackson.version}. Anything serializing YAML then dies
+            with NoSuchMethodError.
+
+            These are declared as direct dependencies rather than managed in dependencyManagement
+            because dependencyManagement does not propagate to consumers of this library: it would
+            protect bdt and leave qa-unified-tests resolving 2.17.1 against jackson-core
+            ${jackson.version}, which is the broken combination. A direct declaration does reach
+            them.
+
+            They are held at ${jackson-yaml.version} rather than ${jackson.version} because
+            jackson-dataformat-yaml requires snakeyaml 2.x from 2.15 onwards, and snakeyaml is still
+            on ${snakeyaml.version} here. Moving Jackson and snakeyaml forward together is its own
+            change.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>${jackson-yaml.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson-yaml.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>java-jwt</artifactId>
@@ -703,7 +707,7 @@
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>1.31</version>
+            <version>${snakeyaml.version}</version>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
