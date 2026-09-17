@@ -15,7 +15,14 @@
  */
 package com.stratio.qa.clients.k8s;
 
+import io.fabric8.kubernetes.api.model.autoscaling.v1.Scale;
+import io.fabric8.kubernetes.api.model.autoscaling.v1.ScaleBuilder;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.testng.annotations.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -53,20 +60,33 @@ public class KubernetesClientRequestShapeTest extends K8sMockServerTestBase {
 
     @Test
     public void scaleDeploymentPutsTheScaleSubresource() throws Exception {
+        // Since 6.7.0 the client drives scale through the /scale subresource — the same request
+        // kubectl scale makes — rather than reading the Deployment and writing the whole object back.
         String path = "/apis/apps/v1/namespaces/" + NAMESPACE + "/deployments/scalable";
+        String scalePath = path + "/scale";
+        Scale scale = new ScaleBuilder()
+                .withNewMetadata().withName("scalable").withNamespace(NAMESPACE).endMetadata()
+                .withNewSpec().withReplicas(3).endSpec()
+                .build();
+
         server.expect().get().withPath(path)
                 .andReturn(200, K8sFixtures.deployment("scalable", NAMESPACE, "img:1", "K", "V"))
                 .always();
-        server.expect().patch().withPath(path)
-                .andReturn(200, K8sFixtures.deployment("scalable", NAMESPACE, "img:1", "K", "V"))
-                .always();
-        server.expect().put().withPath(path)
-                .andReturn(200, K8sFixtures.deployment("scalable", NAMESPACE, "img:1", "K", "V"))
-                .always();
+        server.expect().get().withPath(scalePath).andReturn(200, scale).always();
+        server.expect().put().withPath(scalePath).andReturn(200, scale).always();
+        server.expect().patch().withPath(scalePath).andReturn(200, scale).always();
 
         client.scaleDeployment("scalable", NAMESPACE, 3);
 
-        assertThat(server.getLastRequest()).isNotNull();
+        // The client reads the Deployment back after scaling, so /scale is not the last request —
+        // drain the recorded ones and assert it was written at all.
+        List<String> requests = new ArrayList<>();
+        for (RecordedRequest recorded = server.takeRequest(1, TimeUnit.SECONDS);
+             recorded != null;
+             recorded = server.takeRequest(1, TimeUnit.SECONDS)) {
+            requests.add(recorded.getMethod() + " " + recorded.getPath());
+        }
+        assertThat(requests).contains("PUT " + scalePath);
     }
 
     @Test

@@ -38,7 +38,7 @@ import io.fabric8.kubernetes.client.*;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
-import io.fabric8.kubernetes.client.dsl.Resource;
+import io.fabric8.kubernetes.client.dsl.NonDeletingOperation;
 import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
 import io.fabric8.kubernetes.client.extended.run.RunConfigBuilder;
 import io.fabric8.kubernetes.client.utils.Serialization;
@@ -709,7 +709,8 @@ public class KubernetesClient {
     public void createOrReplaceResource(String file, String namespace) throws FileNotFoundException {
         k8sClient.load(new FileInputStream(file))
                 .inNamespace(namespace)
-                .createOrReplace();
+                .resources()
+                .forEach(resource -> resource.createOr(NonDeletingOperation::update));
     }
 
     /**
@@ -729,8 +730,9 @@ public class KubernetesClient {
                 .withScope(scope)
                 .withGroup(group)
                 .build();
-        Resource<GenericKubernetesResource> genericKubernetesResource = k8sClient.genericKubernetesResources(customResourceDefinitionContext).inNamespace(namespace).load(new FileInputStream(file));
-        k8sClient.genericKubernetesResources(customResourceDefinitionContext).inNamespace(namespace).resource(genericKubernetesResource.get()).createOrReplace();
+        k8sClient.genericKubernetesResources(customResourceDefinitionContext).inNamespace(namespace)
+                .load(new FileInputStream(file))
+                .createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -1401,7 +1403,7 @@ public class KubernetesClient {
 
     public void createOrReplaceConfigMap(String configMapName, String namespace, String key, String value) {
         ConfigMapBuilder configMapBuilder = new ConfigMapBuilder().withNewMetadata().withName(configMapName).endMetadata().addToData(key, value);
-        k8sClient.configMaps().inNamespace(namespace).resource(configMapBuilder.build()).createOrReplace();
+        k8sClient.configMaps().inNamespace(namespace).resource(configMapBuilder.build()).createOr(NonDeletingOperation::update);
     }
 
     public void createOrReplaceConfigMap(String configMapName, String namespace, DataTable variables) {
@@ -1409,7 +1411,7 @@ public class KubernetesClient {
         for (int i = 0; i < variables.cells().size(); i++) {
             configMapBuilder.addToData(variables.cells().get(i).get(0), variables.cells().get(i).get(1));
         }
-        k8sClient.configMaps().inNamespace(namespace).resource(configMapBuilder.build()).createOrReplace();
+        k8sClient.configMaps().inNamespace(namespace).resource(configMapBuilder.build()).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -1425,7 +1427,7 @@ public class KubernetesClient {
         configMapData.put(key, value);
         ConfigMap configMapAux = getConfigMap(configMapName, namespace);
         configMapAux.setData(configMapData);
-        k8sClient.configMaps().inNamespace(namespace).resource(configMapAux).replace();
+        k8sClient.configMaps().inNamespace(namespace).resource(configMapAux).update();
     }
 
     public void addValuesInConfigMap(String configMapName, String namespace, DataTable variables) {
@@ -1435,7 +1437,7 @@ public class KubernetesClient {
         }
         ConfigMap configMapAux = getConfigMap(configMapName, namespace);
         configMapAux.setData(configMapData);
-        k8sClient.configMaps().inNamespace(namespace).resource(configMapAux).replace();
+        k8sClient.configMaps().inNamespace(namespace).resource(configMapAux).update();
     }
 
 
@@ -2067,7 +2069,7 @@ public class KubernetesClient {
         HorizontalPodAutoscalerSpec spec = hpa.getSpec();
         spec.setMaxReplicas(maxReplicas);
         hpa.setSpec(spec);
-        k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).resource(hpa).createOrReplace();
+        k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).resource(hpa).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -2083,7 +2085,7 @@ public class KubernetesClient {
         spec.setMinReplicas(minReplicas);
         spec.setMaxReplicas(maxReplicas);
         hpa.setSpec(spec);
-        k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).resource(hpa).createOrReplace();
+        k8sClient.autoscaling().v1().horizontalPodAutoscalers().inNamespace(namespace).resource(hpa).createOr(NonDeletingOperation::update);
     }
 
     public void copyFileToPod(String podName, String namespace, String container, String filePath, String destinationPath) {
@@ -2170,7 +2172,7 @@ public class KubernetesClient {
      * @param namespace
      */
     public void createServiceAccount(String serviceAccountName, String namespace) {
-        k8sClient.serviceAccounts().inNamespace(namespace).resource(new ServiceAccountBuilder().withNewMetadata().withName(serviceAccountName).endMetadata().build()).createOrReplace();
+        k8sClient.serviceAccounts().inNamespace(namespace).resource(new ServiceAccountBuilder().withNewMetadata().withName(serviceAccountName).endMetadata().build()).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -2187,7 +2189,7 @@ public class KubernetesClient {
         String[] verbsList = verbs.split(",");
         String[] apiGroupsList = apiGroups != null ? apiGroups.split(",") : new String[]{""};
         PolicyRule policyRule = new PolicyRuleBuilder().addToApiGroups(apiGroupsList).addToResources(resourcesList).addToVerbs(verbsList).build();
-        k8sClient.rbac().roles().resource(new RoleBuilder().withRules(policyRule).withNewMetadata().withName(roleName).withNamespace(namespace).endMetadata().build()).createOrReplace();
+        k8sClient.rbac().roles().resource(new RoleBuilder().withRules(policyRule).withNewMetadata().withName(roleName).withNamespace(namespace).endMetadata().build()).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -2204,7 +2206,7 @@ public class KubernetesClient {
         String[] verbsList = verbs.split(",");
         String[] apiGroupsList = apiGroups != null ? apiGroups.split(",") : new String[]{""};
         PolicyRule policyRule = new PolicyRuleBuilder().addToApiGroups(apiGroupsList).addToResources(resourcesList).addToVerbs(verbsList).build();
-        k8sClient.rbac().clusterRoles().resource(new ClusterRoleBuilder().withRules(policyRule).withNewMetadata().withName(clusterRoleName).endMetadata().build()).createOrReplace();
+        k8sClient.rbac().clusterRoles().resource(new ClusterRoleBuilder().withRules(policyRule).withNewMetadata().withName(clusterRoleName).endMetadata().build()).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -2234,7 +2236,7 @@ public class KubernetesClient {
                 .withRoleRef(roleRef)
                 .addAllToSubjects(subjects)
                 .build();
-        k8sClient.rbac().roleBindings().resource(roleBindingCreated).createOrReplace();
+        k8sClient.rbac().roleBindings().resource(roleBindingCreated).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -2262,7 +2264,7 @@ public class KubernetesClient {
                 .withRoleRef(roleRef)
                 .addAllToSubjects(subjects)
                 .build();
-        k8sClient.rbac().clusterRoleBindings().resource(clusterRoleBindingCreated).createOrReplace();
+        k8sClient.rbac().clusterRoleBindings().resource(clusterRoleBindingCreated).createOr(NonDeletingOperation::update);
     }
 
     /**
@@ -2363,7 +2365,7 @@ public class KubernetesClient {
         deploymentSpec.setTemplate(templateSpec);
         deployment.setSpec(deploymentSpec);
 
-        k8sClient.apps().deployments().inNamespace(namespace).resource(deployment).replace();
+        k8sClient.apps().deployments().inNamespace(namespace).resource(deployment).update();
     }
 
     public void updatePullPolicyImageDeployment(String deploymentName, String namespace, String containerName, String value) {
@@ -2374,7 +2376,7 @@ public class KubernetesClient {
                 container.setImagePullPolicy(value);
             }
         });
-        k8sClient.apps().deployments().inNamespace(namespace).resource(deployment).replace();
+        k8sClient.apps().deployments().inNamespace(namespace).resource(deployment).update();
     }
 
     public String getConfigMapKey(String configMapName, String namespace, String key) {
@@ -2425,7 +2427,7 @@ public class KubernetesClient {
                         throw new Exception("Final element is not a map, so we can't patch this value");
                     }
                     try {
-                        k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).replace();
+                        k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).update();
                         response = 0;
                         getLogger().debug("Patched");
                     } catch (KubernetesClientException e) {
@@ -2569,7 +2571,7 @@ public class KubernetesClient {
                     }
                 }
                 try {
-                    k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).replace();
+                    k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).update();
                     response = 0;
                     getLogger().debug("Patched");
                 } catch (KubernetesClientException e) {
@@ -2601,7 +2603,7 @@ public class KubernetesClient {
             switch (path) {
                 case "/spec/resources/requests/storage":
                     pvc.getSpec().getResources().getRequests().put("storage", new Quantity(value));
-                    k8sClient.persistentVolumeClaims().inNamespace(namespace).resource(pvc).replace();
+                    k8sClient.persistentVolumeClaims().inNamespace(namespace).resource(pvc).update();
                     response = 0;
                     break;
                 default:
@@ -2672,7 +2674,7 @@ public class KubernetesClient {
                 .withNewMetadata().withName(rqName).endMetadata()
                 .withNewSpec().addToHard(rqMap).endSpec()
                 .build();
-        k8sClient.resourceQuotas().inNamespace(namespace).resource(rq).createOrReplace();
+        k8sClient.resourceQuotas().inNamespace(namespace).resource(rq).createOr(NonDeletingOperation::update);
     }
 
     /**
