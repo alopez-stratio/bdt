@@ -88,10 +88,9 @@
         <crossdata-drivers.version>4.0.1-1753f28</crossdata-drivers.version>
         <kafka-scala.version>2.12</kafka-scala.version>
         <kafka.version>3.9.1</kafka.version>
-        <kubernetes-client.version>6.13.5</kubernetes-client.version>
-        <jackson.version>2.15.3</jackson.version>
-        <jackson-yaml.version>2.14.1</jackson-yaml.version>
-        <snakeyaml.version>1.33</snakeyaml.version>
+        <kubernetes-client.version>6.14.0</kubernetes-client.version>
+        <jackson.version>2.19.4</jackson.version>
+        <snakeyaml.version>2.4</snakeyaml.version>
         <commons-compress.version>1.26.2</commons-compress.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
         <commons-io.version>2.16.1</commons-io.version>
@@ -495,31 +494,23 @@
             <version>${jackson.version}</version>
         </dependency>
         <!--
-            kubernetes-client brings jackson-dataformat-yaml and jackson-datatype-jsr310 at 2.17.1,
-            which call a GeneratorBase constructor that only exists in jackson-core 2.17 — while
-            jackson-core is pinned here at ${jackson.version}. Anything serializing YAML then dies
-            with NoSuchMethodError.
+            kubernetes-client brings jackson-dataformat-yaml and jackson-datatype-jsr310 in on its
+            own, and a Jackson module newer than jackson-core fails at runtime rather than at build
+            time, so they are declared here to keep every Jackson artifact on ${jackson.version}.
 
-            These are declared as direct dependencies rather than managed in dependencyManagement
-            because dependencyManagement does not propagate to consumers of this library: it would
-            protect bdt and leave qa-unified-tests resolving 2.17.1 against jackson-core
-            ${jackson.version}, which is the broken combination. A direct declaration does reach
-            them.
-
-            They are held at ${jackson-yaml.version} rather than ${jackson.version} because
-            jackson-dataformat-yaml requires snakeyaml 2.x from 2.15 onwards, and snakeyaml is still
-            on ${snakeyaml.version} here. Moving Jackson and snakeyaml forward together is its own
-            change.
+            Declared directly rather than managed in dependencyManagement, which does not propagate
+            to consumers of this library: managing them would protect bdt and leave qa-unified-tests
+            resolving whatever kubernetes-client drags in.
         -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>${jackson-yaml.version}</version>
+            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>${jackson-yaml.version}</version>
+            <version>${jackson.version}</version>
         </dependency>
         <!--
             kubernetes-client needs commons-compress to tar a directory up for a pod upload, but it
