@@ -75,6 +75,14 @@ Feature: SSH connections, named connections and command output checks
     Given I run 'mkdir -p /root/.ssh && chmod 700 /root/.ssh' in the ssh connection with exit status '0'
     And I run 'echo "${SSH_PUBLIC_KEY}" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys' in the ssh connection with exit status '0'
     When I open a ssh connection to '${SSH}' in port '22' with user 'root' using pem file '${SSH_PEM_FILE}' and saved with id 'bykey'
+    And I run 'rm -f /tmp/byKeyCopy.conf /tmp/exampleJSON.conf' in the ssh connection with exit status '0'
     And I outbound copy 'src/test/resources/exampleJSON.conf' through a ssh connection to '/tmp/byKeyCopy.conf'
     And I run 'test -s /tmp/byKeyCopy.conf' in the ssh connection with id 'bykey' with exit status '0'
+    # scp drops the file in the destination directory under its local name and a second command moves
+    # it to the requested path. Both used to be disconnected without waiting for the remote end, so
+    # the copy could report success with nothing at the destination. Asserting the staging name is
+    # gone pins the move down; asserting the content pins the transfer itself.
+    And I run 'test ! -e /tmp/exampleJSON.conf' in the ssh connection with id 'bykey' with exit status '0'
+    And I run 'cat /tmp/byKeyCopy.conf' in the ssh connection with id 'bykey' with exit status '0'
+    And the command output contains 'example glossary'
     Then I close SSH connection with id 'bykey'

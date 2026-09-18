@@ -29,6 +29,12 @@ public class RemoteSSHConnection {
 
     private final Logger logger = LoggerFactory.getLogger(RemoteSSHConnection.class);
 
+    /** How long to wait for a remote command to finish before giving up on its channel. */
+    private static final long CHANNEL_CLOSE_TIMEOUT_MILLIS = 30_000L;
+
+    /** How often to check whether the remote command has finished. */
+    private static final long CHANNEL_CLOSE_POLL_MILLIS = 50L;
+
     private Session session;
 
     private String result;
@@ -212,18 +218,67 @@ public class RemoteSSHConnection {
         }
         out.close();
 
+        // The last ack only says the bytes arrived: the remote scp -t is still writing the file out.
+        // Disconnecting here races it, and the file lands truncated or not at all.
+        awaitChannelClose(channel);
         channel.disconnect();
-
-        if (!isDirectory) {
-            command = "mv " + remoteDir + File.separator + local.getName() + " " + rfile;
-            channel = session.openChannel("exec");
-            ((ChannelExec) channel).setCommand(command);
-            channel.connect();
-            channel.disconnect();
-        }
 
         if (checkAckError) {
             throw new Exception("Error copying file");
+        }
+
+        if (!isDirectory) {
+            // scp -t was pointed at the destination directory, so the file is sitting there under
+            // its local name. When the requested path asks for that same name it is already where
+            // it belongs, and moving it onto itself just makes mv complain.
+            String staged = new File(remoteDir, local.getName()).getPath();
+
+            if (!staged.equals(new File(rfile).getPath())) {
+                command = "mv " + staged + " " + rfile;
+                channel = session.openChannel("exec");
+                ((ChannelExec) channel).setCommand(command);
+                channel.connect();
+                awaitChannelClose(channel);
+                int moveExitStatus = channel.getExitStatus();
+                channel.disconnect();
+
+                if (moveExitStatus != 0) {
+                    throw new Exception("Error copying file: moving it to " + rfile
+                            + " exited with status " + moveExitStatus);
+                }
+            }
+        }
+    }
+
+    /**
+     * Waits for a remote command to finish before its channel is torn down.
+     *
+     * {@code channel.connect()} starts the remote process asynchronously, so disconnecting straight
+     * after it can close the channel before the command has run — which is how an outbound copy
+     * could report success and leave nothing at the destination. {@link #runCommand} already polls
+     * {@code isClosed()} for this reason; this is the same wait for the paths that do not read the
+     * command output.
+     *
+     * Returns rather than throwing on timeout: the callers check the exit status, and a channel that
+     * never closes surfaces there as the failure it is.
+     *
+     * @param channel channel whose remote command is being waited on
+     */
+    private void awaitChannelClose(Channel channel) {
+        long deadline = System.currentTimeMillis() + CHANNEL_CLOSE_TIMEOUT_MILLIS;
+
+        while (!channel.isClosed() && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(CHANNEL_CLOSE_POLL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+
+        if (!channel.isClosed()) {
+            logger.warn("Remote command did not finish within {} ms, closing the channel anyway",
+                    CHANNEL_CLOSE_TIMEOUT_MILLIS);
         }
     }
 
