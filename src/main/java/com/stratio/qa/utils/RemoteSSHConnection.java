@@ -141,15 +141,16 @@ public class RemoteSSHConnection {
         }
 
         File remote = new File(remotePath);
-        String remoteDir = remote.getParent();
+
+        // scp -t is pointed at the directory the file will land in: rfile itself when it already names
+        // that directory (e.g. a bare "/tmp"), remote.getParent() when it names the destination file
+        // (e.g. "/tmp/foo.yaml"). The staged-file check below must agree with whichever one is used here,
+        // or it will look for the uploaded file in the wrong place.
+        boolean rfileIsDirectory = isDirectory || remote.isDirectory();
+        String remoteDir = rfileIsDirectory ? rfile : remote.getParent();
 
         // exec 'scp -t rfile' remotely
-        String command;
-        if (isDirectory || remote.isDirectory()) {
-            command = "scp " + (ptimestamp ? "-p" : "") + " -d -t " + rfile;
-        } else {
-            command = "scp " + (ptimestamp ? "-p" : "") + " -d -t " + remoteDir;
-        }
+        String command = "scp " + (ptimestamp ? "-p" : "") + " -d -t " + remoteDir;
 
         Channel channel = session.openChannel("exec");
         ((ChannelExec) channel).setCommand(command);
@@ -229,12 +230,14 @@ public class RemoteSSHConnection {
 
         if (!isDirectory) {
             // scp -t was pointed at the destination directory, so the file is sitting there under
-            // its local name. When the requested path asks for that same name it is already where
-            // it belongs, and moving it onto itself just makes mv complain.
+            // its local name. When rfile itself names that directory, that staged name is already the
+            // requested destination; when rfile names the destination file, the two only match if it
+            // happens to share the local name. Either way, moving it onto itself just makes mv complain.
             String staged = new File(remoteDir, local.getName()).getPath();
+            String destination = rfileIsDirectory ? staged : new File(rfile).getPath();
 
-            if (!staged.equals(new File(rfile).getPath())) {
-                command = "mv " + staged + " " + rfile;
+            if (!staged.equals(destination)) {
+                command = "mv " + staged + " " + destination;
                 channel = session.openChannel("exec");
                 ((ChannelExec) channel).setCommand(command);
                 channel.connect();
@@ -243,7 +246,7 @@ public class RemoteSSHConnection {
                 channel.disconnect();
 
                 if (moveExitStatus != 0) {
-                    throw new Exception("Error copying file: moving it to " + rfile
+                    throw new Exception("Error copying file: moving it to " + destination
                             + " exited with status " + moveExitStatus);
                 }
             }
