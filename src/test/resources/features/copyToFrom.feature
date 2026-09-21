@@ -25,6 +25,7 @@ Feature: Copy To/From tests
     Then I run 'cat /tmp/prueba1.sh' in the ssh connection with exit status '0'
     And the command output contains 'content1'
     And I run 'rm /tmp/prueba1.sh' in the ssh connection with exit status '0'
+
   Scenario: Copy to dir to dir
     Given I open a ssh connection to '${SSH}' with user 'root' and password 'stratio'
     When I outbound copy 'src/test/resources/schemas/copytofrom' through a ssh connection to '/tmp/copytofrom'
