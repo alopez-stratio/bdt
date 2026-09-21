@@ -2691,6 +2691,106 @@ public class RunOnEnvTagAspectTest {
         assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
     }
 
+    // --- New semver qualifier tests (m.N / rc.N) ---
+    // Ordering: m.N < rc.N < release
+    // tagsIteration returns false = scenario runs; true = scenario skipped
+
+    @Test
+    public void testSemver_mLessThanRc() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.1");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION<1.0.0-rc.1)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_mNotGreaterThanRc() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.1");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>1.0.0-rc.1)");
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_rcLessThanRelease() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION<1.0.0)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_releaseGreaterThanRc() throws Exception {
+        System.setProperty("VERSION","1.0.0");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>1.0.0-rc.1)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_rcNotGreaterThanRelease() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>1.0.0)");
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_rcNumericOrder() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.2");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>1.0.0-rc.1)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_mNumericOrder() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.3");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>1.0.0-m.1)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_rcEquality() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.1");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION=1.0.0-rc.1)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_mEquality() throws Exception {
+        System.setProperty("VERSION","1.0.0-m.2");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION=1.0.0-m.2)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_releaseNotEqualRc() throws Exception {
+        System.setProperty("VERSION","1.0.0");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION=1.0.0-rc.1)");
+        assertThat(true).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_doubleVersionWithRc() throws Exception {
+        System.setProperty("VERSION","1.0.0-2.3.4-rc.1");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION<1.0.0-2.3.4)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
+    @Test
+    public void testSemver_rcMultiDigitNumber() throws Exception {
+        System.setProperty("VERSION","1.0.0-rc.10");
+        List<String> tagList = new ArrayList<>();
+        tagList.add("@runOnEnv(VERSION>1.0.0-rc.9)");
+        assertThat(false).isEqualTo(runontag.tagsIteration(tagList,1));
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Relational operators: >=, <= and !=
     // ---------------------------------------------------------------------------------------------
