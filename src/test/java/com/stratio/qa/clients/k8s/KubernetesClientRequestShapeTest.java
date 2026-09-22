@@ -17,7 +17,7 @@ package com.stratio.qa.clients.k8s;
 
 import io.fabric8.kubernetes.api.model.autoscaling.v1.Scale;
 import io.fabric8.kubernetes.api.model.autoscaling.v1.ScaleBuilder;
-import okhttp3.mockwebserver.RecordedRequest;
+import io.fabric8.mockwebserver.http.RecordedRequest;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;

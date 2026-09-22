@@ -22,8 +22,8 @@ import io.fabric8.kubernetes.client.server.mock.KubernetesMockServer;
 import io.fabric8.mockwebserver.Context;
 import io.fabric8.mockwebserver.ServerRequest;
 import io.fabric8.mockwebserver.ServerResponse;
-import okhttp3.mockwebserver.Dispatcher;
-import okhttp3.mockwebserver.MockWebServer;
+import io.fabric8.mockwebserver.http.Dispatcher;
+import io.fabric8.mockwebserver.MockWebServer;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 
@@ -82,7 +82,7 @@ public abstract class K8sMockServerTestBase {
         Dispatcher dispatcher = crudMode()
                 ? new KubernetesCrudDispatcher()
                 : new KubernetesMixedDispatcher(responses);
-        server = new KubernetesMockServer(new Context(), new MockWebServer(), responses, dispatcher, false);
+        server = new KubernetesMockServer(new Context(), new MockWebServer(), responses, dispatcher, useHttps());
         server.init();
         mockClient = server.createClient();
 
@@ -136,8 +136,22 @@ public abstract class K8sMockServerTestBase {
         return kubeConfigPath;
     }
 
+    /**
+     * Whether the mock server speaks TLS.
+     *
+     * Kept off by default: it costs a handshake per test class and most of what is covered here does
+     * not care. It matters because real clusters are always HTTPS while everything else in this suite
+     * talks plain HTTP, so the client's TLS path — which belongs to whichever HTTP transport
+     * kubernetes-client is built on, and that has changed before — would otherwise go untested.
+     *
+     * @return true to serve the mock API over HTTPS
+     */
+    protected boolean useHttps() {
+        return false;
+    }
+
     protected String mockServerUrl() {
-        return "http://" + server.getHostName() + ":" + server.getPort() + "/";
+        return (useHttps() ? "https://" : "http://") + server.getHostName() + ":" + server.getPort() + "/";
     }
 
     private Path writeKubeConfig() throws IOException {
@@ -150,6 +164,7 @@ public abstract class K8sMockServerTestBase {
                 + "- name: mock\n"
                 + "  cluster:\n"
                 + "    server: " + mockServerUrl() + "\n"
+                + (useHttps() ? "    insecure-skip-tls-verify: true\n" : "")
                 + "contexts:\n"
                 + "- name: mock\n"
                 + "  context:\n"

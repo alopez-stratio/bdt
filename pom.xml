@@ -88,9 +88,9 @@
         <crossdata-drivers.version>4.0.1-1753f28</crossdata-drivers.version>
         <kafka-scala.version>2.12</kafka-scala.version>
         <kafka.version>3.9.1</kafka.version>
-        <kubernetes-client.version>6.14.0</kubernetes-client.version>
-        <jackson.version>2.19.4</jackson.version>
-        <snakeyaml.version>2.4</snakeyaml.version>
+        <kubernetes-client.version>7.9.0</kubernetes-client.version>
+        <jackson.version>2.21.4</jackson.version>
+        <snakeyaml.version>2.5</snakeyaml.version>
         <commons-compress.version>1.26.2</commons-compress.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
         <commons-io.version>2.16.1</commons-io.version>
@@ -450,6 +450,12 @@
             <groupId>io.fabric8</groupId>
             <artifactId>kubernetes-server-mock</artifactId>
             <version>${kubernetes-client.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>${ok-http-client.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
