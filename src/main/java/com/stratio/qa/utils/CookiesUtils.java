@@ -40,13 +40,18 @@ public class CookiesUtils {
         return cookies;
     }
 
+    /**
+     * Sets the cookies of the current session. The list is copied, so that adding or deleting a cookie
+     * afterwards never reaches the list it came from, such as an entry of the cookies cache
+     */
     public static void setCookies(List<Cookie> newCookies) {
-        cookies = newCookies;
+        cookies = newCookies == null ? new ArrayList<>() : new ArrayList<>(newCookies);
     }
 
     /**
      * Stores a cookie in the cookies cache, using ssoHost, userName, tenant and token type as key and the value of cookiesList
      * It will be given a expiration date parsed from the base64token, or 1 hour by default if null
+     * The cache keeps an unmodifiable copy of cookiesList, so later changes to the session do not alter it
      */
     public static void addCookiesToCache(String ssoHost, String userName, String tenant, String token_type, List<Cookie> cookiesList, String base64token) {
         addCookiesToCache(genKey(ssoHost, userName, tenant, token_type), cookiesList, base64token);
@@ -84,7 +89,7 @@ public class CookiesUtils {
                 exp = (System.currentTimeMillis() / 1000) + CACHE_DEFAULT_EXPIRATION_TIME;
             }
             commonSpec.getLogger().debug(String.format("NEW cookie stored with key: %s; expiration: %d; value: %s", key, exp, cookiesList));
-            cookiesCache.put(key, new ImmutablePair<>(exp, cookiesList));
+            cookiesCache.put(key, new ImmutablePair<>(exp, List.copyOf(cookiesList)));
         }
     }
 
