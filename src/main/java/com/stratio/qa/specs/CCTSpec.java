@@ -1577,13 +1577,61 @@ public class CCTSpec extends BaseGSpec {
         getCCTOrchestratorVersion();
         RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
 
-        String endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v2/uninstall/" + service + "." + namespace;
+        String basePath = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH");
+        String uninstallPath = basePath + "/v2/uninstall/" + service + "." + namespace;
         String requestType = "PUT";
         if (runOnTagAspect.checkParams(runOnTagAspect.getParams("@runOnEnv(cct-orchestrator_version<3.0.0)"))) {
-            endPoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/uninstall";
+            uninstallPath = basePath + "/v1/uninstall";
             requestType = "POST";
         }
-        if (tenant != null || forceUninstall != null) {
+
+        String errorMsg = sendUninstallRequest(requestType, uninstallPath, tenant, forceUninstall != null, schemaJson.toString());
+
+        // The uninstall is rejected with 423 Locked when other applications still depend on this one.
+        // Command Center resolves that by repeating the very same uninstall with force=true, so do that
+        // before falling back to destroy: destroy answers 400 while the application is still installed.
+        if (errorMsg != null && forceDestroy != null && forceUninstall == null) {
+            logger.warn(errorMsg + "\n" + "Retrying uninstall forcing it....");
+            errorMsg = sendUninstallRequest(requestType, uninstallPath, tenant, true, schemaJson.toString());
+        }
+
+        if (errorMsg != null) {
+            if (forceDestroy == null) {
+                logger.error(errorMsg);
+                throw new Exception(errorMsg);
+            }
+            logger.warn(errorMsg + "\n" + "Trying to destroy application with destroy endpoint....");
+            String destroyEndpoint = basePath + "/v1/destroy";
+            String body = "{\"applicationId\":\"" + service + "." + namespace + "\"}";
+            commonspec.getLogger().info("Endpoint to destroy service: {} - {}", "POST", destroyEndpoint);
+            Future<Response> response = commonspec.generateRequest("POST", true, null, null, destroyEndpoint, body, "json");
+            commonspec.setResponse("POST", response.get());
+            if (commonspec.getResponse().getStatusCode() != 200) {
+                errorMsg = "Request to endpoint: " + destroyEndpoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse();
+                logger.error(errorMsg);
+                throw new Exception(errorMsg);
+            }
+            // destroy does not create a job, so there is no jobId to save
+            return;
+        }
+
+        miscSpec.saveElementEnvironmentFile(null, "$.id", "jobId", null);
+    }
+
+    /**
+     * Send an uninstall request to cct-orchestrator.
+     *
+     * @param requestType   : PUT for /v2/uninstall, POST for /v1/uninstall
+     * @param uninstallPath : uninstall endpoint, without query parameters
+     * @param tenant        : tenant where the service is installed (OPTIONAL)
+     * @param force         : whether to add force=true to the request
+     * @param body          : uninstall schema
+     * @return null when the request succeeded, the error message otherwise
+     * @throws Exception
+     */
+    private String sendUninstallRequest(String requestType, String uninstallPath, String tenant, boolean force, String body) throws Exception {
+        String endPoint = uninstallPath;
+        if (tenant != null || force) {
             endPoint += "?";
         }
 
@@ -1591,7 +1639,7 @@ public class CCTSpec extends BaseGSpec {
             endPoint += "tenant=" + tenant;
         }
 
-        if (forceUninstall != null) {
+        if (force) {
             if (tenant != null) {
                 endPoint += "&";
             }
@@ -1599,30 +1647,13 @@ public class CCTSpec extends BaseGSpec {
         }
 
         commonspec.getLogger().info("Endpoint to uninstall service: {} - {}", requestType, endPoint);
-        Future<Response> response = commonspec.generateRequest(requestType, true, null, null, endPoint, schemaJson.toString(), "json");
+        Future<Response> response = commonspec.generateRequest(requestType, true, null, null, endPoint, body, "json");
         commonspec.setResponse(requestType, response.get());
 
         if (commonspec.getResponse().getStatusCode() != 202 && commonspec.getResponse().getStatusCode() != 200) {
-            String errorMsg = "Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse();
-            if (forceDestroy != null) {
-                logger.warn(errorMsg + "\n" + "Trying to destroy application with destroy endpoint....");
-                String destroyEndpoint = ThreadProperty.get("KEOS_CCT_ORCHESTRATOR_INGRESS_PATH") + "/v1/destroy";
-                String body = "{\"applicationId\":\"" + service + "." + namespace + "\"}";
-                commonspec.getLogger().info("Endpoint to destroy service: {} - {}", "POST", destroyEndpoint);
-                response = commonspec.generateRequest("POST", true, null, null, destroyEndpoint, body, "json");
-                commonspec.setResponse("POST", response.get());
-                if (commonspec.getResponse().getStatusCode() != 200) {
-                    errorMsg = "Request to endpoint: " + destroyEndpoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse();
-                    logger.error(errorMsg);
-                    throw new Exception(errorMsg);
-                }
-            } else {
-                logger.error(errorMsg);
-                throw new Exception(errorMsg);
-            }
-        } else {
-            miscSpec.saveElementEnvironmentFile(null, "$.id", "jobId", null);
+            return "Request to endpoint: " + endPoint + " failed with status code: " + commonspec.getResponse().getStatusCode() + " and response: " + commonspec.getResponse().getResponse();
         }
+        return null;
     }
 
     /**
