@@ -2813,11 +2813,54 @@ public class CommonG {
         return ";" + key + "=" + (DatabaseSpec.EMPTY_VALUE.equals(password) ? "" : password);
     }
 
+    /**
+     * Renders the extra connection properties written in the step, such as
+     * {@code SerializationMode=JSON}, as a suffix of the connection string.
+     *
+     * They are appended after every parameter the step builds itself and are not checked against
+     * them, so do not repeat here a key the step already sets (PAGINATION, LIMIT...). Leading and trailing
+     * separators are ignored, so {@code ;SerializationMode=JSON;} and {@code SerializationMode=JSON}
+     * render the same.
+     *
+     * @param properties properties as written in the step, may be null
+     * @return the suffix to append, empty when there is nothing to append
+     */
+    private static String extraPropertiesParam(String properties) {
+        if (properties == null) {
+            return "";
+        }
+        String trimmed = properties.trim().replaceAll("^;+|;+$", "");
+        return trimmed.isEmpty() ? "" : ";" + trimmed;
+    }
+
     public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit, String timeout) throws Exception {
+        connectToCrossdataDatabase(security, mutualTLS, host, port, keystore_path, keystore_pwd, truststore_path, truststore_pwd, user, password, pagination, limit, timeout, null);
+    }
+
+    public void connectToCrossdataDatabase(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit, String timeout, String properties) throws Exception {
         // Driver log capture is configured in log4j2.xml (XDDriver appender): the driver logs
         // through SLF4J, so its package trees are routed there to a file
         String xdDriverLogFile = "target/xddriver.log";
 
+        String jdbcConnection = crossdataConnectionString(security, mutualTLS, host, port, keystore_path, keystore_pwd, truststore_path, truststore_pwd, user, password, pagination, limit, timeout, properties);
+
+        this.getLogger().debug("Crossdata JDBC Connection: {}", jdbcConnection);
+        this.getLogger().info("Crossdata JDBC driver log: {}", xdDriverLogFile);
+
+        try {
+            Class.forName("com.stratio.jdbc.core.jdbc4.StratioDriver");
+            JDBCConnection.setConnection(DriverManager.getConnection(jdbcConnection));
+        } catch (SQLException se) {
+            this.getLogger().error(se.getMessage());
+            throw se;
+        }
+    }
+
+    /**
+     * Builds the Crossdata JDBC connection string used by
+     * {@link #connectToCrossdataDatabase(boolean, boolean, String, String, String, String, String, String, String, String, boolean, String, String, String)}.
+     */
+    String crossdataConnectionString(boolean security, boolean mutualTLS, String host, String port, String keystore_path, String keystore_pwd, String truststore_path, String truststore_pwd, String user, String password, boolean pagination, String limit, String timeout, String properties) {
         String jdbcConnection = "jdbc:crossdata://" + host + ":" + port + "/default?UID=" + user + ";PAGINATION=" + pagination;
 
         if (security) {
@@ -2852,16 +2895,7 @@ public class CommonG {
             jdbcConnection = jdbcConnection + ";TIMEOUT=" + timeout;
         }
 
-        this.getLogger().debug("Crossdata JDBC Connection: {}", jdbcConnection);
-        this.getLogger().info("Crossdata JDBC driver log: {}", xdDriverLogFile);
-
-        try {
-            Class.forName("com.stratio.jdbc.core.jdbc4.StratioDriver");
-            JDBCConnection.setConnection(DriverManager.getConnection(jdbcConnection));
-        } catch (SQLException se) {
-            this.getLogger().error(se.getMessage());
-            throw se;
-        }
+        return jdbcConnection + extraPropertiesParam(properties);
     }
 
     public void connectToCustomDatabase(String database, String jdbcConnection, String user, String password) throws Exception {

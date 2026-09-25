@@ -209,6 +209,48 @@ public class CommonGDataTest {
                 .hasMessageContaining("Truststore path is mandatory");
     }
 
+    @Test
+    public void aCrossdataConnectionWithoutPropertiesIsUnchanged() {
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "13422", null, null, null, null,
+                "user", null, true, null, "60", null))
+                .isEqualTo("jdbc:crossdata://host:13422/default?UID=user;PAGINATION=true;LIMIT=-1;TIMEOUT=60");
+    }
+
+    @Test
+    public void extraCrossdataPropertiesGoAtTheEnd() {
+        assertThat(commong.crossdataConnectionString(
+                true, false, "host", "13422", "/tmp/ks.jks", "kspass", "/tmp/ts.jks", "tspass",
+                "user", "pwd", false, "10", null, "SerializationMode=JSON;OTHER=1"))
+                .isEqualTo("jdbc:crossdata://host:13422/default?UID=user;PAGINATION=false"
+                        + ";SSL=true;KEYSTORE=/tmp/ks.jks;KEYSTORE_PWD=kspass;TRUSTSTORE=/tmp/ts.jks;TRUSTSTORE_PWD=tspass"
+                        + ";PWD=pwd;LIMIT=10;SerializationMode=JSON;OTHER=1");
+    }
+
+    @Test
+    public void extraCrossdataPropertiesIgnoreSurroundingSeparators() {
+        String expected = "jdbc:crossdata://host:1/default?UID=user;PAGINATION=false;LIMIT=-1;SerializationMode=ARROW";
+
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "1", null, null, null, null, "user", null, false, null, null, ";SerializationMode=ARROW;"))
+                .isEqualTo(expected);
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "1", null, null, null, null, "user", null, false, null, null, " SerializationMode=ARROW "))
+                .isEqualTo(expected);
+    }
+
+    @Test
+    public void blankCrossdataPropertiesAddNothing() {
+        String bare = "jdbc:crossdata://host:1/default?UID=user;PAGINATION=false;LIMIT=-1";
+
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "1", null, null, null, null, "user", null, false, null, null, ""))
+                .isEqualTo(bare);
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "1", null, null, null, null, "user", null, false, null, null, " ; "))
+                .isEqualTo(bare);
+    }
+
     // -----------------------------------------------------------------------
     // Local commands
     // -----------------------------------------------------------------------

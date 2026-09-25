@@ -7,6 +7,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * Skip the LDAP synchronizer when the user/group already exists and its creation is skipped
 * [DG-4138] Add step to upgrade a service using CCT
 * Add composite steps to run SQL statements and SQL files against a Postgres database in Kubernetes, handling Vault certificates, /etc/hosts, port forward, JDBC connection and cleanup internally
+* [ROCK-15350] Add optional 'properties' parameter to the Crossdata JDBC connection step, and bump crossdata-drivers to 4.1.0-M8
 * Deleting or adding a cookie no longer alters the cached SSO cookies, so a later cached login restores the whole session
 
 ## Previous development
