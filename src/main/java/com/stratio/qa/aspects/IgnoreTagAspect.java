@@ -16,7 +16,6 @@
 
 package com.stratio.qa.aspects;
 
-import com.auth0.jwt.internal.org.apache.commons.codec.binary.Base64;
 import com.stratio.qa.specs.CommonG;
 import io.cucumber.core.gherkin.Pickle;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -114,7 +113,7 @@ public class IgnoreTagAspect {
         if ((userJira != null) || (passJira != null) || "".equals(ticket)) {
             CommonG comm = new CommonG();
             String authString = userJira + ":" + passJira;
-            byte[] authEncBytes = Base64.encodeBase64(authString.getBytes());
+            byte[] authEncBytes = java.util.Base64.getEncoder().encode(authString.getBytes());
             String value = "";
             try {
                 comm.runLocalCommand("curl -X GET https://stratio.atlassian.net/rest/api/2/issue/" + ticket + " -H 'Authorization: Basic " + new String(authEncBytes) + "' | jq -r '.fields.status.name'");

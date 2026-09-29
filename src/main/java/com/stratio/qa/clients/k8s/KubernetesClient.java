@@ -16,7 +16,7 @@
 
 package com.stratio.qa.clients.k8s;
 
-import com.auth0.jwt.internal.com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.PathNotFoundException;
 import com.stratio.qa.aspects.RunOnTagAspect;
 import com.stratio.qa.specs.CommandExecutionSpec;
