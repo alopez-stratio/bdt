@@ -16,23 +16,31 @@
 
 package com.stratio.qa.cucumber.testng;
 
-import io.cucumber.core.exception.CucumberException;
-
 /**
- * Moves parse errors from the DataProvider to test execution of TestNG tests.
+ * Moves errors raised while loading features (Gherkin parse errors, failed @include
+ * preprocessing...) from the DataProvider to test execution of TestNG tests.
+ * <p>
+ * TestNG reports an exception thrown by a data provider as a skipped test, which leaves the
+ * build green. Handing TestNG a single row whose pickle rethrows the exception turns it into a
+ * failed test instead.
  *
  * @see CucumberRunner#provideScenarios()
  */
 class CucumberExceptionWrapper implements PickleEventWrapper {
 
-    private final CucumberException exception;
+    private final RuntimeException exception;
 
-    CucumberExceptionWrapper(CucumberException e) {
+    CucumberExceptionWrapper(RuntimeException e) {
         this.exception = e;
     }
 
     @Override
     public io.cucumber.core.gherkin.Pickle getPickleEvent() {
         throw this.exception;
+    }
+
+    @Override
+    public String toString() {
+        return "Failed to load features: " + exception.getMessage();
     }
 }

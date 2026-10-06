@@ -10,6 +10,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 * [ROCK-15350] Add optional 'properties' parameter to the Crossdata JDBC connection step, and bump crossdata-drivers to 4.1.0-M8
 * Deleting or adding a cookie no longer alters the cached SSO cookies, so a later cached login restores the whole session
 * Add steps to set a variable depending on @runOnEnv-style conditions: one condition with an otherwise value, or a table of conditions evaluated like a switch, where the first one that holds wins
+* A feature file that fails to parse now fails the test run instead of being reported as a skipped test
 
 ## Previous development
 

@@ -27,7 +27,6 @@ import com.stratio.qa.cucumber.converter.LoopConverter;
 import com.stratio.qa.cucumber.runtime.FeaturePathFeatureSupplier;
 import com.stratio.qa.cucumber.runtime.RuntimeOptionsFactoryCustom;
 import io.cucumber.core.eventbus.EventBus;
-import io.cucumber.core.exception.CucumberException;
 import io.cucumber.core.feature.Options;
 import io.cucumber.core.filter.Filters;
 import io.cucumber.core.gherkin.Feature;
@@ -55,6 +54,8 @@ import io.cucumber.plugin.event.TestRunFinished;
 import io.cucumber.plugin.event.TestRunStarted;
 import io.cucumber.plugin.event.TestSourceRead;
 import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.cucumber.core.feature.FeaturePath;
 
@@ -73,6 +74,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class CucumberRunner {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(CucumberRunner.class);
+
+    private final String runnerClassName;
 
     private final RuntimeOptions runtimeOptions;
 
@@ -93,6 +98,7 @@ public class CucumberRunner {
     private URI currentFeatureUri = null;
 
     public CucumberRunner(Class<?> clazz) throws Exception {
+        this.runnerClassName = clazz.getName();
         this.classLoader = clazz.getClassLoader();
         this.originalFeaturePaths = extractAnnotationFeaturePaths(clazz);
 
@@ -176,7 +182,11 @@ public class CucumberRunner {
                 }
             }
             return scenarios.toArray(new Object[0][0]);
-        } catch (CucumberException e) {
+        } catch (RuntimeException e) {
+            // Not just CucumberException: Gherkin parse errors are FeatureParserException, which
+            // extends RuntimeException directly. Anything that escapes a TestNG data provider is
+            // reported as a skip, so a malformed feature would leave the build green.
+            LOGGER.error("Could not load the features of {}", runnerClassName, e);
             return new Object[][]{{new CucumberExceptionWrapper(e), null}};
         }
     }
