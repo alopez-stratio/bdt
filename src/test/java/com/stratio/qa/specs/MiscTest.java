@@ -1436,4 +1436,244 @@ public class MiscTest {
                 .isThrownBy(() -> misc.setVariableIfCondition("MODE", "new", "MISC_VERSION=1.0.0&&", "old"));
     }
 
+    /*
+     * setVariableToFirstValueWhoseConditionHolds: a switch over runOnEnv-style conditions. First row that holds wins.
+     */
+    private static DataTable switchTable(String... cells) {
+        List<List<String>> rows = new java.util.ArrayList<>();
+        for (int i = 0; i < cells.length; i += 2) {
+            rows.add(Arrays.asList(cells[i], cells[i + 1]));
+        }
+        return DataTable.create(rows);
+    }
+
+    private static MiscSpec switchSpec(String version) {
+        ThreadProperty.set("class", MiscTest.class.getCanonicalName());
+        ThreadProperty.remove("MODE");
+        if (version == null) {
+            System.clearProperty("MISC_SW_VERSION");
+        } else {
+            System.setProperty("MISC_SW_VERSION", version);
+        }
+        return new MiscSpec(new CommonG());
+    }
+
+    @Test
+    public void testSetVariableSwitch_LowerBoundsInDescendingOrder() throws Exception {
+        DataTable table = switchTable(
+                "MISC_SW_VERSION>=0.3.0", "C",
+                "MISC_SW_VERSION>=0.1.0", "B",
+                "otherwise", "A");
+
+        switchSpec("0.5.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("C");
+
+        switchSpec("0.3.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("C");
+
+        switchSpec("0.2.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("B");
+
+        switchSpec("0.0.5").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("A");
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_ExplicitRanges() throws Exception {
+        DataTable table = switchTable(
+                "MISC_SW_VERSION<0.1.0", "A",
+                "MISC_SW_VERSION>=0.1.0&&MISC_SW_VERSION<0.3.0", "B",
+                "MISC_SW_VERSION>=0.3.0", "C");
+
+        switchSpec("0.0.9").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("A");
+
+        switchSpec("0.1.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("B");
+
+        switchSpec("0.3.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("C");
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_FirstRowThatHoldsWinsOverLaterOnes() throws Exception {
+        DataTable table = switchTable(
+                "MISC_SW_VERSION>=0.1.0", "first",
+                "MISC_SW_VERSION>=0.2.0", "second");
+
+        switchSpec("0.5.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("first");
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    /* The Gherkin parser unescapes '\|\|' into '||' before the step sees the cell, so the step receives it plain. */
+    @Test
+    public void testSetVariableSwitch_OrOperator() throws Exception {
+        DataTable table = switchTable(
+                "MISC_SW_VERSION<0.1.0||MISC_SW_VERSION>=0.5.0", "edge",
+                "otherwise", "middle");
+
+        switchSpec("0.0.1").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("edge");
+
+        switchSpec("0.7.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("edge");
+
+        switchSpec("0.3.0").setVariableToFirstValueWhoseConditionHolds("MODE", table);
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("middle");
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_ReadsThreadProperty() throws Exception {
+        MiscSpec misc = switchSpec(null);
+        ThreadProperty.set("MISC_SW_TP_VERSION", "2.0.0");
+
+        misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                "MISC_SW_TP_VERSION>=1.0.0", "new",
+                "otherwise", "old"));
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("new");
+        ThreadProperty.remove("MISC_SW_TP_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_UndefinedPropertyFallsThroughToOtherwise() throws Exception {
+        MiscSpec misc = switchSpec(null);
+        ThreadProperty.remove("MISC_SW_VERSION");
+
+        misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                "MISC_SW_VERSION>=0.3.0", "C",
+                "MISC_SW_VERSION>=0.1.0", "B",
+                "otherwise", "A"));
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("A");
+    }
+
+    @Test
+    public void testSetVariableSwitch_OnlyOtherwise() throws Exception {
+        switchSpec(null).setVariableToFirstValueWhoseConditionHolds("MODE", switchTable("otherwise", "always"));
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("always");
+    }
+
+    @Test
+    public void testSetVariableSwitch_EmptyValueCellSetsEmptyString() throws Exception {
+        switchSpec("0.5.0").setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                "MISC_SW_VERSION>=0.3.0", null,
+                "otherwise", "A"));
+
+        assertThat(ThreadProperty.get("MODE")).isEqualTo("");
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_NoRowHoldsWithoutOtherwiseFails() {
+        MiscSpec misc = switchSpec("0.0.1");
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                        "MISC_SW_VERSION>=0.3.0", "C",
+                        "MISC_SW_VERSION>=0.1.0", "B")))
+                .withMessageContaining("No condition holds")
+                .withMessageContaining("MISC_SW_VERSION>=0.3.0 -> false")
+                .withMessageContaining("MISC_SW_VERSION>=0.1.0 -> false");
+        assertThat(ThreadProperty.get("MODE")).isNull();
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_UndefinedPropertyWithoutOtherwiseFails() {
+        MiscSpec misc = switchSpec(null);
+        ThreadProperty.remove("MISC_SW_VERSION");
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                        "MISC_SW_VERSION>=0.1.0", "B")));
+        assertThat(ThreadProperty.get("MODE")).isNull();
+    }
+
+    @Test
+    public void testSetVariableSwitch_OtherwiseNotLastFails() {
+        MiscSpec misc = switchSpec("0.5.0");
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                        "otherwise", "A",
+                        "MISC_SW_VERSION>=0.3.0", "C")))
+                .withMessageContaining("must be the last row");
+        assertThat(ThreadProperty.get("MODE")).isNull();
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_MalformedLaterConditionFailsEvenIfAnEarlierRowHolds() {
+        MiscSpec misc = switchSpec("0.5.0");
+
+        assertThatExceptionOfType(Exception.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                        "MISC_SW_VERSION>=0.3.0", "C",
+                        "MISC_SW_VERSION>=0.1.0&&", "B")));
+        assertThat(ThreadProperty.get("MODE")).isNull();
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    /* An unescaped '||' splits the row into extra cells: | A<1 || B>2 | X | arrives as four cells. */
+    @Test
+    public void testSetVariableSwitch_UnescapedOrOperatorFailsWithHint() {
+        MiscSpec misc = switchSpec("0.5.0");
+        DataTable table = DataTable.create(Collections.singletonList(
+                Arrays.asList("MISC_SW_VERSION<0.1.0", null, "MISC_SW_VERSION>=0.5.0", "X")));
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", table))
+                .withMessageContaining("must have two cells")
+                .withMessageContaining("\\|\\|");
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_SingleBarInConditionFails() {
+        MiscSpec misc = switchSpec("0.5.0");
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(
+                        "MISC_SW_VERSION<0.1.0|MISC_SW_VERSION>=0.5.0", "X",
+                        "otherwise", "Y")))
+                .withMessageContaining("single '|'");
+        assertThat(ThreadProperty.get("MODE")).isNull();
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_EmptyConditionFails() {
+        MiscSpec misc = switchSpec("0.5.0");
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE", switchTable(null, "X")))
+                .withMessageContaining("empty condition");
+
+        System.clearProperty("MISC_SW_VERSION");
+    }
+
+    @Test
+    public void testSetVariableSwitch_EmptyTableFails() {
+        MiscSpec misc = switchSpec(null);
+
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> misc.setVariableToFirstValueWhoseConditionHolds("MODE",
+                        DataTable.create(Collections.emptyList())));
+    }
+
 }

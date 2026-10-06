@@ -66,6 +66,9 @@ public class MiscSpec extends BaseGSpec {
 
     public static final int DEFAULT_TIMEOUT = 1000;
 
+    /** Condition of the catch-all row in {@link #setVariableToFirstValueWhoseConditionHolds}. */
+    private static final String OTHERWISE_CONDITION = "otherwise";
+
     private Scenario scenario;
 
     @Before
@@ -238,6 +241,104 @@ public class MiscSpec extends BaseGSpec {
         String finalValue = holds ? value : (elseValue != null ? elseValue : "");
         ThreadProperty.set(envVar, finalValue);
         logIntoScenario(String.format("%s -> %s (condition '%s' evaluated to %s)", envVar, finalValue, condition, holds));
+    }
+
+    /**
+     * Sets a variable to the value of the first row whose condition holds, like a switch. Each row holds a condition,
+     * with the same syntax as the \@runOnEnv tag, and the value to set when it holds. Rows are evaluated top to
+     * bottom, and an optional last row with 'otherwise' as its condition is taken when no other row holds:
+     * Given I set variable 'MODE' to the first value whose condition holds:
+     *   | VERSION&gt;=0.3.0 | C |
+     *   | VERSION&gt;=0.1.0 | B |
+     *   | otherwise      | A |
+     * <p>
+     * Since the first row that holds wins, ranges can be written with their lower bound alone when the rows go from
+     * the highest one down, as above. The explicit form works as well:
+     *   | VERSION&lt;0.1.0                    | A |
+     *   | VERSION&gt;=0.1.0&amp;&amp;VERSION&lt;0.3.0 | B |
+     *   | VERSION&gt;=0.3.0                   | C |
+     * <p>
+     * '|' separates the cells of a Gherkin table, so the '||' operator must be escaped as '\|\|'. Repeating the
+     * value in two consecutive rows reads better and does the same:
+     *   | VERSION&lt;0.1.0\|\|VERSION&gt;=0.5.0 | X |
+     * is equivalent to
+     *   | VERSION&lt;0.1.0  | X |
+     *   | VERSION&gt;=0.5.0 | X |
+     * <p>
+     * A condition on a property that is not defined does not hold, so it falls through to the next row and, in the
+     * end, to 'otherwise'. When no row holds and there is no 'otherwise' row, the step fails instead of setting an
+     * empty value: with several branches that almost always means a range left uncovered. Every condition is parsed
+     * before any is evaluated, so a malformed condition fails even when an earlier row holds. The conditions
+     * evaluated, their results and the row taken are logged into the scenario.
+     * <p>
+     * Versions are compared component by component and both sides must have the same number of them: write
+     * 'VERSION&gt;=0.3.0' when VERSION holds '0.11.0', since 'VERSION&gt;=0.3' fails. That depends on the value of
+     * the property, so it is only detected when the row is evaluated. Suffixes such as '-SNAPSHOT', '-M&lt;n&gt;' or
+     * '-RC&lt;n&gt;' are ignored, as in the tag.
+     * <p>
+     * As in the single-condition step, the left side of a comparison is the <b>name</b> of a system or thread
+     * property, not its value: write 'VERSION&gt;=0.3.0', never '!{VERSION}&gt;=0.3.0'. The values are replaced as
+     * usual, so '!{VAR}' and '${VAR}' can be used in them.
+     *
+     * @param envVar thread environment variable where to store the value
+     * @param table  rows of condition and value, evaluated in order
+     * @throws Exception if a row is malformed, a condition cannot be parsed, or no row holds and there is no
+     *                   'otherwise' row
+     */
+    @Given("^I set variable '(.+?)' to the first value whose condition holds:$")
+    public void setVariableToFirstValueWhoseConditionHolds(String envVar, DataTable table) throws Exception {
+        List<List<String>> rows = table.cells();
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("The table must have at least one row of condition and value");
+        }
+
+        // Parse every condition before evaluating any, so that a typo in a branch not taken today fails now
+        // rather than on the day the property reaches that range. A null entry stands for the 'otherwise' row.
+        RunOnTagAspect runOnTagAspect = new RunOnTagAspect();
+        List<String[][]> parsedConditions = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            List<String> row = rows.get(i);
+            int rowNumber = i + 1;
+            if (row.size() != 2) {
+                throw new IllegalArgumentException(String.format("Row %d must have two cells, condition and value, "
+                        + "but has %d: %s. If its condition uses the '||' operator, escape it as '\\|\\|'",
+                        rowNumber, row.size(), row));
+            }
+            String condition = row.get(0);
+            if (condition == null) {
+                throw new IllegalArgumentException(String.format("Row %d has an empty condition", rowNumber));
+            }
+            if (OTHERWISE_CONDITION.equals(condition)) {
+                if (rowNumber != rows.size()) {
+                    throw new IllegalArgumentException(String.format(
+                            "'%s' must be the last row, but it is row %d of %d", OTHERWISE_CONDITION, rowNumber, rows.size()));
+                }
+                parsedConditions.add(null);
+                continue;
+            }
+            if (condition.replace("||", "").contains("|")) {
+                throw new IllegalArgumentException(String.format("Row %d has a single '|' in its condition '%s'. "
+                        + "The 'or' operator is '||', escaped as '\\|\\|' inside a table", rowNumber, condition));
+            }
+            parsedConditions.add(runOnTagAspect.getParams("@runOnEnv(" + condition + ")"));
+        }
+
+        StringBuilder trace = new StringBuilder();
+        for (int i = 0; i < rows.size(); i++) {
+            String condition = rows.get(i).get(0);
+            String[][] params = parsedConditions.get(i);
+            boolean holds = params == null || runOnTagAspect.checkParams(params);
+            trace.append(String.format("%n  %s -> %s", condition, holds));
+            if (holds) {
+                // Cucumber 7: empty Gherkin cells arrive as null; an empty value is a legitimate choice.
+                String value = rows.get(i).get(1) != null ? rows.get(i).get(1) : "";
+                ThreadProperty.set(envVar, value);
+                logIntoScenario(String.format("%s -> %s (row %d)%s", envVar, value, i + 1, trace));
+                return;
+            }
+        }
+        throw new IllegalStateException(String.format("No condition holds and there is no '%s' row, so '%s' was not set%s",
+                OTHERWISE_CONDITION, envVar, trace));
     }
 
     /**
