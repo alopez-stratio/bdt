@@ -21,6 +21,7 @@ import com.stratio.qa.utils.CookiesUtils;
 import io.cucumber.java.en.When;
 import io.netty.handler.codec.http.cookie.Cookie;
 import com.stratio.qa.utils.GosecSSOUtils;
+import com.stratio.qa.utils.OidcNativeLoginUtils;
 import com.stratio.qa.utils.ThreadProperty;
 import io.cucumber.java.en.Given;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
@@ -107,6 +108,51 @@ public class KeosSpec extends BaseGSpec {
             // The token is not present in cache, log in again
             this.commonspec.getLogger().debug("The Cookie is not found in cache or is expired, a new one will be generated");
             setGoSecSSOCookieKeos(token_type, ssoHost, userName, password, tenant, ldap, hostVerifier, pathWithoutLogin);
+        }
+    }
+
+    /**
+     * Gets OIDC tokens from SIS, without a browser: authorization code with PKCE, as a native client
+     * (JDBC/ODBC driver) does with a loopback redirect URI, or as a web client does with its https one.
+     * The login and the consent are driven over HTTP. The tokens are not logged.
+     *
+     * @param wellKnownUrl     : discovery URL of SIS, e.g. https://sis.k8s.romeo.labs.stratio.com/sso/oidc/.well-known.
+     *                           When omitted it is built from KEOS_SIS_HOST and SIS_BASEPATH, which @keos sets
+     * @param clientId         : OIDC public client, e.g. virtualizer-dbc
+     * @param userName         : username
+     * @param password         : password
+     * @param tenant           : tenant to choose in the login form
+     * @param scope            : scopes to ask for, 'openid login_data offline_access' by default
+     * @param redirectUri      : redirect URI registered for the client, 'http://127.0.0.1:8765/callback' by default.
+     *                           Nobody has to listen on it
+     * @param hostVerifier     : whether to verify host or not
+     * @param accessTokenVar   : variable where to save the access token
+     * @param refreshTokenVar  : variable where to save the refresh token
+     * @param responseVar      : variable where to save the whole token response, as JSON
+     * @throws Exception exception
+     */
+    @Given("^I get an OIDC token(?: using discovery '(.+?)')? with client id '(.+?)', user '(.+?)', password '(.+?)' and tenant '(.+?)'(?: and scope '(.+?)')?(?: with redirect uri '(.+?)')?( without host name verification)?(?: and save the access token in '(.+?)')?(?: and the refresh token in '(.+?)')?(?: and save the token response in '(.+?)')?$")
+    public void getOidcToken(String wellKnownUrl, String clientId, String userName, String password, String tenant, String scope, String redirectUri, String hostVerifier, String accessTokenVar, String refreshTokenVar, String responseVar) throws Exception {
+        Assert.assertTrue(accessTokenVar != null || refreshTokenVar != null || responseVar != null,
+                "Say where to save the result: the access token, the refresh token or the token response");
+        if (wellKnownUrl == null) {
+            String sisHost = ThreadProperty.get("KEOS_SIS_HOST") != null ? ThreadProperty.get("KEOS_SIS_HOST") : ThreadProperty.get("SIS_VHOST");
+            Assert.assertNotNull(sisHost, "The discovery URL was not given and KEOS_SIS_HOST is not set. Check @keos annotation is working properly.");
+            wellKnownUrl = OidcNativeLoginUtils.sisWellKnownUrl(sisHost, ThreadProperty.get("SIS_BASEPATH"));
+        }
+        OidcNativeLoginUtils oidc = new OidcNativeLoginUtils(wellKnownUrl, clientId, scope, redirectUri, hostVerifier == null);
+        JSONObject tokens = oidc.login(userName, password, tenant);
+
+        if (accessTokenVar != null) {
+            ThreadProperty.set(accessTokenVar, tokens.getString("access_token"));
+        }
+        if (refreshTokenVar != null) {
+            Assert.assertTrue(tokens.has("refresh_token"),
+                    "The token endpoint did not return a refresh token, is 'offline_access' in the scope?");
+            ThreadProperty.set(refreshTokenVar, tokens.getString("refresh_token"));
+        }
+        if (responseVar != null) {
+            ThreadProperty.set(responseVar, tokens.toString());
         }
     }
 

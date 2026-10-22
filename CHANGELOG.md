@@ -4,6 +4,8 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 2.0.0 (upcoming)
 
+* Add step to get OIDC tokens from SIS without a browser (authorization code with PKCE, as the Virtualizer JDBC/ODBC drivers do). It works with the loopback redirect URI of native clients or the https one of web clients, and saves the access token, the refresh token or the whole token response as JSON in variables
+
 * Skip the LDAP synchronizer when the user/group already exists and its creation is skipped
 * [DG-4138] Add step to upgrade a service using CCT
 * Add composite steps to run SQL statements and SQL files against a Postgres database in Kubernetes, handling Vault certificates, /etc/hosts, port forward, JDBC connection and cleanup internally
