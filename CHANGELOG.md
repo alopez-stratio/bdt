@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 2.0.0 (upcoming)
 
+* [ROCK-15691] Add steps to make the Crossdata JDBC connections of a scenario authenticate with an OAuth2 access token (driver AUTH_MODE=token_passthrough) or go back to basic; OAuth2 M2M is pending. The tokens are given by the name of the variable that holds them, so they are not printed, unless -DSHOW_OIDC_TOKENS_IN_SCENARIO=true writes them in the scenario. Passwords and OAuth2 tokens are masked in the logged connection string
 * Add step to get OIDC tokens from SIS without a browser (authorization code with PKCE, as the Virtualizer JDBC/ODBC drivers do). It works with the loopback redirect URI of native clients or the https one of web clients, and saves the access token, the refresh token or the whole token response as JSON in variables
 
 * Skip the LDAP synchronizer when the user/group already exists and its creation is skipped

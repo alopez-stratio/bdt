@@ -166,6 +166,8 @@ public class CommonG {
 
     private Map<String, List<String>> previousSqlResult = null;
 
+    private CrossdataOAuth2Settings crossdataOAuth2Settings;
+
     MarathonApiClient marathonClient;
 
     MarathonUtils marathonUtils;
@@ -2844,7 +2846,7 @@ public class CommonG {
 
         String jdbcConnection = crossdataConnectionString(security, mutualTLS, host, port, keystore_path, keystore_pwd, truststore_path, truststore_pwd, user, password, pagination, limit, timeout, properties);
 
-        this.getLogger().debug("Crossdata JDBC Connection: {}", jdbcConnection);
+        this.getLogger().debug("Crossdata JDBC Connection: {}", CrossdataOAuth2Settings.maskSecrets(jdbcConnection));
         this.getLogger().info("Crossdata JDBC driver log: {}", xdDriverLogFile);
 
         try {
@@ -2895,7 +2897,29 @@ public class CommonG {
             jdbcConnection = jdbcConnection + ";TIMEOUT=" + timeout;
         }
 
+        if (crossdataOAuth2Settings != null) {
+            jdbcConnection = jdbcConnection + crossdataOAuth2Settings.connectionProperties();
+        }
+
         return jdbcConnection + extraPropertiesParam(properties);
+    }
+
+    /**
+     * OAuth2 settings applied to the next Crossdata JDBC connections of the scenario.
+     *
+     * @return the settings, or null when connections authenticate as basic
+     */
+    public CrossdataOAuth2Settings getCrossdataOAuth2Settings() {
+        return crossdataOAuth2Settings;
+    }
+
+    /**
+     * Sets the OAuth2 settings of the next Crossdata JDBC connections of the scenario.
+     *
+     * @param settings OAuth2 settings, or null to go back to basic authentication
+     */
+    public void setCrossdataOAuth2Settings(CrossdataOAuth2Settings settings) {
+        this.crossdataOAuth2Settings = settings;
     }
 
     public void connectToCustomDatabase(String database, String jdbcConnection, String user, String password) throws Exception {

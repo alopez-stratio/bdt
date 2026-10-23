@@ -36,6 +36,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.stratio.qa.utils.CrossdataOAuth2Settings;
 import com.stratio.qa.utils.ThreadProperty;
 
 /**
@@ -237,6 +238,23 @@ public class CommonGDataTest {
         assertThat(commong.crossdataConnectionString(
                 false, false, "host", "1", null, null, null, null, "user", null, false, null, null, " SerializationMode=ARROW "))
                 .isEqualTo(expected);
+    }
+
+    @Test
+    public void oauth2SettingsGoBeforeTheExtraProperties() {
+        commong.setCrossdataOAuth2Settings(CrossdataOAuth2Settings.tokenPassthrough(
+                "AT", "RT", "https://sis/sso/oidc", "virtualizer-dbc", null, null));
+
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "1", null, null, null, null, "user", null, false, null, null, "SerializationMode=JSON"))
+                .isEqualTo("jdbc:crossdata://host:1/default?UID=user;PAGINATION=false;LIMIT=-1"
+                        + ";AUTH_MODE=token_passthrough;OAUTH2_ACCESS_TOKEN=AT;OAUTH2_REFRESH_TOKEN=RT"
+                        + ";OAUTH2_ISSUER=https://sis/sso/oidc;OAUTH2_CLIENT_ID=virtualizer-dbc;SerializationMode=JSON");
+
+        commong.setCrossdataOAuth2Settings(null);
+        assertThat(commong.crossdataConnectionString(
+                false, false, "host", "1", null, null, null, null, "user", null, false, null, null, null))
+                .isEqualTo("jdbc:crossdata://host:1/default?UID=user;PAGINATION=false;LIMIT=-1");
     }
 
     @Test

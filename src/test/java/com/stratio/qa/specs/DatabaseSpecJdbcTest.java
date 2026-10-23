@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +54,7 @@ import com.stratio.qa.utils.JDBCConnection;
 import com.stratio.qa.utils.ThreadProperty;
 
 import io.cucumber.datatable.DataTable;
+import io.cucumber.java.PendingException;
 import io.cucumber.java.Scenario;
 
 /**
@@ -918,6 +920,64 @@ public class DatabaseSpecJdbcTest {
     private boolean tableExists(String tableName) throws SQLException {
         return singleValue("SELECT count(*) FROM information_schema.tables WHERE table_name = '"
                 + tableName + "'").equals("1");
+    }
+
+    // -----------------------------------------------------------------------
+    // Crossdata OAuth2 settings
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void theCrossdataOAuth2StepsSetAndClearTheSettingsOfTheScenario() {
+        ThreadProperty.set("T_ACCESS", "AT");
+        ThreadProperty.set("T_REFRESH", "RT");
+        try {
+            databaseSpec.configureCrossdataOAuth2TokenPassthrough("T_ACCESS", "T_REFRESH", "https://sis/sso/oidc", "virtualizer-dbc", null, null);
+            assertThat(commong.getCrossdataOAuth2Settings().connectionProperties())
+                    .as("the tokens are read from the variables")
+                    .startsWith(";AUTH_MODE=token_passthrough;OAUTH2_ACCESS_TOKEN=AT;OAUTH2_REFRESH_TOKEN=RT;");
+
+            databaseSpec.configureCrossdataBasicAuthentication();
+            assertThat(commong.getCrossdataOAuth2Settings()).isNull();
+
+            databaseSpec.configureCrossdataOAuth2TokenPassthrough("T_ACCESS", null, null, null, null, null);
+            databaseSpec.before(mock(Scenario.class));
+            assertThat(commong.getCrossdataOAuth2Settings()).as("a new scenario starts with basic authentication").isNull();
+        } finally {
+            ThreadProperty.remove("T_ACCESS");
+            ThreadProperty.remove("T_REFRESH");
+        }
+    }
+
+    @Test
+    public void aCrossdataOAuth2TokenMustBeGivenByItsVariable() {
+        assertThat(catchThrowable(() -> databaseSpec.configureCrossdataOAuth2TokenPassthrough("eyJ.not.a.variable", null, null, null, null, null)))
+                .hasMessageContaining("Variable 'eyJ.not.a.variable' is not defined");
+        assertThat(commong.getCrossdataOAuth2Settings()).isNull();
+    }
+
+    @Test
+    public void crossdataOAuth2TokensAreWrittenInTheScenarioOnlyWhenAsked() {
+        Scenario scenario = mock(Scenario.class);
+        databaseSpec.before(scenario);
+        ThreadProperty.set("T_ACCESS", "AT");
+        try {
+            databaseSpec.configureCrossdataOAuth2TokenPassthrough("T_ACCESS", null, null, null, null, null);
+            verify(scenario, never()).log(anyString());
+
+            System.setProperty("SHOW_OIDC_TOKENS_IN_SCENARIO", "true");
+            databaseSpec.configureCrossdataOAuth2TokenPassthrough("T_ACCESS", null, null, null, null, null);
+            verify(scenario).log("OAuth2 access token (T_ACCESS): AT");
+        } finally {
+            System.clearProperty("SHOW_OIDC_TOKENS_IN_SCENARIO");
+            ThreadProperty.remove("T_ACCESS");
+        }
+    }
+
+    @Test
+    public void crossdataOAuth2M2MIsPending() {
+        assertThat(catchThrowable(() -> databaseSpec.configureCrossdataOAuth2M2M()))
+                .isInstanceOf(PendingException.class)
+                .hasMessageContaining("out of the scope of Virtualizer 15.2");
     }
 
     private Path writeSqlFile(String... lines) throws Exception {

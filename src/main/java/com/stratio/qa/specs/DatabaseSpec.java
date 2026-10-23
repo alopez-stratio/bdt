@@ -23,11 +23,13 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;
+import io.cucumber.java.PendingException;
 import io.cucumber.java.Scenario;
 import io.cucumber.java.Before;
 import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.DBObjectsAssert;
 import com.stratio.qa.exceptions.DBException;
+import com.stratio.qa.utils.CrossdataOAuth2Settings;
 import com.stratio.qa.utils.JDBCConnection;
 import com.stratio.qa.utils.SqlStatementSplitter;
 import com.stratio.qa.utils.ThreadProperty;
@@ -111,6 +113,8 @@ public class DatabaseSpec extends BaseGSpec {
     @Before
     public void before(Scenario scenario) {
         this.scenario = scenario;
+        // Every scenario starts with basic authentication, whatever the previous one configured
+        commonspec.setCrossdataOAuth2Settings(null);
     }
 
     /**
@@ -2102,6 +2106,62 @@ public class DatabaseSpec extends BaseGSpec {
     @Deprecated
     public void createXDDriver(String security, String withoutMutualTLS, String host, String port, String user, String password, String keyStorePath, String keyStorePass, String trustStorePath, String trustStorePass, String limit, String timeout, String pagination) {
         createXDDriver(security, withoutMutualTLS, host, port, user, password, keyStorePath, keyStorePass, trustStorePath, trustStorePass, limit, timeout, null, pagination, null);
+    }
+
+    /**
+     * Makes the next Crossdata JDBC connections of the scenario authenticate with an OAuth2 access token that is
+     * already available (driver AUTH_MODE=token_passthrough), for instance one saved by the step
+     * 'I get an OIDC token ...'.
+     *
+     * The tokens are given by the name of the variable that holds them, not by their value, so they never reach
+     * the step text nor the logs: {@code access token 'OIDC_ACCESS'}, not {@code access token '!{OIDC_ACCESS}'}.
+     * With {@code -DSHOW_OIDC_TOKENS_IN_SCENARIO=true} they are written in the scenario output, for debugging.
+     *
+     * To renew the access token once it expires the driver needs the refresh token, the client id and the issuer
+     * (or the token endpoint). Without the refresh token the connection stops working when the token expires.
+     *
+     * The session user of the connection step ('user') must be the user of the token ('sub' claim).
+     *
+     * @param accessTokenVar  variable that holds the access token
+     * @param refreshTokenVar variable that holds the refresh token
+     * @param issuer          OIDC issuer, e.g. https://sis.k8s.romeo.labs.stratio.com/sso/oidc
+     * @param clientId        OIDC client the tokens were issued to, e.g. virtualizer-dbc
+     * @param scope           scopes to ask for when renewing the token
+     * @param tokenEndpoint   token endpoint, to use it instead of discovering it from the issuer
+     */
+    @Given("^I configure the Crossdata JDBC connection with OAuth2 token passthrough: access token '(.+?)'(?:, refresh token '(.+?)')?(?:, issuer '(.+?)')?(?:, client id '(.+?)')?(?:, scope '(.+?)')?(?:, token endpoint '(.+?)')?$")
+    public void configureCrossdataOAuth2TokenPassthrough(String accessTokenVar, String refreshTokenVar, String issuer, String clientId, String scope, String tokenEndpoint) {
+        String accessToken = tokenFromVariable(accessTokenVar);
+        String refreshToken = refreshTokenVar == null ? null : tokenFromVariable(refreshTokenVar);
+        if (Boolean.parseBoolean(System.getProperty("SHOW_OIDC_TOKENS_IN_SCENARIO"))) {
+            scenario.log("OAuth2 access token (" + accessTokenVar + "): " + accessToken
+                    + (refreshToken == null ? "" : "\nOAuth2 refresh token (" + refreshTokenVar + "): " + refreshToken));
+        }
+        commonspec.setCrossdataOAuth2Settings(CrossdataOAuth2Settings.tokenPassthrough(accessToken, refreshToken, issuer, clientId, scope, tokenEndpoint));
+    }
+
+    private static String tokenFromVariable(String variable) {
+        String token = ThreadProperty.get(variable);
+        Assert.assertNotNull(token, "Variable '" + variable + "' is not defined: give the name of the variable that "
+                + "holds the token, e.g. 'OIDC_ACCESS', not its value");
+        return token;
+    }
+
+    /**
+     * Makes the next Crossdata JDBC connections of the scenario authenticate as before any OAuth2 step: basic.
+     */
+    @Given("^I configure the Crossdata JDBC connection with basic authentication$")
+    public void configureCrossdataBasicAuthentication() {
+        commonspec.setCrossdataOAuth2Settings(null);
+    }
+
+    /**
+     * OAuth2 machine to machine (client credentials) is out of the scope of Virtualizer 15.2 (GOAL-2262), so the
+     * step is pending until it is implemented.
+     */
+    @Given("^I configure the Crossdata JDBC connection with OAuth2 M2M(?::.*)?$")
+    public void configureCrossdataOAuth2M2M() {
+        throw new PendingException("OAuth2 M2M (client credentials) is not implemented yet: it is out of the scope of Virtualizer 15.2");
     }
 
     @Given(value = "^I connect with JDBC to database '(.*?)' with url '(.*?)', user '(.*?)'( and password '(.*?)')$")
