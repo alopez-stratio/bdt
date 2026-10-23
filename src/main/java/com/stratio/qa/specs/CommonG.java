@@ -168,6 +168,8 @@ public class CommonG {
 
     private CrossdataOAuth2Settings crossdataOAuth2Settings;
 
+    private CrossdataOAuth2Browser crossdataOAuth2Browser;
+
     MarathonApiClient marathonClient;
 
     MarathonUtils marathonUtils;
@@ -2849,12 +2851,35 @@ public class CommonG {
         this.getLogger().debug("Crossdata JDBC Connection: {}", CrossdataOAuth2Settings.maskSecrets(jdbcConnection));
         this.getLogger().info("Crossdata JDBC driver log: {}", xdDriverLogFile);
 
+        quietCrossdataDriverStdoutLogs();
+
+        // In U2M the driver opens the browser while it connects: the fake browser has to take its URL by then
+        CrossdataOAuth2Settings.U2MLogin u2mLogin = crossdataOAuth2Settings == null ? null : crossdataOAuth2Settings.u2mLogin();
+        int browserRequests = 0;
+        if (u2mLogin != null) {
+            Assert.assertNotNull(crossdataOAuth2Browser, "The fake browser of the OAuth2 U2M login is not set up");
+            browserRequests = crossdataOAuth2Browser.requests();
+            crossdataOAuth2Browser.start(u2mLogin);
+        }
         try {
             Class.forName("com.stratio.jdbc.core.jdbc4.StratioDriver");
             JDBCConnection.setConnection(DriverManager.getConnection(jdbcConnection));
         } catch (SQLException se) {
+            if (u2mLogin != null) {
+                List<String> browserErrors = crossdataOAuth2Browser.errors();
+                if (!browserErrors.isEmpty()) {
+                    se = new SQLException(se.getMessage() + " (" + browserErrors.get(browserErrors.size() - 1) + ")", se);
+                } else if (crossdataOAuth2Browser.requests() == browserRequests && String.valueOf(se.getMessage()).contains("timed out")) {
+                    se = new SQLException(se.getMessage() + " (the driver did not open the browser of the BDT: is "
+                            + "com.stratio.qa.aspects.CrossdataOAuth2BrowserAspect in META-INF/aop.xml?)", se);
+                }
+            }
             this.getLogger().error(se.getMessage());
             throw se;
+        } finally {
+            if (u2mLogin != null) {
+                crossdataOAuth2Browser.stop();
+            }
         }
     }
 
@@ -2905,6 +2930,17 @@ public class CommonG {
     }
 
     /**
+     * The driver logs through SLF4J, but its actor system writes straight to stdout while it starts and while it
+     * shuts down, when those loggers are not running: at the end of the run its connection pool may still be trying
+     * to connect, and pekko prints the failures ("cannot create children while terminating"). Those messages are
+     * turned off unless {@code -Dcrossdata-driver.pekko.stdout-loglevel} says otherwise. It must be set before the
+     * first connection, since the driver builds its actor system once.
+     */
+    static void quietCrossdataDriverStdoutLogs() {
+        System.getProperties().putIfAbsent("crossdata-driver.pekko.stdout-loglevel", "OFF");
+    }
+
+    /**
      * OAuth2 settings applied to the next Crossdata JDBC connections of the scenario.
      *
      * @return the settings, or null when connections authenticate as basic
@@ -2920,6 +2956,22 @@ public class CommonG {
      */
     public void setCrossdataOAuth2Settings(CrossdataOAuth2Settings settings) {
         this.crossdataOAuth2Settings = settings;
+    }
+
+    /**
+     * Fake browser that completes the OAuth2 U2M login of the Crossdata JDBC driver in the scenario.
+     *
+     * @return the fake browser, or null when the scenario has not set one up
+     */
+    public CrossdataOAuth2Browser getCrossdataOAuth2Browser() {
+        return crossdataOAuth2Browser;
+    }
+
+    /**
+     * @param browser fake browser for the OAuth2 U2M login, or null
+     */
+    public void setCrossdataOAuth2Browser(CrossdataOAuth2Browser browser) {
+        this.crossdataOAuth2Browser = browser;
     }
 
     public void connectToCustomDatabase(String database, String jdbcConnection, String user, String password) throws Exception {

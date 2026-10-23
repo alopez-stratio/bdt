@@ -49,6 +49,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import com.stratio.qa.utils.CrossdataOAuth2Browser;
 import com.stratio.qa.utils.ExceptionList;
 import com.stratio.qa.utils.JDBCConnection;
 import com.stratio.qa.utils.ThreadProperty;
@@ -971,6 +972,51 @@ public class DatabaseSpecJdbcTest {
             System.clearProperty("SHOW_OIDC_TOKENS_IN_SCENARIO");
             ThreadProperty.remove("T_ACCESS");
         }
+    }
+
+    @Test
+    public void crossdataOAuth2U2MSetsUpTheFakeBrowserAndTheCacheOfTheTests() {
+        try {
+            Class.forName(CrossdataOAuth2Browser.DRIVER_LAUNCHER + "$");
+        } catch (ClassNotFoundException e) {
+            assertThat(catchThrowable(() -> databaseSpec.configureCrossdataOAuth2U2M("https://sis/sso/oidc", "virtualizer-dbc", null,
+                    null, null, "alice", "p", "t1", null)))
+                    .as("a driver without U2M").hasMessageContaining("has no OAuth2 U2M");
+            assertThat(commong.getCrossdataOAuth2Settings()).isNull();
+            return;
+        }
+        databaseSpec.configureCrossdataOAuth2U2M("https://sis/sso/oidc", "virtualizer-dbc", null, null, null, "alice", "p", "t1", null);
+        assertThat(commong.getCrossdataOAuth2Settings().authMode()).isEqualTo("u2m");
+        assertThat(commong.getCrossdataOAuth2Browser()).isNotNull();
+        assertThat(System.getProperty("crossdata-driver.oauth2.cache.path")).endsWith("crossdata-oauth2/tokencache");
+        databaseSpec.before(mock(Scenario.class));
+    }
+
+    @Test
+    public void crossdataOAuth2DriverSettingsLastOneScenario() {
+        databaseSpec.setCrossdataOAuth2DriverSetting("expiry-skew-sec", "3600");
+        assertThat(System.getProperty("crossdata-driver.oauth2.expiry-skew-sec")).isEqualTo("3600");
+
+        databaseSpec.before(mock(Scenario.class));
+        assertThat(System.getProperty("crossdata-driver.oauth2.expiry-skew-sec")).isNull();
+    }
+
+    @Test
+    public void cleaningTheCrossdataOAuth2TokenCacheDeletesItsFile() throws Exception {
+        Path cache = Files.createTempFile("bdt-tokencache", "");
+        databaseSpec.setCrossdataOAuth2DriverSetting("cache.path", cache.toString());
+
+        databaseSpec.cleanCrossdataOAuth2TokenCache();
+        assertThat(cache).doesNotExist();
+        databaseSpec.cleanCrossdataOAuth2TokenCache();
+        assertThat(cache).as("cleaning a cache that is not there is fine").doesNotExist();
+        databaseSpec.before(mock(Scenario.class));
+    }
+
+    @Test
+    public void countingBrowserLoginsNeedsAnU2MConnection() {
+        assertThat(catchThrowable(() -> databaseSpec.assertCrossdataOAuth2BrowserLogins(1)))
+                .hasMessageContaining("has not configured an OAuth2 U2M connection");
     }
 
     @Test

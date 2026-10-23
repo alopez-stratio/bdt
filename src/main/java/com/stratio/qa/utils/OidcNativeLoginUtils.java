@@ -139,18 +139,7 @@ public class OidcNativeLoginUtils {
                     pair("code_challenge_method", "S256"),
                     pair("code_challenge", challenge(verifier)))));
 
-            Page page = get(client, context, authorize);
-            if (page.callback == null) {
-                page = postLogin(client, context, page, userName, password, tenant);
-            }
-            for (int i = 0; page.callback == null && i < MAX_CONSENT_PAGES; i++) {
-                page = allow(client, context, page);
-            }
-            if (page.callback == null) {
-                throw new IOException("The OIDC flow did not reach the redirect URI. Last page: " + page.url);
-            }
-
-            Map<String, String> callback = queryOf(page.callback);
+            Map<String, String> callback = queryOf(authorize(client, context, authorize, userName, password, tenant));
             if (!state.equals(callback.get("state"))) {
                 throw new IOException("The state returned by the authorization endpoint does not match");
             }
@@ -179,6 +168,58 @@ public class OidcNativeLoginUtils {
 
             return token;
         }
+    }
+
+    /**
+     * Utility to complete an authorization request built by someone else, such as the one the JDBC driver opens in
+     * the browser for its U2M login. The redirect URI is the one of the request.
+     *
+     * @param authorizationRequest authorization endpoint URL with its query: client_id, redirect_uri, state...
+     * @param verifyHost           whether to verify the certificate of the server
+     * @return the utility, to call {@link #completeAuthorization(URI, String, String, String)}
+     */
+    public static OidcNativeLoginUtils forAuthorizationRequest(URI authorizationRequest, boolean verifyHost) {
+        Map<String, String> query = queryOf(authorizationRequest);
+        if (!query.containsKey("redirect_uri") || !query.containsKey("client_id")) {
+            throw new IllegalArgumentException("Not an authorization request, it has no redirect_uri or client_id: "
+                    + authorizationRequest.getScheme() + "://" + authorizationRequest.getHost() + authorizationRequest.getPath());
+        }
+        return new OidcNativeLoginUtils(null, query.get("client_id"), query.get("scope"), query.get("redirect_uri"), verifyHost);
+    }
+
+    /**
+     * Does what the user would do in the browser with an authorization request: log in and accept the consent.
+     * The code is not exchanged, that is up to whoever built the request (its PKCE verifier is not known here).
+     *
+     * @param authorizationRequest authorization endpoint URL with its query, as built by the client
+     * @param userName             user to log in with
+     * @param password             its password
+     * @param tenant               tenant to choose in the login form, or null
+     * @return the redirect URI the identity server sends the browser to, with the code and the state
+     * @throws IOException if the login is rejected or any step of the flow fails
+     */
+    public URI completeAuthorization(URI authorizationRequest, String userName, String password, String tenant) throws IOException {
+        try (CloseableHttpClient client = buildClient()) {
+            return authorize(client, HttpClientContext.create(), authorizationRequest, userName, password, tenant);
+        }
+    }
+
+    /**
+     * Drives the login and the consent pages of an authorization request up to the redirect URI.
+     */
+    private URI authorize(CloseableHttpClient client, HttpClientContext context, URI authorizationRequest, String userName,
+                          String password, String tenant) throws IOException {
+        Page page = get(client, context, authorizationRequest);
+        if (page.callback == null) {
+            page = postLogin(client, context, page, userName, password, tenant);
+        }
+        for (int i = 0; page.callback == null && i < MAX_CONSENT_PAGES; i++) {
+            page = allow(client, context, page);
+        }
+        if (page.callback == null) {
+            throw new IOException("The OIDC flow did not reach the redirect URI. Last page: " + page.url);
+        }
+        return page.callback;
     }
 
     /**

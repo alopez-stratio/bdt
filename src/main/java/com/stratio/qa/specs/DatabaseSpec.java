@@ -29,6 +29,7 @@ import io.cucumber.java.Before;
 import org.asynchttpclient.Response;
 import com.stratio.qa.assertions.DBObjectsAssert;
 import com.stratio.qa.exceptions.DBException;
+import com.stratio.qa.utils.CrossdataOAuth2Browser;
 import com.stratio.qa.utils.CrossdataOAuth2Settings;
 import com.stratio.qa.utils.JDBCConnection;
 import com.stratio.qa.utils.SqlStatementSplitter;
@@ -46,10 +47,12 @@ import org.testng.asserts.Assertion;
 import javax.net.ssl.SSLException;
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.*;
 import java.util.*;
@@ -115,6 +118,8 @@ public class DatabaseSpec extends BaseGSpec {
         this.scenario = scenario;
         // Every scenario starts with basic authentication, whatever the previous one configured
         commonspec.setCrossdataOAuth2Settings(null);
+        commonspec.setCrossdataOAuth2Browser(null);
+        CrossdataOAuth2Settings.clearDriverSettings();
     }
 
     /**
@@ -2162,6 +2167,90 @@ public class DatabaseSpec extends BaseGSpec {
     @Given("^I configure the Crossdata JDBC connection with OAuth2 M2M(?::.*)?$")
     public void configureCrossdataOAuth2M2M() {
         throw new PendingException("OAuth2 M2M (client credentials) is not implemented yet: it is out of the scope of Virtualizer 15.2");
+    }
+
+    /**
+     * Makes the next Crossdata JDBC connections of the scenario authenticate with the OAuth2 U2M login of the driver
+     * (AUTH_MODE=u2m): the driver opens the authorization URL in the browser, the user logs in and accepts the
+     * consent, and the driver gets the tokens and keeps them in its token cache. The BDT plays that browser: it logs
+     * in with the given user while the connection step runs. The connection step's user must be this same user.
+     *
+     * The aspect com.stratio.qa.aspects.CrossdataOAuth2BrowserAspect hands the BDT the URL the driver opens, so it
+     * has to be in the META-INF/aop.xml of the test project. No real browser, display nor environment is needed.
+     * Unless the scenario sets 'cache.path', the driver keeps its token cache in target/crossdata-oauth2/tokencache,
+     * shared by the scenarios of the run and not by the user's own connections.
+     *
+     * The driver discovers the endpoints from the issuer with the default truststore of the JVM; giving both
+     * endpoints avoids that discovery.
+     *
+     * @param issuer                OIDC issuer, e.g. https://sis.k8s.romeo.labs.stratio.com/sso/oidc
+     * @param clientId              OIDC public client of the driver, e.g. virtualizer-dbc
+     * @param scope                 scopes to ask for, e.g. 'openid login_data offline_access'. Without
+     *                              offline_access there is no refresh token
+     * @param authorizationEndpoint authorization endpoint, to use it instead of discovering it
+     * @param tokenEndpoint         token endpoint, to use it instead of discovering it
+     * @param userName              user to log in with in the browser
+     * @param password              its password
+     * @param tenant                tenant to choose in the login form
+     * @param hostVerifier          whether the fake browser verifies the certificate of the identity server
+     */
+    @Given("^I configure the Crossdata JDBC connection with OAuth2 U2M:(?: issuer '(.+?)',)? client id '(.+?)'(?:, scope '(.+?)')?(?:, authorization endpoint '(.+?)')?(?:, token endpoint '(.+?)')?, logging in with user '(.+?)', password '(.+?)'(?: and tenant '(.+?)')?( without host name verification)?$")
+    public void configureCrossdataOAuth2U2M(String issuer, String clientId, String scope, String authorizationEndpoint, String tokenEndpoint,
+                                            String userName, String password, String tenant, String hostVerifier) {
+        CrossdataOAuth2Settings settings = CrossdataOAuth2Settings.u2m(issuer, clientId, scope, authorizationEndpoint, tokenEndpoint,
+                userName, password, tenant, hostVerifier == null);
+        CrossdataOAuth2Browser.checkDriverLauncher();
+        if (commonspec.getCrossdataOAuth2Browser() == null) {
+            commonspec.setCrossdataOAuth2Browser(new CrossdataOAuth2Browser());
+        }
+        if (CrossdataOAuth2Settings.driverSetting("cache.path") == null) {
+            CrossdataOAuth2Settings.setDriverSetting("cache.path", CrossdataOAuth2Settings.tokenCacheFile().toString());
+        }
+        commonspec.setCrossdataOAuth2Settings(settings);
+    }
+
+    /**
+     * Sets an OAuth2 setting of the driver that the connection string cannot carry, for the next connections of the
+     * scenario: cache.path, cache.enabled, browser-timeout-sec, expiry-skew-sec, redirect-port...
+     * (crossdata-driver.oauth2.* in the driver configuration). They are removed when the scenario ends.
+     *
+     * An expiry-skew-sec bigger than the life of the access token makes the driver renew it with the refresh token
+     * on the next connection, without waiting for it to expire.
+     *
+     * @param key   setting, e.g. browser-timeout-sec
+     * @param value its value
+     */
+    @Given("^I set the Crossdata OAuth2 driver setting '(.+?)' to '(.*?)'$")
+    public void setCrossdataOAuth2DriverSetting(String key, String value) {
+        CrossdataOAuth2Settings.setDriverSetting(key, value);
+    }
+
+    /**
+     * Deletes the driver's U2M token cache of the tests, so that the next U2M connection opens the browser again:
+     * the 'cache.path' setting of the scenario or, without it, target/crossdata-oauth2/tokencache. It can go before
+     * or after the U2M step. The user's own cache of the driver is never deleted.
+     *
+     * @throws IOException if the cache cannot be deleted
+     */
+    @Given("^I clean the Crossdata OAuth2 token cache$")
+    public void cleanCrossdataOAuth2TokenCache() throws IOException {
+        Path cache = CrossdataOAuth2Settings.tokenCacheFile();
+        Files.deleteIfExists(cache);
+        commonspec.getLogger().debug("Crossdata OAuth2 token cache deleted: {}", cache);
+    }
+
+    /**
+     * Checks how many times the driver has opened the browser for the U2M login in the scenario: once per login,
+     * none when it reuses or renews the tokens of its cache.
+     *
+     * @param times expected number of logins in the browser
+     */
+    @Then("^the Crossdata driver has opened the OAuth2 login in the browser '(\\d+)' times?$")
+    public void assertCrossdataOAuth2BrowserLogins(int times) {
+        CrossdataOAuth2Browser browser = commonspec.getCrossdataOAuth2Browser();
+        Assert.assertNotNull(browser, "The scenario has not configured an OAuth2 U2M connection");
+        Assert.assertEquals(browser.requests(), times, "Times the driver opened the browser for the OAuth2 login"
+                + (browser.errors().isEmpty() ? "" : ". Failed logins: " + browser.errors()));
     }
 
     @Given(value = "^I connect with JDBC to database '(.*?)' with url '(.*?)', user '(.*?)'( and password '(.*?)')$")

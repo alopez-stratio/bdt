@@ -52,7 +52,7 @@ public class OidcNativeLoginUtilsTest {
 
     private static final String CLIENT_ID = "virtualizer-dbc";
 
-    private static final String PASSWORD = "pass-" + System.nanoTime();
+    static final String PASSWORD = "pass-" + System.nanoTime();
 
     private MockWebServer server;
 
@@ -265,6 +265,41 @@ public class OidcNativeLoginUtilsTest {
     }
 
     @Test
+    public void anAuthorizationRequestBuiltByTheDriverIsCompletedUpToItsCallback() throws Exception {
+        URI request = URI.create(sis.base + "/sso/oidc/oidcAuthorize?response_type=code&client_id=" + CLIENT_ID
+                + "&redirect_uri=http%3A%2F%2F127.0.0.1%3A43210%2Fcallback&state=driver-state"
+                + "&code_challenge=c&code_challenge_method=S256&scope=openid+offline_access");
+
+        URI callback = OidcNativeLoginUtils.forAuthorizationRequest(request, false)
+                .completeAuthorization(request, "alice", PASSWORD, "t1");
+
+        assertThat(callback.getHost()).isEqualTo("127.0.0.1");
+        assertThat(callback.getPort()).isEqualTo(43210);
+        assertThat(callback.getPath()).isEqualTo("/callback");
+        assertThat(callback.getQuery()).isEqualTo("code=code-of-alice&state=driver-state");
+        assertThat(sis.requested("scope")).as("the request goes as the driver built it").isEqualTo("openid offline_access");
+        assertThat(sis.exchangedRedirectUri).as("the code is left for the driver to exchange").isNull();
+    }
+
+    @Test
+    public void anAuthorizationRequestNeedsItsRedirectUriAndClientId() {
+        assertThatThrownBy(() -> OidcNativeLoginUtils.forAuthorizationRequest(
+                URI.create(sis.base + "/sso/oidc/oidcAuthorize?client_id=" + CLIENT_ID), false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no redirect_uri or client_id");
+    }
+
+    @Test
+    public void completingAnAuthorizationWithAWrongPasswordFails() {
+        URI request = URI.create(sis.base + "/sso/oidc/oidcAuthorize?client_id=" + CLIENT_ID
+                + "&redirect_uri=http%3A%2F%2F127.0.0.1%3A43210%2Fcallback&state=s");
+
+        assertThatThrownBy(() -> OidcNativeLoginUtils.forAuthorizationRequest(request, false)
+                .completeAuthorization(request, "alice", "wrong", "t1"))
+                .hasMessageContaining("Login rejected for user 'alice'");
+    }
+
+    @Test
     public void stepNeedsSomewhereToSaveTheResult() {
         KeosSpec keosSpec = new KeosSpec(new CommonG());
 
@@ -381,7 +416,7 @@ public class OidcNativeLoginUtilsTest {
         return new MockResponse().setHeader("Content-Type", "text/html").setBody(body);
     }
 
-    private static final class FakeSis extends Dispatcher {
+    static final class FakeSis extends Dispatcher {
 
         private static final String LOGIN_FORM = "<html><body><form method=\"post\" action=\"login\">"
                 + "<input type=\"text\" name=\"username\"/><input type=\"password\" name=\"password\"/>"

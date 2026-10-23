@@ -241,6 +241,27 @@ public class CommonGDataTest {
     }
 
     @Test
+    public void theDriverStdoutLogsAreOffUnlessAskedOtherwise() {
+        String previous = System.getProperty("crossdata-driver.pekko.stdout-loglevel");
+        try {
+            System.clearProperty("crossdata-driver.pekko.stdout-loglevel");
+            CommonG.quietCrossdataDriverStdoutLogs();
+            assertThat(new com.stratio.crossdata.driver.config.DriverConf().finalSettings().getString("pekko.stdout-loglevel"))
+                    .as("the driver's actor system reads it").isEqualTo("OFF");
+
+            System.setProperty("crossdata-driver.pekko.stdout-loglevel", "WARNING");
+            CommonG.quietCrossdataDriverStdoutLogs();
+            assertThat(System.getProperty("crossdata-driver.pekko.stdout-loglevel")).as("a -D wins").isEqualTo("WARNING");
+        } finally {
+            if (previous == null) {
+                System.clearProperty("crossdata-driver.pekko.stdout-loglevel");
+            } else {
+                System.setProperty("crossdata-driver.pekko.stdout-loglevel", previous);
+            }
+        }
+    }
+
+    @Test
     public void oauth2SettingsGoBeforeTheExtraProperties() {
         commong.setCrossdataOAuth2Settings(CrossdataOAuth2Settings.tokenPassthrough(
                 "AT", "RT", "https://sis/sso/oidc", "virtualizer-dbc", null, null));
