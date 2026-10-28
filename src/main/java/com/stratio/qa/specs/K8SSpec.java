@@ -30,6 +30,7 @@ import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.apps.DeploymentStatus;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import org.assertj.core.api.Assertions;
 import org.hjson.JsonObject;
@@ -384,6 +385,98 @@ public class K8SSpec extends BaseGSpec {
         if (!found) {
             fail("Expected replicas ready not found after " + i + " seconds");
         }
+    }
+
+    /**
+     * Saves the revision of a deployment (its {@code deployment.kubernetes.io/revision} annotation, 0 if it has none),
+     * to wait afterwards for the rollout of a newer one.
+     *
+     * @param deploymentName Name of the deployment.
+     * @param namespace      Namespace of the deployment.
+     * @param envVar         Variable to save the revision in.
+     */
+    @Given("^I save the revision of deployment with name '(.+?)' in namespace '(.+?)' in environment variable '(.+?)'$")
+    public void saveDeploymentRevision(String deploymentName, String namespace, String envVar) {
+        Deployment deployment = commonspec.kubernetesClient.getDeployment(deploymentName, namespace);
+        assertThat(deployment).as("Deployment '%s' in namespace '%s'", deploymentName, namespace).isNotNull();
+        ThreadProperty.set(envVar, String.valueOf(deploymentRevision(deployment)));
+    }
+
+    /**
+     * Waits until a deployment has rolled out: every replica runs the latest template and is available, and no pod of
+     * an older one is left, not even terminating. Waiting for its replicas to be ready is not enough after a change:
+     * the pods of the previous template are ready too, and they keep receiving requests until they are gone.
+     * <p>
+     * A change made through another system (an update in Command Center) may reach the deployment some seconds later,
+     * while the deployment still looks rolled out. With {@code a revision newer than} the revision saved before the
+     * change, it also waits for the deployment to have a newer one.
+     * <p>
+     * Example:
+     * <pre>
+     * Given I save the revision of deployment with name 'genai-proxy' in namespace 's000001-genai' in environment variable 'proxy_revision'
+     * When I update service 'genai-proxy' ...
+     * Then in less than '300' seconds, checking each '10' seconds, deployment with name 'genai-proxy' in namespace 's000001-genai' has rolled out a revision newer than '!{proxy_revision}'
+     * </pre>
+     *
+     * @param timeout        Seconds to wait.
+     * @param wait           Seconds between checks.
+     * @param deploymentName Name of the deployment.
+     * @param namespace      Namespace of the deployment.
+     * @param revision       Revision the rolled out one must be newer than (optional).
+     */
+    @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, deployment with name '(.+?)' in namespace '(.+?)' has rolled out(?: a revision newer than '(\\d+)')?$")
+    public void assertDeploymentRolledOut(Integer timeout, Integer wait, String deploymentName, String namespace, String revision) throws InterruptedException {
+        String pending;
+        int i = 0;
+        while (true) {
+            Deployment deployment = commonspec.kubernetesClient.getDeployment(deploymentName, namespace);
+            pending = deployment == null ? "the deployment does not exist" : pendingRollout(deployment, revision);
+            if (pending == null) {
+                return;
+            }
+            getCommonSpec().getLogger().info("Deployment '{}' has not rolled out after {} seconds: {}", deploymentName, i, pending);
+            if (i + wait > timeout) {
+                break;
+            }
+            Thread.sleep(wait * 1000L);
+            i += wait;
+        }
+        Assertions.fail(String.format("Deployment '%s' in namespace '%s' has not rolled out after %d seconds: %s",
+                deploymentName, namespace, timeout, pending));
+    }
+
+    private static long deploymentRevision(Deployment deployment) {
+        Map<String, String> annotations = deployment.getMetadata().getAnnotations();
+        String revision = annotations != null ? annotations.get("deployment.kubernetes.io/revision") : null;
+        return revision != null ? Long.parseLong(revision) : 0;
+    }
+
+    /**
+     * @return what keeps the deployment from having rolled out, or null when it has
+     */
+    private static String pendingRollout(Deployment deployment, String revision) {
+        long current = deploymentRevision(deployment);
+        if (revision != null && current <= Long.parseLong(revision)) {
+            return String.format("revision %d, not newer than %s", current, revision);
+        }
+        DeploymentStatus status = deployment.getStatus();
+        if (status == null) {
+            return "no status yet";
+        }
+        Long generation = deployment.getMetadata().getGeneration();
+        if (generation != null && (status.getObservedGeneration() == null || status.getObservedGeneration() < generation)) {
+            return String.format("generation %d not observed yet (observed %s)", generation, status.getObservedGeneration());
+        }
+        int desired = deployment.getSpec().getReplicas() != null ? deployment.getSpec().getReplicas() : 1;
+        int updated = status.getUpdatedReplicas() != null ? status.getUpdatedReplicas() : 0;
+        int replicas = status.getReplicas() != null ? status.getReplicas() : 0;
+        int available = status.getAvailableReplicas() != null ? status.getAvailableReplicas() : 0;
+        int terminating = status.getTerminatingReplicas() != null ? status.getTerminatingReplicas() : 0;
+        if (updated != desired || replicas != desired || available != desired || terminating != 0) {
+            return String.format("%d desired, %d updated, %d in total, %d available, %d terminating",
+                    desired, updated, replicas, available, terminating);
+        }
+        return null;
     }
 
     @When("^in less than '(\\d+)' seconds, checking each '(\\d+)' seconds, statefulset with name '(.+?)' in namespace '(.+?)' has '(\\d+)' replicas ready$")

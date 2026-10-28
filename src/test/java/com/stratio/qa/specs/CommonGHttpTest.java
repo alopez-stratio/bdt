@@ -107,9 +107,28 @@ public class CommonGHttpTest {
         assertThat(request.getPath()).isEqualTo("/things");
     }
 
+    @Test
+    public void anOptionsRequestCarriesTheHeadersOfACorsPreflight() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(204)
+                .setHeader("Access-Control-Allow-Origin", "https://app.example")
+                .setHeader("Access-Control-Allow-Headers", "authorization,content-type"));
+        commong.getHeaders().put("Origin", "https://app.example");
+        commong.getHeaders().put("Access-Control-Request-Method", "POST");
+
+        Response response = commong.generateRequest("OPTIONS", false, null, null, "/things", "", "json").get();
+
+        assertThat(response.getStatusCode()).isEqualTo(204);
+        assertThat(response.getHeader("Access-Control-Allow-Origin")).isEqualTo("https://app.example");
+        RecordedRequest request = server.takeRequest();
+        assertThat(request.getMethod()).isEqualTo("OPTIONS");
+        assertThat(request.getPath()).isEqualTo("/things");
+        assertThat(request.getHeader("Origin")).isEqualTo("https://app.example");
+        assertThat(request.getHeader("Access-Control-Request-Method")).isEqualTo("POST");
+    }
+
     @DataProvider(name = "unimplementedMethods")
     public Object[][] unimplementedMethods() {
-        return new Object[][]{{"CONNECT"}, {"HEAD"}, {"OPTIONS"}, {"REQUEST"}, {"TRACE"}};
+        return new Object[][]{{"CONNECT"}, {"HEAD"}, {"REQUEST"}, {"TRACE"}};
     }
 
     @Test(dataProvider = "unimplementedMethods")

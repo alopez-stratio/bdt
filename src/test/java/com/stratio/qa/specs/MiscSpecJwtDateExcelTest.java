@@ -98,6 +98,45 @@ public class MiscSpecJwtDateExcelTest {
     }
 
     @Test
+    public void aTamperedJwtKeepsItsHeaderAndSignatureAndCarriesTheNewClaim() {
+        miscSpec.getJwtFromData(PAYLOAD_TENANT, "ana", "ana@stratio.com", null,
+                "stratio", "a-secret-key-long-enough-for-hs256", "jwt");
+        String[] original = ThreadProperty.get("jwt").split("\\.");
+
+        miscSpec.tamperJwt("jwt", "uid", "intruder", "tampered");
+
+        String[] tampered = ThreadProperty.get("tampered").split("\\.");
+        assertThat(tampered).hasSize(3);
+        assertThat(tampered[0]).isEqualTo(original[0]);
+        assertThat(tampered[2]).as("the signature is kept, so it no longer matches").isEqualTo(original[2]);
+        miscSpec.decodeJwtPayload("tampered", "tamperedPayload");
+        assertThat(ThreadProperty.get("tamperedPayload")).contains("\"uid\":\"intruder\"").contains("\"cn\":\"ana\"");
+    }
+
+    @Test
+    public void tamperingSomethingThatIsNotAJwtFails() {
+        ThreadProperty.set("notJwt", "not-a-jwt");
+
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> miscSpec.tamperJwt("notJwt", "sub", "x", "tampered"))
+                .withMessageContaining("Parts of the JWT in variable 'notJwt'");
+    }
+
+    @Test
+    public void aQueryParameterIsExtractedDecoded() {
+        miscSpec.extractQueryParameter("state", "https://app.example.com/cb?code=c-1&state=a%2Bb%20c", "state");
+
+        assertThat(ThreadProperty.get("state")).isEqualTo("a+b c");
+    }
+
+    @Test
+    public void aMissingQueryParameterFails() {
+        assertThatExceptionOfType(AssertionError.class)
+                .isThrownBy(() -> miscSpec.extractQueryParameter("code", "https://app.example.com/cb?error=access_denied", "code"))
+                .withMessageContaining("Query parameter 'code' of the URL");
+    }
+
+    @Test
     public void aJwtWithoutGroupsCarriesAnEmptyGroupList() {
         miscSpec.getJwtFromData(PAYLOAD_TENANT, "ana", "ana@stratio.com", null,
                 "stratio", "a-secret-key-long-enough-for-hs256", "jwtNoGroups");

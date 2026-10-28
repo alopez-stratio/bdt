@@ -26,10 +26,12 @@ import com.stratio.qa.utils.ThreadProperty;
 import io.cucumber.java.en.Given;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.http.client.utils.URIBuilder;
 import org.json.JSONObject;
 import com.stratio.qa.assertions.Assertions;
 
 import java.io.*;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -114,7 +116,8 @@ public class KeosSpec extends BaseGSpec {
     /**
      * Gets OIDC tokens from SIS, without a browser: authorization code with PKCE, as a native client
      * (JDBC/ODBC driver) does with a loopback redirect URI, or as a web client does with its https one.
-     * The login and the consent are driven over HTTP. The tokens are not logged.
+     * The login, the Acceptable Usage Policy of a user's first login and the consent are driven over HTTP.
+     * The tokens are not logged.
      *
      * @param wellKnownUrl     : discovery URL of SIS, e.g. https://sis.k8s.romeo.labs.stratio.com/sso/oidc/.well-known.
      *                           When omitted it is built from KEOS_SIS_HOST and SIS_BASEPATH, which @keos sets
@@ -154,6 +157,75 @@ public class KeosSpec extends BaseGSpec {
         if (responseVar != null) {
             ThreadProperty.set(responseVar, tokens.toString());
         }
+    }
+
+    /**
+     * Generates the values of an authorization request with PKCE, for the step that authorizes in SIS step by step:
+     * a verifier and its S256 challenge, a state and a nonce, saved as {@code <prefix>_verifier},
+     * {@code <prefix>_challenge}, {@code <prefix>_state} and {@code <prefix>_nonce}. The verifier is what the code
+     * exchange sends.
+     *
+     * @param prefix : prefix of the variables
+     */
+    @Given("^I generate OIDC PKCE values and save them with prefix '(.+?)'$")
+    public void generateOidcPkceValues(String prefix) {
+        OidcNativeLoginUtils.pkceValues().forEach((name, value) -> ThreadProperty.set(prefix + "_" + name, value));
+    }
+
+    /**
+     * Runs the interactive part of an authorization code request against SIS, without a browser: the login, the
+     * Acceptable Usage Policy and the consent, up to the redirect back to the client, which is not followed. Unlike
+     * 'I get an OIDC token ...', the code is not exchanged, so the exchange and each way SIS refuses the request can
+     * be asserted with the REST steps.
+     *
+     * <p>Saves the redirect (with code and state, or error) in the variable, or {@code NO_REDIRECT} when SIS does not
+     * send the browser back to the client, as it must not for a redirect URI that is not registered. A login that
+     * SIS rejects fails the step.
+     *
+     * @param authorizationEndpoint : authorization endpoint, as read from the discovery document
+     * @param clientId              : OIDC client
+     * @param redirectUri           : redirect URI to ask for; nobody has to listen on it
+     * @param scope                 : scopes to ask for
+     * @param pkcePrefix            : prefix of the values of 'I generate OIDC PKCE values ...'. Without it the
+     *                                request carries no code_challenge, state nor nonce
+     * @param userName              : username
+     * @param password              : password
+     * @param tenant                : tenant to choose in the login form
+     * @param hostVerifier          : whether to verify host or not
+     * @param variable              : variable where to save the redirect
+     * @throws Exception exception
+     */
+    @When("^I authorize in SIS OIDC endpoint '(.+?)' with client '(.+?)', redirect uri '(.+?)' and scopes '(.+?)'(?: using PKCE values with prefix '(.+?)')? for user '(.+?)', password '(.+?)' and tenant '(.+?)'( without host name verification)? and save the redirect in '(.+?)'$")
+    public void authorizeInSisOidc(String authorizationEndpoint, String clientId, String redirectUri, String scope, String pkcePrefix,
+                                   String userName, String password, String tenant, String hostVerifier, String variable) throws Exception {
+        URIBuilder request = new URIBuilder(authorizationEndpoint)
+                .addParameter("response_type", "code")
+                .addParameter("client_id", clientId)
+                .addParameter("redirect_uri", redirectUri)
+                .addParameter("scope", scope);
+        if (pkcePrefix != null) {
+            Assert.assertNotNull(ThreadProperty.get(pkcePrefix + "_challenge"),
+                    "No PKCE values with prefix '" + pkcePrefix + "': generate them first");
+            request.addParameter("code_challenge", ThreadProperty.get(pkcePrefix + "_challenge"))
+                    .addParameter("code_challenge_method", "S256")
+                    .addParameter("state", ThreadProperty.get(pkcePrefix + "_state"))
+                    .addParameter("nonce", ThreadProperty.get(pkcePrefix + "_nonce"));
+        }
+        URI authorizationRequest = request.build();
+
+        String redirect;
+        try {
+            redirect = OidcNativeLoginUtils.forAuthorizationRequest(authorizationRequest, hostVerifier == null)
+                    .completeAuthorization(authorizationRequest, userName, password, tenant).toString();
+        } catch (OidcNativeLoginUtils.LoginRejectedException e) {
+            throw e;
+        } catch (IOException e) {
+            commonspec.getLogger().info("SIS did not redirect to '{}': {}", redirectUri, e.getMessage());
+            redirect = "NO_REDIRECT";
+        }
+        commonspec.getLogger().info("Authorize as '{}' with client '{}': {}", userName, clientId,
+                "NO_REDIRECT".equals(redirect) ? "no redirect to the client" : "redirected to the client");
+        ThreadProperty.set(variable, redirect);
     }
 
     /**

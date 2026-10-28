@@ -1262,7 +1262,9 @@ public class CommonG {
 
         switch (requestType.toUpperCase()) {
             case "GET":
-                request = this.getClient().prepareGet(restURL + endPoint);
+            case "OPTIONS":
+                request = "GET".equalsIgnoreCase(requestType) ? this.getClient().prepareGet(restURL + endPoint)
+                        : this.getClient().prepareOptions(restURL + endPoint);
                 request = setHeaders(request, type, govTenant, govRolesID, govUserID);
 
                 if (this.getResponse() != null) {
@@ -1480,7 +1482,6 @@ public class CommonG {
                 }
             case "CONNECT":
             case "HEAD":
-            case "OPTIONS":
             case "REQUEST":
             case "TRACE":
                 throw new Exception("Operation not implemented: " + requestType);

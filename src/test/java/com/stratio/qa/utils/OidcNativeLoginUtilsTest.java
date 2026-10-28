@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.stratio.qa.specs.CommonG;
 import com.stratio.qa.specs.KeosSpec;
 import io.cucumber.java.en.Given;
+import io.cucumber.java.en.When;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -44,8 +46,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Walks a fake SIS served over TLS by a {@link MockWebServer}: discovery, authorize, a CAS-like login form, a
- * consent page whose "Allow" is a link, the redirect to the loopback callback (which nobody listens on) and the
+ * Walks a fake SIS served over TLS by a {@link MockWebServer}: discovery, authorize, a CAS-like login form, the
+ * Acceptable Usage Policy of a user's first login (when asked to), a consent page whose "Allow" is a link, the redirect to the loopback callback (which nobody listens on) and the
  * token endpoint, which checks the PKCE verifier.
  */
 public class OidcNativeLoginUtilsTest {
@@ -78,6 +80,11 @@ public class OidcNativeLoginUtilsTest {
         ThreadProperty.remove("OIDC_ACCESS");
         ThreadProperty.remove("OIDC_REFRESH");
         ThreadProperty.remove("OIDC_RESPONSE");
+        ThreadProperty.remove("REDIRECT");
+        ThreadProperty.remove("PKCE_verifier");
+        ThreadProperty.remove("PKCE_challenge");
+        ThreadProperty.remove("PKCE_state");
+        ThreadProperty.remove("PKCE_nonce");
         ThreadProperty.remove("KEOS_SIS_HOST");
         ThreadProperty.remove("SIS_VHOST");
         ThreadProperty.remove("SIS_BASEPATH");
@@ -300,6 +307,129 @@ public class OidcNativeLoginUtilsTest {
     }
 
     @Test
+    public void theAcceptableUsagePolicyOfAFirstLoginIsAccepted() throws Exception {
+        sis.showAup = true;
+
+        JSONObject tokens = new OidcNativeLoginUtils(wellKnown, CLIENT_ID, null, null, false)
+                .login("alice", PASSWORD, "t1");
+
+        assertThat(sis.aupAccepted).isTrue();
+        assertThat(OidcNativeLoginUtils.claims(tokens.getString("access_token")).getString("sub")).isEqualTo("alice");
+    }
+
+    @Test
+    public void anAuthorizationRequestIsCompletedThroughTheAcceptableUsagePolicy() throws Exception {
+        sis.showAup = true;
+        URI request = URI.create(sis.base + "/sso/oidc/oidcAuthorize?response_type=code&client_id=" + CLIENT_ID
+                + "&redirect_uri=" + URLEncoder.encode("https://app.example.com/cb", StandardCharsets.UTF_8)
+                + "&state=s1&code_challenge_method=S256&code_challenge=c1");
+
+        URI callback = OidcNativeLoginUtils.forAuthorizationRequest(request, false)
+                .completeAuthorization(request, "alice", PASSWORD, "t1");
+
+        assertThat(sis.aupAccepted).isTrue();
+        assertThat(callback.toString()).startsWith("https://app.example.com/cb?code=code-of-alice&state=s1");
+    }
+
+    @Test
+    public void aPageThatIsNeitherTheAcceptableUsagePolicyNorTheConsentFails() {
+        sis.showUnknownPage = true;
+
+        assertThatThrownBy(() -> new OidcNativeLoginUtils(wellKnown, CLIENT_ID, null, null, false)
+                .login("alice", PASSWORD, "t1"))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("Neither an Acceptable Usage Policy form nor an 'allow' link");
+    }
+
+    @Test
+    public void pkceStepSavesAVerifierWithItsChallengeAStateAndANonce() {
+        new KeosSpec(new CommonG()).generateOidcPkceValues("PKCE");
+
+        assertThat(ThreadProperty.get("PKCE_verifier")).hasSizeGreaterThanOrEqualTo(43);
+        assertThat(ThreadProperty.get("PKCE_challenge"))
+                .isEqualTo(OidcNativeLoginUtils.challenge(ThreadProperty.get("PKCE_verifier")));
+        assertThat(ThreadProperty.get("PKCE_state")).isNotEmpty();
+        assertThat(ThreadProperty.get("PKCE_nonce")).isNotEmpty();
+    }
+
+    @Test
+    public void authorizeStepSavesTheRedirectWithTheCodeAndTheState() throws Exception {
+        KeosSpec keosSpec = new KeosSpec(new CommonG());
+        keosSpec.generateOidcPkceValues("PKCE");
+
+        keosSpec.authorizeInSisOidc(sis.base + "/sso/oidc/oidcAuthorize", CLIENT_ID, "https://app.example.com/cb",
+                "openid login_data", "PKCE", "alice", PASSWORD, "t1", " without host name verification", "REDIRECT");
+
+        assertThat(ThreadProperty.get("REDIRECT"))
+                .isEqualTo("https://app.example.com/cb?code=code-of-alice&state=" + ThreadProperty.get("PKCE_state"));
+        assertThat(sis.requested("code_challenge")).isEqualTo(ThreadProperty.get("PKCE_challenge"));
+        assertThat(sis.requested("code_challenge_method")).isEqualTo("S256");
+        assertThat(sis.requested("nonce")).isEqualTo(ThreadProperty.get("PKCE_nonce"));
+        assertThat(sis.requested("scope")).isEqualTo("openid login_data");
+        assertThat(sis.exchangedRedirectUri).as("the code is left for the test to exchange").isNull();
+    }
+
+    @Test
+    public void authorizeStepWithoutPkceSendsNoChallengeStateNorNonce() throws Exception {
+        new KeosSpec(new CommonG()).authorizeInSisOidc(sis.base + "/sso/oidc/oidcAuthorize", CLIENT_ID,
+                "https://app.example.com/cb", "openid", null, "alice", PASSWORD, "t1", " without host name verification",
+                "REDIRECT");
+
+        assertThat(sis.requested("code_challenge")).isNull();
+        assertThat(sis.requested("state")).isNull();
+        assertThat(sis.requested("nonce")).isNull();
+    }
+
+    @Test
+    public void authorizeStepSavesNoRedirectWhenSisRefusesTheRequest() throws Exception {
+        sis.refuseClient = true;
+
+        new KeosSpec(new CommonG()).authorizeInSisOidc(sis.base + "/sso/oidc/oidcAuthorize", CLIENT_ID,
+                "https://app.example.com:8443/cb", "openid", null, "alice", PASSWORD, "t1", " without host name verification",
+                "REDIRECT");
+
+        assertThat(ThreadProperty.get("REDIRECT")).isEqualTo("NO_REDIRECT");
+    }
+
+    @Test
+    public void authorizeStepFailsWhenTheLoginIsRejected() {
+        assertThatThrownBy(() -> new KeosSpec(new CommonG()).authorizeInSisOidc(sis.base + "/sso/oidc/oidcAuthorize",
+                CLIENT_ID, "https://app.example.com/cb", "openid", null, "alice", "wrong", "t1",
+                " without host name verification", "REDIRECT"))
+                .isInstanceOf(OidcNativeLoginUtils.LoginRejectedException.class)
+                .hasMessageContaining("Login rejected for user 'alice'");
+        assertThat(ThreadProperty.get("REDIRECT")).as("a rejected login is not a refused request").isNull();
+    }
+
+    @Test
+    public void authorizeStepRegexGivesAsManyGroupsAsTheMethodHasParameters() {
+        Method method = Arrays.stream(KeosSpec.class.getMethods())
+                .filter(m -> m.getName().equals("authorizeInSisOidc")).findFirst().orElseThrow();
+        Pattern pattern = Pattern.compile(method.getAnnotation(When.class).value());
+        String head = "I authorize in SIS OIDC endpoint 'https://sis/authorize' with client 'c', redirect uri 'https://app/cb'"
+                + " and scopes 'openid'";
+
+        // 1 endpoint, 2 client, 3 redirect uri, 4 scopes, 5 PKCE prefix, 6 user, 7 password, 8 tenant,
+        // 9 host verification, 10 variable
+        Matcher minimal = pattern.matcher(head + " for user 'u', password 'p' and tenant 't' and save the redirect in 'R'");
+        assertThat(minimal.matches()).isTrue();
+        assertThat(minimal.groupCount()).isEqualTo(method.getParameterCount());
+        assertThat(minimal.group(5)).isNull();
+        assertThat(minimal.group(9)).isNull();
+        assertThat(minimal.group(10)).isEqualTo("R");
+
+        Matcher full = pattern.matcher(head + " using PKCE values with prefix 'P' for user 'u', password 'p' and tenant 't'"
+                + " without host name verification and save the redirect in 'R'");
+        assertThat(full.matches()).isTrue();
+        assertThat(full.group(5)).isEqualTo("P");
+        assertThat(full.group(6)).isEqualTo("u");
+        assertThat(full.group(7)).isEqualTo("p");
+        assertThat(full.group(8)).isEqualTo("t");
+        assertThat(full.group(9)).isNotNull();
+        assertThat(full.group(10)).isEqualTo("R");
+    }
+
+    @Test
     public void stepNeedsSomewhereToSaveTheResult() {
         KeosSpec keosSpec = new KeosSpec(new CommonG());
 
@@ -425,6 +555,18 @@ public class OidcNativeLoginUtilsTest {
                 + "<input type=\"hidden\" name=\"_eventId\" value=\"submit\"/>"
                 + "<input type=\"submit\" name=\"submit\" value=\"Login\"/></form></body></html>";
 
+        /**
+         * As SIS shows it: no action, so it posts to the page it is in, and a submit button without value.
+         */
+        private static final String AUP_FORM = "<html><body><h1>Acceptable Usage Policy View</h1>"
+                + "<form method=\"post\" id=\"form\">"
+                + "<input type=\"hidden\" name=\"execution\" value=\"e1s2\" />"
+                + "<input type=\"hidden\" name=\"_eventId\" value=\"submit\" />"
+                + "<a id=\"aupCancel\" name=\"cancel\" href=\"/sso/login\">Cancel</a>"
+                + "<button name=\"submit\" type=\"submit\" id=\"aupSubmit\">Accept</button>"
+                + "<button id=\"button-loading\" type=\"submit\" disabled>Loading</button>"
+                + "</form></body></html>";
+
         String base;
 
         boolean rejectCode;
@@ -432,6 +574,14 @@ public class OidcNativeLoginUtilsTest {
         boolean forgeState;
 
         boolean forgeNonce;
+
+        boolean showAup;
+
+        boolean aupAccepted;
+
+        boolean showUnknownPage;
+
+        boolean refuseClient;
 
         String exchangedRedirectUri;
 
@@ -462,6 +612,11 @@ public class OidcNativeLoginUtilsTest {
                         return redirect(authorizeParams.get("redirect_uri") + "?code=code-of-" + user + "&state=" + state);
                     }
                     authorizeParams = params(query);
+                    if (refuseClient) {
+                        // What SIS answers to a client or a redirect URI it does not know
+                        return html("<html><body><h1>Application Not Authorized to Use Stratio Identity Server</h1>"
+                                + "</body></html>").setResponseCode(401);
+                    }
                     return redirect(base + "/sso/login?service=" + base + "/sso/oidc/oidcAuthorize");
                 case "/sso/login":
                     if ("POST".equals(request.getMethod())) {
@@ -476,11 +631,26 @@ public class OidcNativeLoginUtilsTest {
         }
 
         private MockResponse login(Map<String, String> form) {
+            if ("e1s2".equals(form.get("execution"))) {
+                // The Acceptable Usage Policy posts back to the login with the next step of the flow
+                if (!"submit".equals(form.get("_eventId")) || !form.containsKey("submit")) {
+                    return html(AUP_FORM);
+                }
+                aupAccepted = true;
+                return consent();
+            }
             if (!PASSWORD.equals(form.get("password")) || !"e1s1".equals(form.get("execution"))) {
                 return html(LOGIN_FORM);
             }
             user = form.get("username");
             tenant = form.get("customFields[tenant]");
+            if (showUnknownPage) {
+                return html("<html><body><p>Your password expires soon</p></body></html>");
+            }
+            return showAup ? html(AUP_FORM) : consent();
+        }
+
+        private MockResponse consent() {
             return html("<html><body><form class=\"consent\" onsubmit=\"return false\">"
                     + "<a href=\"/sso/login\" id=\"cancel\">Deny</a>"
                     + "<a href=\"" + base + "/sso/oidc/oidcAuthorize?approved=1&amp;approvalKey=k\" id=\"allow\">Allow</a>"

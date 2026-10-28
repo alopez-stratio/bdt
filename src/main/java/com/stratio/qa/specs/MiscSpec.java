@@ -38,6 +38,8 @@ import org.everit.json.schema.ValidationException;
 import org.everit.json.schema.loader.SchemaLoader;
 import org.hjson.JsonArray;
 import org.hjson.JsonValue;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.testng.Assert;
@@ -45,6 +47,8 @@ import org.testng.Assert;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -1019,6 +1023,46 @@ public class MiscSpec extends BaseGSpec {
         } catch (Exception e) {
             throw new AssertionError("Failed to decode JWT: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Saves a copy of a JWT with one claim of its payload set to another value and the original signature kept, so
+     * the token is well formed but its signature no longer matches: what a service that checks it must refuse.
+     *
+     * @param jwtVariableName    the variable containing the JWT
+     * @param claim              the claim to set
+     * @param value              its new value, as a string
+     * @param outputVariableName the variable where the tampered JWT is saved
+     */
+    @Given("^I tamper the JWT in variable '(.+?)' setting claim '(.+?)' to '(.+?)' and save it in '(.+?)'$")
+    public void tamperJwt(String jwtVariableName, String claim, String value, String outputVariableName) {
+        String jwt = ThreadProperty.get(jwtVariableName);
+        assertThat(jwt).as("JWT in variable '%s'", jwtVariableName).isNotEmpty();
+        String[] parts = jwt.split("\\.");
+        assertThat(parts).as("Parts of the JWT in variable '%s'", jwtVariableName).hasSize(3);
+
+        JSONObject payload = new JSONObject(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
+        payload.put(claim, value);
+        String tampered = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
+        ThreadProperty.set(outputVariableName, String.join(".", parts[0], tampered, parts[2]));
+    }
+
+    /**
+     * Saves the value of a query parameter of a URL, decoded. Fails when the URL does not carry it.
+     *
+     * @param parameter the query parameter
+     * @param url       the URL
+     * @param variable  the variable where its value is saved
+     */
+    @Given("^I extract query parameter '(.+?)' from URL '(.+?)' and save it in '(.+?)'$")
+    public void extractQueryParameter(String parameter, String url, String variable) {
+        Optional<String> value = URLEncodedUtils.parse(URI.create(url), StandardCharsets.UTF_8).stream()
+                .filter(pair -> pair.getName().equals(parameter))
+                .map(NameValuePair::getValue)
+                .findFirst();
+        assertThat(value).as("Query parameter '%s' of the URL", parameter).isPresent();
+        ThreadProperty.set(variable, value.get());
     }
 
     @Then("^Excel file in path '(.+?)' contains value '(.+?)'( in sheet '(.+?)')?( with column number '(.+?)')?( with column name '(.+?)')?( with row number '(.+?)')?( with row name '(.+?)')?$")

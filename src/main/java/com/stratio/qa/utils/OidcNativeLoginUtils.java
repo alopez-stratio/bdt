@@ -58,7 +58,7 @@ import java.util.Objects;
  * Gets OIDC tokens from SIS, without a browser, the way a native client (JDBC/ODBC driver) does:
  * authorization code with PKCE S256 and a loopback redirect URI.
  *
- * <p>The login and the consent pages are driven over HTTP (same approach as {@link GosecSSOUtils}).
+ * <p>The login, the Acceptable Usage Policy and the consent pages are driven over HTTP (same approach as {@link GosecSSOUtils}).
  * Nobody listens on the loopback port: the {@code Location} header of the last redirect is read, not followed.
  * Public clients such as {@code virtualizer-dbc} have no password or client credentials grant, so this is the
  * only way to get a token for a user without a person in front of a browser.
@@ -72,9 +72,15 @@ public class OidcNativeLoginUtils {
      */
     public static final String DEFAULT_REDIRECT_URI = "http://127.0.0.1:8765/callback";
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private static final int MAX_REDIRECTS = 20;
 
-    private static final int MAX_CONSENT_PAGES = 3;
+    /**
+     * Pages between the login and the redirect: the Acceptable Usage Policy, shown on a user's first login, and the
+     * consent.
+     */
+    private static final int MAX_INTERSTITIAL_PAGES = 3;
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getCanonicalName());
 
@@ -88,7 +94,6 @@ public class OidcNativeLoginUtils {
 
     private final boolean verifyHost;
 
-    private final SecureRandom random = new SecureRandom();
 
     /**
      * @param wellKnownUrl discovery URL of SIS
@@ -188,7 +193,8 @@ public class OidcNativeLoginUtils {
     }
 
     /**
-     * Does what the user would do in the browser with an authorization request: log in and accept the consent.
+     * Does what the user would do in the browser with an authorization request: log in and accept the Acceptable
+     * Usage Policy, when shown, and the consent.
      * The code is not exchanged, that is up to whoever built the request (its PKCE verifier is not known here).
      *
      * @param authorizationRequest authorization endpoint URL with its query, as built by the client
@@ -205,7 +211,8 @@ public class OidcNativeLoginUtils {
     }
 
     /**
-     * Drives the login and the consent pages of an authorization request up to the redirect URI.
+     * Drives the login, the Acceptable Usage Policy and the consent pages of an authorization request up to the
+     * redirect URI.
      */
     private URI authorize(CloseableHttpClient client, HttpClientContext context, URI authorizationRequest, String userName,
                           String password, String tenant) throws IOException {
@@ -213,8 +220,8 @@ public class OidcNativeLoginUtils {
         if (page.callback == null) {
             page = postLogin(client, context, page, userName, password, tenant);
         }
-        for (int i = 0; page.callback == null && i < MAX_CONSENT_PAGES; i++) {
-            page = allow(client, context, page);
+        for (int i = 0; page.callback == null && i < MAX_INTERSTITIAL_PAGES; i++) {
+            page = accept(client, context, page);
         }
         if (page.callback == null) {
             throw new IOException("The OIDC flow did not reach the redirect URI. Last page: " + page.url);
@@ -254,7 +261,28 @@ public class OidcNativeLoginUtils {
         return new JSONObject(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
     }
 
-    static String challenge(String verifier) {
+    /**
+     * Values of an authorization request with PKCE: a verifier and its S256 challenge, a state and a nonce.
+     *
+     * @return verifier, challenge, state and nonce, by those names
+     */
+    public static Map<String, String> pkceValues() {
+        String verifier = randomUrlSafe(32);
+        Map<String, String> values = new HashMap<>();
+        values.put("verifier", verifier);
+        values.put("challenge", challenge(verifier));
+        values.put("state", randomUrlSafe(16));
+        values.put("nonce", randomUrlSafe(16));
+        return values;
+    }
+
+    /**
+     * S256 challenge of a PKCE verifier (RFC 7636).
+     *
+     * @param verifier PKCE verifier
+     * @return its challenge
+     */
+    public static String challenge(String verifier) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
@@ -263,9 +291,9 @@ public class OidcNativeLoginUtils {
         }
     }
 
-    private String randomUrlSafe(int bytes) {
+    private static String randomUrlSafe(int bytes) {
         byte[] buffer = new byte[bytes];
-        random.nextBytes(buffer);
+        RANDOM.nextBytes(buffer);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer);
     }
 
@@ -298,18 +326,36 @@ public class OidcNativeLoginUtils {
         post.setEntity(new UrlEncodedFormEntity(params, StandardCharsets.UTF_8));
         Page result = send(client, context, post);
         if (result.callback == null && result.document().select("form:has(input[name=password])").first() != null) {
-            throw new IOException("Login rejected for user '" + userName + "'"
+            throw new LoginRejectedException("Login rejected for user '" + userName + "'"
                     + (tenant == null ? "" : " and tenant '" + tenant + "'"));
         }
         return result;
     }
 
-    private Page allow(CloseableHttpClient client, HttpClientContext context, Page consentPage) throws IOException {
-        Element allow = consentPage.document().selectFirst("a#allow[href]");
-        if (allow == null) {
-            throw new IOException("No 'allow' link in the consent page at " + consentPage.url);
+    /**
+     * Accepts the page shown between the login and the redirect: the Acceptable Usage Policy, a form that SIS shows
+     * on a user's first login until it is accepted, or the consent, whose "Allow" is a link.
+     */
+    private Page accept(CloseableHttpClient client, HttpClientContext context, Page page) throws IOException {
+        Document document = page.document();
+        Element aupSubmit = document.selectFirst("form button#aupSubmit");
+        if (aupSubmit != null) {
+            Element form = aupSubmit.closest("form");
+            List<NameValuePair> params = new ArrayList<>();
+            for (Element input : form.select("input[type=hidden][name]")) {
+                params.add(pair(input.attr("name"), input.attr("value")));
+            }
+            params.add(pair(aupSubmit.attr("name"), aupSubmit.attr("value")));
+            // A form without action posts to the page it is in
+            HttpPost post = new HttpPost(form.hasAttr("action") ? page.url.resolve(form.attr("action")) : page.url);
+            post.setEntity(new UrlEncodedFormEntity(params, StandardCharsets.UTF_8));
+            return send(client, context, post);
         }
-        return get(client, context, consentPage.url.resolve(allow.attr("href")));
+        Element allow = document.selectFirst("a#allow[href]");
+        if (allow == null) {
+            throw new IOException("Neither an Acceptable Usage Policy form nor an 'allow' link in the page at " + page.url);
+        }
+        return get(client, context, page.url.resolve(allow.attr("href")));
     }
 
     private CloseableHttpClient buildClient() throws IOException {
@@ -395,6 +441,16 @@ public class OidcNativeLoginUtils {
 
     private static String form(List<NameValuePair> params) {
         return URLEncodedUtils.format(params, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The identity server refused the user's credentials: the login form came back.
+     */
+    public static final class LoginRejectedException extends IOException {
+
+        LoginRejectedException(String message) {
+            super(message);
+        }
     }
 
     private static final class Page {

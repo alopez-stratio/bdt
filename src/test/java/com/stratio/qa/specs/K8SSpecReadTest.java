@@ -52,6 +52,8 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
 
     private static final String CRD_NAME = PLURAL + "." + GROUP;
 
+    private static final String ROLLOUT_NAMESPACE = "bdt-rollout";
+
     private K8SSpec spec;
 
     private CommonG commonG;
@@ -81,6 +83,9 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
         mockClient.pods().inNamespace(NAMESPACE).resource(readyPod("pod-a", labels)).create();
         mockClient.services().inNamespace(NAMESPACE).resource(K8sFixtures.service("svc-a", NAMESPACE, labels)).create();
         mockClient.apps().deployments().inNamespace(NAMESPACE).resource(readyDeployment(labels)).create();
+        // In a namespace of their own, so the steps that list the deployments of NAMESPACE do not see them
+        mockClient.apps().deployments().inNamespace(ROLLOUT_NAMESPACE).resource(revisionDeployment("deploy-rolled", 3, 0)).create();
+        mockClient.apps().deployments().inNamespace(ROLLOUT_NAMESPACE).resource(revisionDeployment("deploy-rolling", 4, 1)).create();
         mockClient.apps().replicaSets().inNamespace(NAMESPACE).resource(K8sFixtures.replicaSet("rs-a", NAMESPACE, labels)).create();
         mockClient.apps().statefulSets().inNamespace(NAMESPACE).resource(K8sFixtures.statefulSet("sts-a", NAMESPACE, labels)).create();
         mockClient.configMaps().inNamespace(NAMESPACE)
@@ -129,6 +134,19 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
         deployment.getMetadata().setLabels(new HashMap<>(labels));
         return new io.fabric8.kubernetes.api.model.apps.DeploymentBuilder(deployment)
                 .withNewStatus().withReadyReplicas(1).withReplicas(1).endStatus()
+                .build();
+    }
+
+    /**
+     * A deployment at a given revision whose single replica runs the latest template, with a pod of the previous one
+     * still terminating when {@code terminating} is not 0.
+     */
+    private io.fabric8.kubernetes.api.model.apps.Deployment revisionDeployment(String name, int revision, int terminating) {
+        return new io.fabric8.kubernetes.api.model.apps.DeploymentBuilder(
+                K8sFixtures.deployment(name, ROLLOUT_NAMESPACE, "stratio/app:1.2.3", "LOG_LEVEL", "DEBUG"))
+                .editMetadata().addToAnnotations("deployment.kubernetes.io/revision", String.valueOf(revision)).endMetadata()
+                .withNewStatus().withObservedGeneration(1L).withReplicas(1).withUpdatedReplicas(1).withReadyReplicas(1).withAvailableReplicas(1)
+                .withTerminatingReplicas(terminating).endStatus()
                 .build();
     }
 
@@ -439,6 +457,47 @@ public class K8SSpecReadTest extends K8sMockServerTestBase {
     public void assertDeploymentStatusFailsWhenReplicasDoNotMatch() {
         assertThatThrownBy(() -> spec.assertDeploymentStatus(0, 1, "deploy-a", NAMESPACE, 3))
                 .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    public void saveDeploymentRevisionSavesTheRevisionAnnotation() {
+        spec.saveDeploymentRevision("deploy-rolled", ROLLOUT_NAMESPACE, "DEPLOY_REVISION");
+        assertThat(ThreadProperty.get("DEPLOY_REVISION")).isEqualTo("3");
+    }
+
+    @Test
+    public void saveDeploymentRevisionSavesZeroForADeploymentWithNoRevision() {
+        spec.saveDeploymentRevision("deploy-a", NAMESPACE, "DEPLOY_REVISION");
+        assertThat(ThreadProperty.get("DEPLOY_REVISION")).isEqualTo("0");
+    }
+
+    @Test
+    public void assertDeploymentRolledOutPassesWhenEveryReplicaRunsTheLatestTemplate() throws Exception {
+        spec.assertDeploymentRolledOut(1, 1, "deploy-rolled", ROLLOUT_NAMESPACE, null);
+        spec.assertDeploymentRolledOut(1, 1, "deploy-rolled", ROLLOUT_NAMESPACE, "2");
+    }
+
+    @Test
+    public void assertDeploymentRolledOutWaitsForARevisionNewerThanTheSavedOne() {
+        // The change has not reached the deployment yet: it looks rolled out, but on the revision saved before it
+        assertThatThrownBy(() -> spec.assertDeploymentRolledOut(0, 1, "deploy-rolled", ROLLOUT_NAMESPACE, "3"))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("has not rolled out after 0 seconds: revision 3, not newer than 3");
+    }
+
+    @Test
+    public void assertDeploymentRolledOutWaitsForThePodsOfThePreviousTemplateToBeGone() {
+        // Every replica is ready on the new revision, but a pod of the old one still receives requests
+        assertThatThrownBy(() -> spec.assertDeploymentRolledOut(0, 1, "deploy-rolling", ROLLOUT_NAMESPACE, "3"))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("1 desired, 1 updated, 1 in total, 1 available, 1 terminating");
+    }
+
+    @Test
+    public void assertDeploymentRolledOutFailsForAMissingDeployment() {
+        assertThatThrownBy(() -> spec.assertDeploymentRolledOut(0, 1, "deploy-missing", ROLLOUT_NAMESPACE, null))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("the deployment does not exist");
     }
 
     @Test
