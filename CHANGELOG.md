@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 2.0.0 (upcoming)
 
+* Bump crossdata-drivers to 4.2.0-8464d32, the driver of Virtualizer 1.2 (15.2), which brings OAuth2 (token passthrough and U2M) to the Crossdata JDBC steps without overriding the driver version
 * Add steps to wait for a deployment to roll out (every replica on the latest template and available, no pod of an older one left, not even terminating), optionally a revision newer than one saved before the change, since an update through Command Center reaches the deployment some seconds later. Waiting for its replicas to be ready passed on the pods of the previous template, which kept receiving requests (502) until they were gone
 * The REST steps send OPTIONS requests, so a CORS preflight can be tested; they used to fail with "Operation not implemented: OPTIONS"
 * Add steps to test how SIS handles an OIDC authorization code request step by step: generate the PKCE values, authorize up to the redirect back to the client without exchanging the code (saving NO_REDIRECT when SIS refuses to redirect; a rejected login fails the step), extract a query parameter of a URL and tamper a claim of a JWT keeping its signature
