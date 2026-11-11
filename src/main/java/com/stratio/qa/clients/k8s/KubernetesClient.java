@@ -53,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.net.HttpURLConnection;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -77,6 +78,12 @@ public class KubernetesClient {
     private static CountDownLatch execLatch = new CountDownLatch(1);
 
     private static final Logger logger = LoggerFactory.getLogger(KubernetesClient.class);
+
+    /** Attempts to update a custom resource when the API server keeps answering 409 Conflict. */
+    static final int CRD_PATCH_MAX_ATTEMPTS = 5;
+
+    /** Pause before reading the custom resource again after a 409 Conflict. Tests shorten it. */
+    long crdPatchRetryDelayMs = 2000;
 
     private KubernetesClient() {
 
@@ -2396,51 +2403,86 @@ public class KubernetesClient {
      * @return 0 if success and 1 if fails
      **/
     public int patchCRD(String crdType, String crdName, String namespace, String path, String value, String type, String envVar) throws Exception {
-        int response = 1;
-
         String[] pathSplitted = path.split("/");
         List<String> pathList = new ArrayList<>(Arrays.asList(pathSplitted));
         pathList.remove(0);
 
+        CustomResourceDefinitionContext crdContext = crdContext(crdType);
+        if (pathList.get(0).equals("metadata") && pathList.size() == 3) {
+            GenericKubernetesResource resource = k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).withName(crdName).get();
+            if (resource != null) {
+                // It doesn't supports labels or annotations that contains "/"
+                patchMetadata(resource, pathList.get(1), pathList.get(2), value);
+            }
+            return 1;
+        }
+        return updateCustomResource(crdContext, crdName, namespace, envVar, resource -> {
+            Object obj = resource.getAdditionalProperties().get(pathList.get(0));
+            obj = iterateMap(obj, pathList);
+            if (obj instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) obj;
+                patchMap(map, pathList.get(pathList.size() - 1), value, type, true);
+            } else if (obj instanceof List) {
+                List<Object> list = (List<Object>) obj;
+                patchList(list, pathList.get(pathList.size() - 1), value, type, true);
+            } else {
+                throw new Exception("Final element is not a map, so we can't patch this value");
+            }
+        });
+    }
+
+    /**
+     * Changes applied to a custom resource before it is written back.
+     */
+    @FunctionalInterface
+    private interface CustomResourceModification {
+        void apply(GenericKubernetesResource resource) throws Exception;
+    }
+
+    private CustomResourceDefinitionContext crdContext(String crdType) throws Exception {
         CustomResourceDefinition crd = k8sClient.apiextensions().v1().customResourceDefinitions().withName(crdType).get();
         if (crd == null) {
             throw new Exception("CRD definition " + crdType + " not found. Check with kubectl get crd if it exists");
         }
-        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
-        List<GenericKubernetesResource> kubernetesResourceList = k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).list().getItems();
+        return CustomResourceDefinitionContext.fromCrd(crd);
+    }
 
-        for (GenericKubernetesResource genericKubernetesResource : kubernetesResourceList) {
-            if (genericKubernetesResource.getMetadata().getName().equals(crdName)) {
-                if (pathList.get(0).equals("metadata") && pathList.size() == 3) {
-                    // It doesn't supports labels or annotations that contains "/"
-                    patchMetadata(genericKubernetesResource, pathList.get(1), pathList.get(2), value);
-                } else {
-                    Object obj = genericKubernetesResource.getAdditionalProperties().get(pathList.get(0));
-                    obj = iterateMap(obj, pathList);
-                    if (obj instanceof Map) {
-                        Map<String, Object> map = (Map<String, Object>) obj;
-                        patchMap(map, pathList.get(pathList.size() - 1), value, type, true);
-                    } else if (obj instanceof List) {
-                        List<Object> list = (List<Object>) obj;
-                        patchList(list, pathList.get(pathList.size() - 1), value, type, true);
-                    } else {
-                        throw new Exception("Final element is not a map, so we can't patch this value");
-                    }
-                    try {
-                        k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).update();
-                        response = 0;
-                        getLogger().debug("Patched");
-                    } catch (KubernetesClientException e) {
-                        logger.warn("Error in CRD patch", e);
-                        response = 1;
-                        if (envVar != null) {
-                            ThreadProperty.set(envVar, e.getMessage());
-                        }
-                    }
+    /**
+     * Reads the custom resource, applies the modification and writes it back with an update, which the API
+     * server only accepts when the resourceVersion is still the one that was read. An operator reconciling
+     * the resource can write to it in between, so on a 409 Conflict the resource is read again and the
+     * modification reapplied, up to {@link #CRD_PATCH_MAX_ATTEMPTS} times.
+     *
+     * @return 0 when the resource was updated, 1 when it does not exist or the update failed
+     */
+    private int updateCustomResource(CustomResourceDefinitionContext crdContext, String crdName, String namespace, String envVar,
+                                     CustomResourceModification modification) throws Exception {
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            GenericKubernetesResource resource = k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).withName(crdName).get();
+            if (resource == null) {
+                return 1;
+            }
+            modification.apply(resource);
+            try {
+                k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(resource).update();
+                getLogger().debug("Patched");
+                return 0;
+            } catch (KubernetesClientException e) {
+                if (e.getCode() == HttpURLConnection.HTTP_CONFLICT && attempt < CRD_PATCH_MAX_ATTEMPTS) {
+                    logger.warn("Conflict updating {} {} in namespace {} (attempt {}/{}), retrying on the latest version",
+                            crdContext.getName(), crdName, namespace, attempt, CRD_PATCH_MAX_ATTEMPTS);
+                    Thread.sleep(crdPatchRetryDelayMs);
+                    continue;
                 }
+                logger.warn("Error in CRD patch", e);
+                if (envVar != null) {
+                    ThreadProperty.set(envVar, e.getMessage());
+                }
+                return 1;
             }
         }
-        return response;
     }
 
     private Object iterateMap(Object objMap, List<String> pathList) {
@@ -2527,63 +2569,42 @@ public class KubernetesClient {
      * @return 0 if success and 1 if fails
      **/
     public int patchCRDMultipleFields(String crdType, String crdName, String namespace, DataTable modifications, String envVar) throws Exception {
-        int response = 1;
-        CustomResourceDefinition crd = k8sClient.apiextensions().v1().customResourceDefinitions().withName(crdType).get();
-        if (crd == null) {
-            throw new Exception("CRD definition " + crdType + " not found. Check with kubectl get crd if it exists");
-        }
-        CustomResourceDefinitionContext crdContext = CustomResourceDefinitionContext.fromCrd(crd);
-        List<GenericKubernetesResource> kubernetesResourceList = k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).list().getItems();
-
-        for (GenericKubernetesResource genericKubernetesResource : kubernetesResourceList) {
-            if (genericKubernetesResource.getMetadata().getName().equals(crdName)) {
-                for (int i = 0; i < modifications.cells().size(); i++) {
-                    String path = modifications.cells().get(i).get(0);
-                    String operation = modifications.cells().get(i).get(1);
-                    boolean op;
-                    if (operation.equals("ADD") || operation.equals("UPDATE")) {
-                        op = true;
-                    } else if (operation.equals("DELETE")) {
-                        op = false;
-                    } else {
-                        throw new Exception("Operation " + operation + " not supported");
-                    }
-                    String value = modifications.cells().get(i).get(2);
-                    String type = modifications.cells().get(i).get(3);
-                    String[] pathSplitted = path.split("/");
-                    List<String> pathList = new ArrayList<>(Arrays.asList(pathSplitted));
-                    pathList.remove(0);
-                    if (pathList.get(0).equals("metadata") && pathList.size() == 3) {
-                        // It doesn't supports labels or annotations that contains "/"
-                        patchMetadata(genericKubernetesResource, pathList.get(1), pathList.get(2), value);
-                    } else {
-                        Object obj = genericKubernetesResource.getAdditionalProperties().get(pathList.get(0));
-                        obj = iterateMap(obj, pathList);
-                        if (obj instanceof Map) {
-                            Map<String, Object> map = (Map<String, Object>) obj;
-                            patchMap(map, pathList.get(pathList.size() - 1), value, type, op);
-                        } else if (obj instanceof List) {
-                            List<Object> list = (List<Object>) obj;
-                            patchList(list, pathList.get(pathList.size() - 1), value, type, op);
-                        } else {
-                            throw new Exception("Final element is not a map, so we can't patch this value");
-                        }
-                    }
+        CustomResourceDefinitionContext crdContext = crdContext(crdType);
+        return updateCustomResource(crdContext, crdName, namespace, envVar, resource -> {
+            for (int i = 0; i < modifications.cells().size(); i++) {
+                String path = modifications.cells().get(i).get(0);
+                String operation = modifications.cells().get(i).get(1);
+                boolean op;
+                if (operation.equals("ADD") || operation.equals("UPDATE")) {
+                    op = true;
+                } else if (operation.equals("DELETE")) {
+                    op = false;
+                } else {
+                    throw new Exception("Operation " + operation + " not supported");
                 }
-                try {
-                    k8sClient.genericKubernetesResources(crdContext).inNamespace(namespace).resource(genericKubernetesResource).update();
-                    response = 0;
-                    getLogger().debug("Patched");
-                } catch (KubernetesClientException e) {
-                    logger.warn("Error in CRD patch", e);
-                    response = 1;
-                    if (envVar != null) {
-                        ThreadProperty.set(envVar, e.getMessage());
+                String value = modifications.cells().get(i).get(2);
+                String type = modifications.cells().get(i).get(3);
+                String[] pathSplitted = path.split("/");
+                List<String> pathList = new ArrayList<>(Arrays.asList(pathSplitted));
+                pathList.remove(0);
+                if (pathList.get(0).equals("metadata") && pathList.size() == 3) {
+                    // It doesn't supports labels or annotations that contains "/"
+                    patchMetadata(resource, pathList.get(1), pathList.get(2), value);
+                } else {
+                    Object obj = resource.getAdditionalProperties().get(pathList.get(0));
+                    obj = iterateMap(obj, pathList);
+                    if (obj instanceof Map) {
+                        Map<String, Object> map = (Map<String, Object>) obj;
+                        patchMap(map, pathList.get(pathList.size() - 1), value, type, op);
+                    } else if (obj instanceof List) {
+                        List<Object> list = (List<Object>) obj;
+                        patchList(list, pathList.get(pathList.size() - 1), value, type, op);
+                    } else {
+                        throw new Exception("Final element is not a map, so we can't patch this value");
                     }
                 }
             }
-        }
-        return response;
+        });
     }
 
     /**

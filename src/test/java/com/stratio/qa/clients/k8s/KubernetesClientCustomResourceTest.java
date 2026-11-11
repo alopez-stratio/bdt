@@ -340,6 +340,62 @@ public class KubernetesClientCustomResourceTest extends K8sMockServerTestBase {
         assertThat(com.stratio.qa.utils.ThreadProperty.get("CRD_MULTI_ERROR")).isNotNull();
     }
 
+    private static final String CONFLICT = "{\"kind\":\"Status\",\"apiVersion\":\"v1\",\"status\":\"Failure\",\"reason\":\"Conflict\","
+            + "\"code\":409,\"message\":\"the object has been modified; please apply your changes to the latest version and try again\"}";
+
+    private String itemPath(String name) {
+        return "/apis/" + GROUP + "/" + VERSION + "/namespaces/" + NAMESPACE + "/" + PLURAL + "/" + name;
+    }
+
+    /**
+     * An operator reconciling the resource bumps its resourceVersion between the read and the update, and
+     * the API server answers 409. The patch has to read the resource again and reapply the change.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void patchCRDMultipleFieldsRetriesOnTheLatestVersionAfterAConflict() throws Exception {
+        createItem("pg-retry-multi", 3, "3/3", "READY", "ok");
+        server.expect().put().withPath(itemPath("pg-retry-multi")).andReturn(409, CONFLICT).times(2);
+        client.crdPatchRetryDelayMs = 0;
+
+        DataTable modifications = DataTable.create(Arrays.asList(
+                Arrays.asList("/spec/replicas", "UPDATE", "0", "integer"),
+                Arrays.asList("/spec/nodes/0", "DELETE", "", "string")));
+
+        assertThat(client.patchCRDMultipleFields(CRD_NAME, "pg-retry-multi", NAMESPACE, modifications, null))
+                .as("Exit status of a patch whose first two updates hit a conflict").isZero();
+        Map<String, Object> spec = specOf("pg-retry-multi");
+        assertThat(spec).as("spec after the retried patch").containsEntry("replicas", 0);
+        // The DELETE is reapplied on a fresh copy each attempt, so only one node is removed
+        assertThat((List<Object>) spec.get("nodes")).as("nodes after the retried patch").containsExactly("node-b");
+    }
+
+    @Test
+    public void patchCRDRetriesOnTheLatestVersionAfterAConflict() throws Exception {
+        createItem("pg-retry", 3, "3/3", "READY", "ok");
+        server.expect().put().withPath(itemPath("pg-retry")).andReturn(409, CONFLICT).once();
+        client.crdPatchRetryDelayMs = 0;
+
+        assertThat(client.patchCRD(CRD_NAME, "pg-retry", NAMESPACE, "/spec/replicas", "0", "integer", null))
+                .as("Exit status of a patch whose first update hits a conflict").isZero();
+        assertThat(specOf("pg-retry")).as("spec after the retried patch").containsEntry("replicas", 0);
+    }
+
+    @Test
+    public void patchCRDMultipleFieldsGivesUpWhenTheConflictPersists() throws Exception {
+        createItem("pg-retry-exhausted", 3, "3/3", "READY", "ok");
+        server.expect().put().withPath(itemPath("pg-retry-exhausted")).andReturn(409, CONFLICT).always();
+        client.crdPatchRetryDelayMs = 0;
+
+        DataTable modifications = DataTable.create(Collections.singletonList(
+                Arrays.asList("/spec/replicas", "UPDATE", "0", "integer")));
+
+        assertThat(client.patchCRDMultipleFields(CRD_NAME, "pg-retry-exhausted", NAMESPACE, modifications, "CRD_RETRY_ERROR"))
+                .as("Exit status once every attempt hit a conflict").isEqualTo(1);
+        assertThat(com.stratio.qa.utils.ThreadProperty.get("CRD_RETRY_ERROR")).as("saved error message").contains("modified");
+        assertThat(specOf("pg-retry-exhausted")).as("spec after the failed patch").containsEntry("replicas", 3);
+    }
+
     @Test
     public void patchCRDMultipleFieldsRejectsAnUnknownOperation() {
         DataTable modifications = DataTable.create(Collections.singletonList(

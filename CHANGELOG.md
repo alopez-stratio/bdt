@@ -4,6 +4,7 @@ Only listing significant user-visible, not internal code cleanups and minor bug 
 
 ## 2.0.0 (upcoming)
 
+* Retry custom resource patches on a 409 Conflict, reading the latest version again, instead of failing when an operator updates the resource between the read and the write
 * Bump crossdata-drivers to 4.2.0-013dc9d, the driver of Virtualizer 1.2 (15.2), which brings OAuth2 (token passthrough and U2M) to the Crossdata JDBC steps without overriding the driver version, reports an expired OAuth2 token as SQLSTATE 28000 on every path and stops the heartbeats of a session whose token expired without a refresh token with a single WARN
 * Add steps to wait for a deployment to roll out (every replica on the latest template and available, no pod of an older one left, not even terminating), optionally a revision newer than one saved before the change, since an update through Command Center reaches the deployment some seconds later. Waiting for its replicas to be ready passed on the pods of the previous template, which kept receiving requests (502) until they were gone
 * The REST steps send OPTIONS requests, so a CORS preflight can be tested; they used to fail with "Operation not implemented: OPTIONS"
